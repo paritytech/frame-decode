@@ -1,4 +1,7 @@
 use alloc::borrow::Cow;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use alloc::vec;
 use crate::decoding::extrinsic_type_info::ExtrinsicTypeInfo;
 use crate::decoding::extrinsic_type_info::ExtrinsicInfoError;
 use crate::utils::{ decode_with_error_tracing, DecodeErrorTrace };

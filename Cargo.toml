@@ -8,13 +8,41 @@ repository = "https://github.com/paritytech/frame-decode"
 documentation = "https://docs.rs/frame-decode"
 homepage = "https://www.parity.io/"
 
+[features]
+
+default = ["std", "legacy", "error-tracing"]
+
+# Require std environment.
+std = [
+    "frame-metadata/std",
+    "hex/std",
+    "parity-scale-codec/std",
+    "scale-decode/std",
+    "scale-info/std",
+    "scale-info-legacy?/std",
+    "scale-value?/std",
+    "sp-crypto-hashing/std"
+]
+
+# When decoding fails, return a detailed trace of what went wrong.
+# This requires scale-value so can be disabled to avoid the extra dep(s).
+error-tracing = [
+    "dep:scale-value"
+]
+
+# Enable decoding of historic metadata.
+legacy = [
+    "frame-metadata/legacy",
+    "dep:scale-info-legacy"
+]
+
 [dependencies]
-frame-metadata = { version = "16.0.0", features = ["legacy"] }
-hex = "0.4.3"
-parity-scale-codec = "3.6.12"
-scale-decode = "0.13.1"
-scale-info = "2.11.3"
-scale-info-legacy = "0.2.0"
+frame-metadata = { version = "16.0.0", features = ["current"], default-features = false }
+hex = { version = "0.4.3", default-features = false }
+parity-scale-codec = { version = "3.6.12", default-features = false }
+scale-decode = { version = "0.13.1", default-features = false }
+scale-info = { version = "2.11.3", default-features = false }
+scale-info-legacy = { version = "0.2.0", default-features = false, optional = true }
 scale-type-resolver = "0.2.0"
-scale-value = "0.16.2"
-sp-crypto-hashing = "0.1.0"
+scale-value = { version = "0.16.2", default-features = false, optional = true }
+sp-crypto-hashing = { version = "0.1.0", default-features = false }

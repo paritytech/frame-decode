@@ -1,21 +1,10 @@
+use alloc::vec::Vec;
+use alloc::vec;
 use super::storage_type_info::{StorageTypeInfo, StorageHasher};
 use crate::utils::{ decode_with_error_tracing, DecodeErrorTrace };
 use scale_type_resolver::TypeResolver;
 use crate::decoding::storage_type_info::StorageInfoError;
 use core::ops::Range;
-
-// TODO:
-//
-// - decode_storage_key to give ranges+TypeIds like decode_extrinsic.
-//   - Maybe both should add "decode" functions for ease but we'll see
-// - decode_storage_value to just straight up decode the value. Quite
-//   simple but can also check for leftover bytes like with decode extrinsic.
-//   - or both fns take a cursor and consume from it so ext app can check.
-// - Then, higher level lib fns to expose everything needed to make decoding
-//   using metadata as easy as possible
-// - Polkadot type defs will live in this library too and tests can use it +
-//   data from relay chain to check things decode ok.
-// - Integrate into Subxt and decode example.
 
 /// An error returned trying to decode storage bytes.
 #[non_exhaustive]
@@ -27,6 +16,29 @@ pub enum StorageKeyDecodeError<TypeId> {
     CannotDecodeKey { ty: TypeId, reason: DecodeErrorTrace, decoded_so_far: StorageKey<TypeId> },
 }
 
+impl <TypeId> StorageKeyDecodeError<TypeId> {
+    /// Map the storage key error type IDs to something else.
+    pub fn map_type_id<NewTypeId, F>(self, mut f: F) -> StorageKeyDecodeError<NewTypeId> 
+    where
+        F: FnMut(TypeId) -> NewTypeId        
+    {
+        match self {
+            StorageKeyDecodeError::CannotGetInfo(e) => {
+                StorageKeyDecodeError::CannotGetInfo(e)
+            }
+            StorageKeyDecodeError::PrefixMismatch => {
+                StorageKeyDecodeError::PrefixMismatch
+            }
+            StorageKeyDecodeError::NotEnoughBytes { needed, have } => {
+                StorageKeyDecodeError::NotEnoughBytes { needed, have }
+            }
+            StorageKeyDecodeError::CannotDecodeKey { ty, reason, decoded_so_far } => {
+                StorageKeyDecodeError::CannotDecodeKey { ty: f(ty), reason, decoded_so_far: decoded_so_far.map_type_id(f) }
+            }
+        }
+    }
+}
+
 /// An error returned trying to decode storage bytes.
 #[non_exhaustive]
 #[derive(Clone, Debug)]
@@ -35,7 +47,22 @@ pub enum StorageValueDecodeError<TypeId> {
     CannotDecodeValue { ty: TypeId, reason: DecodeErrorTrace },
 }
 
-pub type StorageValue = scale_value::Value<String>;
+impl <TypeId> StorageValueDecodeError<TypeId> {
+    /// Map the storage value error type IDs to something else.
+    pub fn map_type_id<NewTypeId, F>(self, mut f: F) -> StorageValueDecodeError<NewTypeId> 
+    where
+        F: FnMut(TypeId) -> NewTypeId        
+    {
+        match self { 
+            StorageValueDecodeError::CannotGetInfo(e) => {
+                StorageValueDecodeError::CannotGetInfo(e)
+            }
+            StorageValueDecodeError::CannotDecodeValue { ty, reason } => {
+                StorageValueDecodeError::CannotDecodeValue { ty: f(ty), reason }
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct StorageKey<TypeId> {
@@ -264,7 +291,7 @@ pub fn decode_storage_value<'scale, 'resolver, Info, Resolver, V>(
 ) -> Result<V::Value<'scale, 'resolver>, StorageValueDecodeError<Info::TypeId>>
 where
     Info: StorageTypeInfo,
-    Info::TypeId: Clone + core::fmt::Display + core::fmt::Debug + Send + Sync + 'static,
+    Info::TypeId: Clone + core::fmt::Debug,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
     V: scale_decode::Visitor<TypeResolver = Resolver>,
     V::Error: core::fmt::Debug

@@ -1,11 +1,12 @@
-use frame_metadata::decode_different::DecodeDifferent;
 use alloc::format;
+use alloc::string::String;
 
 /// A utility function to unwrap the [`DecodeDifferent`] enum found in earlier metadata versions.
-pub fn as_decoded<A, B>(item: &DecodeDifferent<A, B>) -> &B {
+#[cfg(feature = "legacy")]
+pub fn as_decoded<A, B>(item: &frame_metadata::decode_different::DecodeDifferent<A, B>) -> &B {
     match item {
-        DecodeDifferent::Encode(_a) => panic!("Expecting decoded data"),
-        DecodeDifferent::Decoded(b) => b,
+        frame_metadata::decode_different::DecodeDifferent::Encode(_a) => panic!("Expecting decoded data"),
+        frame_metadata::decode_different::DecodeDifferent::Decoded(b) => b,
     }
 }
 
@@ -26,6 +27,18 @@ where
     let initial = *cursor;
     match scale_decode::visitor::decode_with_visitor(cursor, type_id.clone(), types, visitor) {
         Ok(value) => Ok(value),
+        // Don't use scale-value; return the error as-is.
+        #[cfg(not(feature = "error-tracing"))]
+        Err(e) => {
+            *cursor = initial;
+
+            Err(DecodeErrorTrace {
+                original_error: format!("{e:?}"),
+                tracing_error: String::new()
+            })
+        }
+        // Use scale-value tracing visitor to return a better error
+        #[cfg(feature = "error-tracing")]
         Err(e) => {
             // Reset cursor incase it's been consumed by the above call, and decode using the
             // tracing visitor to hopefully return a better error.
