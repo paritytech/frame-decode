@@ -204,9 +204,9 @@ to_latest_storage_hasher!(to_storage_hasher_v15, frame_metadata::v15::StorageHas
 #[cfg(feature = "legacy")]
 mod legacy {
     use super::*;
+    use scale_info_legacy::LookupName;
     use frame_metadata::decode_different::DecodeDifferent;
     use crate::utils::as_decoded;
-    use alloc::string::String;
 
     macro_rules! impl_storage_type_info_for_v8_to_v12 {
         ($path:path, $name:ident, $to_storage_hasher:ident) => {

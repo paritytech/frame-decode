@@ -40,6 +40,7 @@ pub mod extrinsics {
     where
         Resolver: TypeResolver<TypeId = scale_info_legacy::LookupName>
     {
+        use frame_metadata::RuntimeMetadata;
         match metadata {
             RuntimeMetadata::V8(m) => decode_extrinsic(cursor, m, historic_types)
                 .map(|e| e.map_type_id(AnyTypeId::Legacy))
@@ -139,6 +140,7 @@ pub mod storage {
     where
         Resolver: TypeResolver<TypeId = scale_info_legacy::LookupName>
     { 
+        use frame_metadata::RuntimeMetadata;
         match metadata {
             RuntimeMetadata::V8(m) => decode_storage_key(pallet_name, entry_name, cursor, m, historic_types)
                 .map(|e| e.map_type_id(AnyTypeId::Legacy))
