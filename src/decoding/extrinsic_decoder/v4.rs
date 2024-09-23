@@ -9,6 +9,10 @@ use scale_type_resolver::TypeResolver;
 use parity_scale_codec::Decode;
 use core::ops::Range;
 
+/// An error decoding a version 4 extrinsic.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+#[allow(missing_docs)]
 pub enum ExtrinsicDecodeError {
     CannotGetInfo(ExtrinsicInfoError<'static>),
     CannotDecodeSignature(DecodeErrorTrace),
@@ -22,11 +26,36 @@ pub enum ExtrinsicDecodeError {
     },
 }
 
+impl core::error::Error for ExtrinsicDecodeError {}
+
+impl core::fmt::Display for ExtrinsicDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ExtrinsicDecodeError::CannotGetInfo(extrinsic_info_error) => {
+                write!(f, "Cannot get extrinsic info:\n\n{extrinsic_info_error}")
+            },
+            ExtrinsicDecodeError::CannotDecodeSignature(decode_error_trace) => {
+                write!(f, "Cannot decode signature:\n\n{decode_error_trace}")
+            },
+            ExtrinsicDecodeError::CannotDecodePalletIndex(error) => {
+                write!(f, "Cannot decode pallet index:\n\n{error}")
+            },
+            ExtrinsicDecodeError::CannotDecodeCallIndex(error) => {
+                write!(f, "Cannot decode call index:\n\n{error}")
+            },
+            ExtrinsicDecodeError::CannotDecodeCallData { pallet_name, call_name, argument_name, reason } => {
+                write!(f, "Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}")
+            },
+        }
+    }
+}
+
 /// An owned variant of an Extrinsic (note: this may still contain
 /// references if the visitor used to decode the extrinsic contents holds
 /// onto any)
 pub type ExtrinsicOwned<TypeId> = Extrinsic<'static, TypeId>;
 
+/// Information about a version 4 extrinsic.
 #[derive(Clone, Debug)]
 pub struct Extrinsic<'info, TypeId> {
     byte_len: u32,
@@ -102,6 +131,7 @@ impl <'info, TypeId> Extrinsic<'info, TypeId> {
     }
 }
 
+/// Information about the extrinsic signature.
 #[derive(Clone, Debug)]
 pub struct ExtrinsicSignature<'info, TypeId> {
     // Store byte offsets so people can ask for raw 
@@ -188,7 +218,7 @@ impl <'info, TypeId> ExtrinsicSignature<'info, TypeId> {
 
 /// A single named argument.
 #[derive(Clone, Debug)]
-struct NamedArg<'info, TypeId> {
+pub struct NamedArg<'info, TypeId> {
     name: Cow<'info, str>,
     range: Range<u32>,
     ty: TypeId

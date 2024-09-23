@@ -5,6 +5,7 @@ use alloc::borrow::Cow;
 /// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the
 /// type IDs and related info needed to decode storage entries.
 pub trait StorageTypeInfo {
+    /// The type of type IDs that we are using to obtain type information.
     type TypeId;
     /// Get the information needed to decode a specific storage entry key/value.
     fn get_storage_info(&self, pallet_name: &str, storage_entry: &str) -> Result<StorageInfo<Self::TypeId>, StorageInfoError<'_>>;
@@ -12,6 +13,7 @@ pub trait StorageTypeInfo {
 
 /// An error returned trying to access storage type information.
 #[non_exhaustive]
+#[allow(missing_docs)]
 #[derive(Clone, Debug)]
 pub enum StorageInfoError<'a> {
     PalletNotFound { name: Cow<'a, str> },
@@ -22,7 +24,33 @@ pub enum StorageInfoError<'a> {
     StorageTypeNotFound { entry_name: Cow<'a, str>, pallet_name: Cow<'a, str>, id: u32 },
 }
 
+impl <'a> core::error::Error for StorageInfoError<'a> {}
+
+impl <'a> core::fmt::Display for StorageInfoError<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StorageInfoError::PalletNotFound { name } => {
+                write!(f, "Pallet '{name}' not found.")
+            },
+            StorageInfoError::StorageNotFound { name, pallet_name } => {
+                write!(f, "Storage item '{name}' not found in pallet '{pallet_name}'.")
+            },
+            #[cfg(feature = "legacy")]
+            StorageInfoError::CannotParseTypeName { name, reason } => {
+                write!(f, "Cannot parse type name {name}:\n\n{reason}.")
+            },
+            StorageInfoError::HasherKeyMismatch { entry_name, pallet_name, num_hashers, num_keys } => {
+                write!(f, "Number of hashers and keys does not line up for {pallet_name}.{entry_name}; we have {num_hashers} hashers and {num_keys} keys.")
+            },
+            StorageInfoError::StorageTypeNotFound { entry_name, pallet_name, id } => {
+                write!(f, "Cannot find type ID {id} for {pallet_name}.{entry_name}.")
+            },
+        }
+    }
+}
+
 impl <'a> StorageInfoError<'a> {
+    /// Take ownership of this error, turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfoError<'static> {
         match self {
             StorageInfoError::PalletNotFound { name } => {
@@ -45,6 +73,7 @@ impl <'a> StorageInfoError<'a> {
     }
 }
 
+/// Information about a storage entry.
 #[derive(Debug)]
 pub struct StorageInfo<TypeId> {
     /// No entries if a plain storage entry, or N entries for N maps.
@@ -53,6 +82,7 @@ pub struct StorageInfo<TypeId> {
     pub value_id: TypeId,
 }
 
+/// Information about a single key within a storage entry.
 #[derive(Debug)]
 pub struct StorageKeyInfo<TypeId> {
     /// How is this key hashed?

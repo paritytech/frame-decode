@@ -1,6 +1,7 @@
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use alloc::string::String;
+use core::write;
 
 #[cfg(feature = "legacy")]
 use { 
@@ -11,6 +12,7 @@ use {
 /// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the
 /// type IDs that we need in order to decode extrinsics.
 pub trait ExtrinsicTypeInfo {
+    /// The type of type IDs that we are using to obtain type information.
     type TypeId;
     /// Get the information about a given extrinsic.
     fn get_extrinsic_info<'a>(&'a self, pallet_index: u8, call_index: u8) -> Result<ExtrinsicInfo<'a, Self::TypeId>, ExtrinsicInfoError<'a>>;
@@ -19,7 +21,9 @@ pub trait ExtrinsicTypeInfo {
 }
  
 /// An error returned trying to access extrinsic type information.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
+#[allow(missing_docs)]
 pub enum ExtrinsicInfoError<'a> {
     PalletNotFound { index: u8 },
     CallNotFound { index: u8, pallet_index: u8, pallet_name: Cow<'a, str> },
@@ -32,7 +36,42 @@ pub enum ExtrinsicInfoError<'a> {
     ExtrinsicSignatureTypeNotFound,
 }
 
+impl <'a> core::error::Error for ExtrinsicInfoError<'a> {}
+
+impl <'a> core::fmt::Display for ExtrinsicInfoError<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ExtrinsicInfoError::PalletNotFound { index } => {
+                write!(f, "Pallet with index {index} not found")
+            },
+            ExtrinsicInfoError::CallNotFound { index, pallet_index, pallet_name } => {
+                write!(f, "Call with index {index} not found in pallet '{pallet_name}' (pallet index {pallet_index})")
+            },
+            #[cfg(feature = "legacy")]
+            ExtrinsicInfoError::CannotParseTypeName { name, reason } => {
+                write!(f, "Cannot parse type name '{name}':\n\n{reason}")
+            },
+            ExtrinsicInfoError::CallsTypeNotFound { id, pallet_index, pallet_name } => {
+                write!(f, "Cannot find calls type with id {id} in pallet '{pallet_name}' (pallet index {pallet_index})")
+            },
+            ExtrinsicInfoError::CallsTypeShouldBeVariant { id, pallet_index, pallet_name } => {
+                write!(f, "Calls type with id {id} should be a variant in pallet '{pallet_name}' (pallet index {pallet_index})")
+            },
+            ExtrinsicInfoError::ExtrinsicTypeNotFound { id } => {
+                write!(f, "Could not find the extrinsic type with id {id}")
+            },
+            ExtrinsicInfoError::ExtrinsicAddressTypeNotFound => {
+                write!(f, "Could not find the extrinsic address type")
+            },
+            ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound => {
+                write!(f, "Could not find the extrinsic signature type")
+            },
+        }
+    }
+}
+
 impl <'a> ExtrinsicInfoError<'a> {
+    /// Take ownership of this error.
     pub fn into_owned(self) -> ExtrinsicInfoError<'static> {
         match self {
             ExtrinsicInfoError::PalletNotFound { index } => {
@@ -64,26 +103,36 @@ impl <'a> ExtrinsicInfoError<'a> {
     }
 }
 
-#[derive(Debug)]
+/// An argument with a name and type ID.
+#[derive(Debug, Clone)]
 pub struct ExtrinsicInfoArg<'a, TypeId> {
+    /// Argument name.
     pub name: Cow<'a, str>,
+    /// Argument type ID.
     pub id: TypeId,
 }
 
-#[derive(Debug)]
+/// Extrinsic call data information.
+#[derive(Debug, Clone)]
 pub struct ExtrinsicInfo<'a, TypeId> {
+    /// Name of the pallet.
     pub pallet_name: Cow<'a, str>,
+    /// Name of the call.
     pub call_name: Cow<'a, str>,
+    /// Names and types of each of the extrinsic arguments.
     pub args: Vec<ExtrinsicInfoArg<'a, TypeId>>
 }
 
-#[derive(Debug)]
+/// Extrinsic signature information.
+#[derive(Debug, Clone)]
 pub struct ExtrinsicSignatureInfo<'a, TypeId> {
+    /// Type ID of the address.
     pub address_id: TypeId,
+    /// Type ID of the signature.
     pub signature_id: TypeId,
+    /// Names and type IDs of the signed extensions.
     pub signed_extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>
 }
-
 
 macro_rules! impl_call_arg_ids_body_for_v14_to_v15 {
     ($self:ident, $pallet_index:ident, $call_index:ident) => {{

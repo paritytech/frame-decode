@@ -8,12 +8,34 @@ use core::ops::Range;
 
 /// An error returned trying to decode storage bytes.
 #[non_exhaustive]
+#[allow(missing_docs)]
 #[derive(Clone, Debug)]
 pub enum StorageKeyDecodeError<TypeId> {
     CannotGetInfo(StorageInfoError<'static>),
     PrefixMismatch,
     NotEnoughBytes { needed: usize, have: usize },
     CannotDecodeKey { ty: TypeId, reason: DecodeErrorTrace, decoded_so_far: StorageKey<TypeId> },
+}
+
+impl <TypeId: core::fmt::Debug> core::error::Error for StorageKeyDecodeError<TypeId> {}
+
+impl <TypeId: core::fmt::Debug> core::fmt::Display for StorageKeyDecodeError<TypeId> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StorageKeyDecodeError::CannotGetInfo(storage_info_error) => {
+                write!(f, "Cannot get storage info:\n\n{storage_info_error}")
+            },
+            StorageKeyDecodeError::PrefixMismatch => {
+                write!(f, "The hashed storage prefix given does not match the pallet and storage name asked to decode.")
+            },
+            StorageKeyDecodeError::NotEnoughBytes { needed, have } => {
+                write!(f, "Not enough bytes left: we need at least {needed} bytes but have {have} bytes")
+            },
+            StorageKeyDecodeError::CannotDecodeKey { ty, reason, decoded_so_far } => {
+                write!(f, "Cannot decode storage key '{ty:?}':\n\n{reason}\n\nDecoded so far:\n\n{decoded_so_far}")
+            },
+        }
+    }
 }
 
 impl <TypeId> StorageKeyDecodeError<TypeId> {
@@ -41,10 +63,26 @@ impl <TypeId> StorageKeyDecodeError<TypeId> {
 
 /// An error returned trying to decode storage bytes.
 #[non_exhaustive]
+#[allow(missing_docs)]
 #[derive(Clone, Debug)]
 pub enum StorageValueDecodeError<TypeId> {
     CannotGetInfo(StorageInfoError<'static>),
     CannotDecodeValue { ty: TypeId, reason: DecodeErrorTrace },
+}
+
+impl <TypeId: core::fmt::Debug> core::error::Error for StorageValueDecodeError<TypeId> {}
+
+impl <TypeId: core::fmt::Debug> core::fmt::Display for StorageValueDecodeError<TypeId> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StorageValueDecodeError::CannotGetInfo(storage_info_error) => {
+                write!(f, "Cannot get storage info:\n\n{storage_info_error}")
+            },
+            StorageValueDecodeError::CannotDecodeValue { ty, reason } => {
+                write!(f, "Cannot decode value with type ID {ty:?}:\n\n{reason}")
+            },
+        }
+    }
 }
 
 impl <TypeId> StorageValueDecodeError<TypeId> {
@@ -64,9 +102,39 @@ impl <TypeId> StorageValueDecodeError<TypeId> {
     }
 }
 
+/// Details about a storage key.
 #[derive(Clone, Debug)]
 pub struct StorageKey<TypeId> {
     parts: Vec<StorageKeyPart<TypeId>>
+}
+
+impl <TypeId: core::fmt::Debug> core::fmt::Display for StorageKey<TypeId> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Plain entries have no keys:
+        if self.parts.is_empty() {
+            write!(f, "No storage parts")?;
+            return Ok(())
+        }
+
+        // hash type: blake2,
+        // hash range: 0..13,
+        // value range: 13..23,
+        // value type: AccountId
+        //
+        // ...
+        for key in self.parts.iter() {
+            writeln!(f, "Hash type: {:?}", key.hasher)?;
+            writeln!(f, "Hash range: {}..{}", key.hash_range.start, key.hash_range.end)?;
+            if let Some(v) = &key.value {
+                writeln!(f, "Value type: {:?}", v.ty)?;
+                writeln!(f, "Value range: {}..{}", v.range.start, v.range.end)?;
+            }
+
+            writeln!(f)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl <TypeId> StorageKey<TypeId> {
@@ -98,6 +166,7 @@ pub struct StorageKeyPart<TypeId> {
 }
 
 impl <TypeId> StorageKeyPart<TypeId> {
+    /// The byte range of the hash for this storage key part.
     pub fn hash_range(&self) -> Range<usize> {
         Range { 
             start: self.hash_range.start as usize, 
@@ -105,10 +174,13 @@ impl <TypeId> StorageKeyPart<TypeId> {
         }
     }
 
+    /// The hasher used for this storage key part.
     pub fn hasher(&self) -> StorageHasher {
         self.hasher
     }
 
+    /// If applicable (ie this part uses a concat or ident hasher), return information 
+    /// about the value encoded into this hash.
     pub fn value(&self) -> Option<&StorageKeyPartValue<TypeId>> {
         self.value.as_ref()
     }
@@ -126,6 +198,7 @@ impl <TypeId> StorageKeyPart<TypeId> {
     }
 }
 
+/// Information about the value contained within a storage key part hash.
 #[derive(Clone, Debug)]
 pub struct StorageKeyPartValue<TypeId> {
     range: Range<u32>,
@@ -133,6 +206,7 @@ pub struct StorageKeyPartValue<TypeId> {
 }
 
 impl <TypeId> StorageKeyPartValue<TypeId> {
+    /// The byte range for this value in the storage key.
     pub fn range(&self) -> Range<usize> {
         Range { 
             start: self.range.start as usize, 
@@ -140,6 +214,7 @@ impl <TypeId> StorageKeyPartValue<TypeId> {
         }
     }
 
+    /// The type ID for this value.
     pub fn ty(&self) -> &TypeId {
         &self.ty
     }
@@ -156,6 +231,9 @@ impl <TypeId> StorageKeyPartValue<TypeId> {
     }
 }
 
+/// Decode a storage key given the pallet name, storage entry name, some raw bytes, some
+/// metadata providing information about the storage entry, and a type resolver providing
+/// the necessary type information. 
 pub fn decode_storage_key<Info, Resolver>(
     pallet_name: &str, 
     storage_entry: &str, 
@@ -281,6 +359,9 @@ where
     Ok(StorageKey { parts })
 }
 
+/// Decode a storage value given the pallet name, storage entry name, some raw bytes, some
+/// metadata providing information about the storage entry, a type resolver providing
+/// the necessary type information, and a visitor which determines what the output type should be.
 pub fn decode_storage_value<'scale, 'resolver, Info, Resolver, V>(
     pallet_name: &str, 
     storage_entry: &str, 

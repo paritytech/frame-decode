@@ -21,6 +21,7 @@ use parity_scale_codec::{Decode, Compact};
 
 /// A decoded Extrinsic.
 pub enum Extrinsic<'resolver, TypeId> {
+    /// A version 4 extrinsic.
     V4(v4::Extrinsic<'resolver, TypeId>)
 }
 
@@ -38,13 +39,39 @@ impl <'resolver, TypeId> Extrinsic<'resolver, TypeId> {
 
 /// An error returned trying to decode extrinsic bytes.
 #[non_exhaustive]
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
 pub enum ExtrinsicDecodeError {
     CannotDecodeLength,
-    WrongLength { expected_len: usize, actual_len: usize },
+    WrongLength { expected_len: usize, actual_len: usize 
+    },
     NotEnoughBytes,
-    VersionNotSupported { transaction_version: u8 },
-    MetadataNotSupported { metadata_version: u32 },
+    VersionNotSupported { extrinsic_version: u8 },
     V4(v4::ExtrinsicDecodeError)
+}
+
+impl core::error::Error for ExtrinsicDecodeError {}
+
+impl core::fmt::Display for ExtrinsicDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ExtrinsicDecodeError::CannotDecodeLength => {
+                write!(f, "Cannot decode the compact-encoded extrinsic length.")
+            },
+            ExtrinsicDecodeError::WrongLength { expected_len, actual_len } => {
+                write!(f, "The actual number of bytes does not match the compact-encoded extrinsic length; expected {expected_len} bytes but got {actual_len} bytes.")
+            },
+            ExtrinsicDecodeError::NotEnoughBytes => {
+                write!(f, "Not enough bytes to decode a valid extrinsic")
+            },
+            ExtrinsicDecodeError::VersionNotSupported { extrinsic_version } => {
+                write!(f, "This extrinsic version ({extrinsic_version}) is not supported")
+            },
+            ExtrinsicDecodeError::V4(extrinsic_decode_error) => {
+                write!(f, "Cannotdecode version 4 extrinsic:\n\n{extrinsic_decode_error}")
+            },
+        }
+    }
 }
 
 /// Given the bytes representing an extrinsic (including the prefixed compact-encoded
@@ -88,6 +115,6 @@ where
         4 => v4::decode_extrinsic(offset, cursor, info, type_resolver)
             .map(Extrinsic::V4)
             .map_err(ExtrinsicDecodeError::V4),
-        v => Err(ExtrinsicDecodeError::VersionNotSupported { transaction_version: v })
+        v => Err(ExtrinsicDecodeError::VersionNotSupported { extrinsic_version: v })
     }
 }

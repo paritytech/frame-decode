@@ -1,5 +1,5 @@
 //! Decode extrinsics and storage values from substrate based networks like Polkadot.
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
@@ -7,14 +7,16 @@ extern crate alloc;
 mod utils;
 mod decoding;
 
-pub use scale_decode::visitor::decode_with_visitor;
-
 /// This module contains functions for decoding extrinsics.
 pub mod extrinsics {
     use scale_type_resolver::TypeResolver;
-    #[cfg(feature = "legacy")]
-    use super::{AnyError, AnyTypeId};
     use crate::utils::InfoAndResolver;
+
+    #[cfg(feature = "legacy")]
+    use super::helpers::{
+        AnyError, 
+        AnyTypeId
+    };
     
     pub use crate::decoding::extrinsic_type_info::{
         ExtrinsicTypeInfo,
@@ -28,6 +30,17 @@ pub mod extrinsics {
         ExtrinsicDecodeError,
         decode_extrinsic,
     };
+
+    /// Types specific to version 4 extrinsics.
+    pub mod v4 {
+        pub use crate::decoding::extrinsic_decoder::v4::{
+            Extrinsic,
+            ExtrinsicDecodeError,
+            ExtrinsicOwned,
+            ExtrinsicSignature,
+            NamedArg
+        };
+    }
 
     /// Decode an extrinsic by breaking it down into its constituent parts. Each part is denoted by
     /// a byte range and type ID, which can then be decoded into a value.
@@ -105,9 +118,13 @@ pub mod extrinsics {
 pub mod storage {
     use scale_decode::Visitor;
     use scale_type_resolver::TypeResolver;
-    #[cfg(feature = "legacy")]
-    use super::{AnyError,AnyTypeId};
     use crate::utils::InfoAndResolver;
+
+    #[cfg(feature = "legacy")]
+    use super::helpers::{
+        AnyError,
+        AnyTypeId,
+    };
 
     pub use crate::decoding::storage_type_info::{
         StorageTypeInfo,
@@ -116,6 +133,7 @@ pub mod storage {
         StorageHasher,
         StorageKeyInfo,
     };
+
     pub use crate::decoding::storage_decoder::{
         StorageKey,
         StorageKeyPart,
@@ -247,21 +265,40 @@ pub mod storage {
     }
 }
 
-/// This is the type ID given back from calls like [`crate::extrinsics::decode_extrinsic_any`] and
-/// [`crate::storage::decode_storage_key_any`], and represents either a modern or historic type ID,
-/// depending on the age of the block that we are decoding from.
-#[derive(Debug, Clone)]
-pub enum AnyTypeId {
-    Current(u32),
+/// Helper functions and types to assist with decoding.
+pub mod helpers {
+    /// This is the type ID given back from calls like [`crate::extrinsics::decode_extrinsic_any`] and
+    /// [`crate::storage::decode_storage_key_any`], and represents either a modern or historic type ID,
+    /// depending on the age of the block that we are decoding from.
     #[cfg(feature = "legacy")]
-    Legacy(scale_info_legacy::LookupName),
-}
+    #[derive(Debug, Clone)]
+    pub enum AnyTypeId {
+        /// A type ID for V14+ metadata.
+        Current(u32),
+        /// A type ID for <V14 metadata.
+        Legacy(scale_info_legacy::LookupName),
+    }
 
-/// This is the error type given back from calls like [`crate::extrinsics::decode_extrinsic_any`] and
-/// [`crate::storage::decode_storage_key_any`]. In the case that we pass a metadata version that the calls
-/// don't currently support, this will return [`AnyError::MetadataNotSupported`].
-#[derive(Debug, Clone)]
-pub enum AnyError<Err> {
-    MetadataNotSupported { metadata_version: u32 },
-    DecodeError(Err)
+    /// This is the error type given back from calls like [`crate::extrinsics::decode_extrinsic_any`] and
+    /// [`crate::storage::decode_storage_key_any`]. In the case that we pass a metadata version that the calls
+    /// don't currently support, this will return [`AnyError::MetadataNotSupported`].
+    #[cfg(feature = "legacy")]
+    #[derive(Debug, Clone)]
+    pub enum AnyError<Err> {
+        /// Metadata version not currently supported
+        MetadataNotSupported { 
+            /// The metadata version tried.
+            metadata_version: u32 
+        },
+        /// Some error encountered during decoding.
+        DecodeError(Err)
+    }
+
+    pub use crate::utils::type_registry_from_metadata;
+
+    /// An alias to [`scale_decode::visitor::decode_with_visitor`]. This can be used to decode the byte ranges
+    /// given back from functions like [`crate::extrinsics::decode_extrinsic_current`] or 
+    /// [`crate::storage::decode_storage_key_current`].
+    /// 
+    pub use scale_decode::visitor::decode_with_visitor;
 }
