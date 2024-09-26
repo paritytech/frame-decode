@@ -44,6 +44,7 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
     }
 
     /// The length of the extrinsic payload, excluding the prefixed compact-encoded length bytes.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.byte_len as usize
     }
@@ -368,10 +369,10 @@ impl<'info, TypeId> NamedArg<'info, TypeId> {
 ///
 /// The [`Extrinsic`] type is then shows you where different types are in the original bytes,
 /// allowing them to be decoded easily using whatever means you prefer.
-pub fn decode_extrinsic<'scale, 'info, 'resolver, Info, Resolver>(
-    cursor: &mut &'scale [u8],
+pub fn decode_extrinsic<'info, Info, Resolver>(
+    cursor: &mut &[u8],
     info: &'info Info,
-    type_resolver: &'resolver Resolver,
+    type_resolver: &Resolver,
 ) -> Result<Extrinsic<'info, Info::TypeId>, ExtrinsicDecodeError>
 where
     Info: ExtrinsicTypeInfo,
@@ -393,7 +394,7 @@ where
         });
     }
 
-    if cursor.len() < 1 {
+    if cursor.is_empty() {
         return Err(ExtrinsicDecodeError::NotEnoughBytes);
     }
 
@@ -410,11 +411,11 @@ where
     }
 }
 
-fn decode_extrinsic_v4<'scale, 'info, 'resolver, Info, Resolver>(
+fn decode_extrinsic_v4<'info, Info, Resolver>(
     offset: usize,
-    cursor: &mut &'scale [u8],
+    cursor: &mut &[u8],
     info: &'info Info,
-    type_resolver: &'resolver Resolver,
+    type_resolver: &Resolver,
 ) -> Result<Extrinsic<'info, Info::TypeId>, ExtrinsicDecodeError>
 where
     Info: ExtrinsicTypeInfo,
@@ -440,7 +441,7 @@ where
                 type_resolver,
                 scale_decode::visitor::IgnoreVisitor::new(),
             )
-            .map_err(|e| ExtrinsicDecodeError::CannotDecodeSignature(e.into()))?;
+            .map_err(ExtrinsicDecodeError::CannotDecodeSignature)?;
             let address_end_idx = curr_idx(cursor);
 
             decode_with_error_tracing(
@@ -449,7 +450,7 @@ where
                 type_resolver,
                 scale_decode::visitor::IgnoreVisitor::new(),
             )
-            .map_err(|e| ExtrinsicDecodeError::CannotDecodeSignature(e.into()))?;
+            .map_err(ExtrinsicDecodeError::CannotDecodeSignature)?;
             let signature_end_idx = curr_idx(cursor);
 
             let mut signed_extensions = vec![];
@@ -461,7 +462,7 @@ where
                     type_resolver,
                     scale_decode::visitor::IgnoreVisitor::new(),
                 )
-                .map_err(|e| ExtrinsicDecodeError::CannotDecodeSignature(e.into()))?;
+                .map_err(ExtrinsicDecodeError::CannotDecodeSignature)?;
                 let end_idx = curr_idx(cursor);
 
                 signed_extensions.push(NamedArg {
@@ -486,10 +487,10 @@ where
         .transpose()?;
 
     // Call data part
-    let pallet_index: u8 = Decode::decode(cursor)
-        .map_err(|e| ExtrinsicDecodeError::CannotDecodePalletIndex(e.into()))?;
-    let call_index: u8 = Decode::decode(cursor)
-        .map_err(|e| ExtrinsicDecodeError::CannotDecodeCallIndex(e.into()))?;
+    let pallet_index: u8 =
+        Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodePalletIndex)?;
+    let call_index: u8 =
+        Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeCallIndex)?;
     let extrinsic_info = info
         .get_extrinsic_info(pallet_index, call_index)
         .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
@@ -507,7 +508,7 @@ where
             pallet_name: extrinsic_info.pallet_name.to_string(),
             call_name: extrinsic_info.call_name.to_string(),
             argument_name: arg.name.to_string(),
-            reason: e.into(),
+            reason: e,
         })?;
         let end_idx = curr_idx(cursor);
 

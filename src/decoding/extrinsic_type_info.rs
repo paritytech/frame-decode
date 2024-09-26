@@ -12,15 +12,15 @@ pub trait ExtrinsicTypeInfo {
     /// The type of type IDs that we are using to obtain type information.
     type TypeId;
     /// Get the information about a given extrinsic.
-    fn get_extrinsic_info<'a>(
-        &'a self,
+    fn get_extrinsic_info(
+        &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicInfo<'a, Self::TypeId>, ExtrinsicInfoError<'a>>;
+    ) -> Result<ExtrinsicInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
     /// Get the information needed to decode the extrinsic signature bytes.
-    fn get_signature_info<'a>(
-        &'a self,
-    ) -> Result<ExtrinsicSignatureInfo<'a, Self::TypeId>, ExtrinsicInfoError<'a>>;
+    fn get_signature_info(
+        &self,
+    ) -> Result<ExtrinsicSignatureInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
 }
 
 /// An error returned trying to access extrinsic type information.
@@ -337,7 +337,7 @@ fn get_v14_extrinsic_parts(
     let extrinsic_ty = metadata
         .types
         .resolve(extrinsic_id)
-        .ok_or_else(|| ExtrinsicInfoError::ExtrinsicTypeNotFound { id: extrinsic_id })?;
+        .ok_or(ExtrinsicInfoError::ExtrinsicTypeNotFound { id: extrinsic_id })?;
 
     let address_ty = extrinsic_ty
         .type_params
@@ -349,7 +349,7 @@ fn get_v14_extrinsic_parts(
                 None
             }
         })
-        .ok_or_else(|| ExtrinsicInfoError::ExtrinsicAddressTypeNotFound)?;
+        .ok_or(ExtrinsicInfoError::ExtrinsicAddressTypeNotFound)?;
 
     let signature_ty = extrinsic_ty
         .type_params
@@ -361,7 +361,7 @@ fn get_v14_extrinsic_parts(
                 None
             }
         })
-        .ok_or_else(|| ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound)?;
+        .ok_or(ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound)?;
 
     Ok(ExtrinsicParts {
         address: address_ty.id,
@@ -531,7 +531,7 @@ const _: () = {
                             .as_ref()
                             .ok_or_else(|| ExtrinsicInfoError::CallNotFound {
                                 index: call_index,
-                                pallet_index: pallet_index,
+                                pallet_index,
                                 pallet_name: Cow::Borrowed(m_name),
                             })?;
 
@@ -540,7 +540,7 @@ const _: () = {
                     let call = calls.get(call_index as usize).ok_or_else(|| {
                         ExtrinsicInfoError::CallNotFound {
                             index: call_index,
-                            pallet_index: pallet_index,
+                            pallet_index,
                             pallet_name: Cow::Borrowed(m_name),
                         }
                     })?;

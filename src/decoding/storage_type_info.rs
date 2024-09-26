@@ -456,7 +456,7 @@ mod legacy {
 
             let pallet_name = as_decoded(&m.name);
 
-            let storages = m.storage.as_ref().map(|s| as_decoded(s)).ok_or_else(|| {
+            let storages = m.storage.as_ref().map(as_decoded).ok_or_else(|| {
                 StorageInfoError::StorageNotFound {
                     name: Cow::Owned(storage_entry.to_owned()),
                     pallet_name: Cow::Borrowed(pallet_name),
@@ -607,8 +607,8 @@ mod legacy {
         lookup_name_or_err(&ty, pallet_name)
     }
 
-    fn lookup_name_or_err<'a>(
-        ty: &'a str,
+    fn lookup_name_or_err(
+        ty: &str,
         pallet_name: &str,
     ) -> Result<LookupName, StorageInfoError<'static>> {
         let id = LookupName::parse(ty)

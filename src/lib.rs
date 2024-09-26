@@ -41,10 +41,10 @@ pub mod extrinsics {
 
     /// Decode an extrinsic in a historic runtime (ie one prior to V14 metadata). Each part is denoted by
     /// a byte range and type ID, which can then be decoded into a value.
-    pub fn decode_extrinsic_legacy<'scale, 'info, 'resolver, Info, Resolver>(
-        cursor: &mut &'scale [u8],
+    pub fn decode_extrinsic_legacy<'info, Info, Resolver>(
+        cursor: &mut &[u8],
         info: &'info Info,
-        type_resolver: &'resolver Resolver,
+        type_resolver: &Resolver,
     ) -> Result<Extrinsic<'info, Info::TypeId>, ExtrinsicDecodeError>
     where
         Info: ExtrinsicTypeInfo,
@@ -70,6 +70,8 @@ pub mod storage {
         StorageKeyPart, StorageKeyPartValue, StorageValueDecodeError,
     };
 
+    type TypeIdOf<T> = <<T as InfoAndResolver>::Info as StorageTypeInfo>::TypeId;
+
     /// Decode a storage key in a modern runtime (ie one exposing V14+ metadata) by breaking it down into its
     /// constituent parts. Each part is denoted by a hasher type, hasher byte range, and if possible, value
     /// information which can then be decoded into a value.
@@ -78,15 +80,12 @@ pub mod storage {
         storage_entry: &str,
         cursor: &mut &[u8],
         metadata: &T,
-    ) -> Result<
-        StorageKey<<T::Info as StorageTypeInfo>::TypeId>,
-        StorageKeyDecodeError<<T::Info as StorageTypeInfo>::TypeId>,
-    >
+    ) -> Result<StorageKey<TypeIdOf<T>>, StorageKeyDecodeError<TypeIdOf<T>>>
     where
         T: InfoAndResolver,
         T::Info: StorageTypeInfo,
-        <T::Info as StorageTypeInfo>::TypeId: core::fmt::Debug + Clone,
-        T::Resolver: TypeResolver<TypeId = <T::Info as StorageTypeInfo>::TypeId>,
+        TypeIdOf<T>: core::fmt::Debug + Clone,
+        T::Resolver: TypeResolver<TypeId = TypeIdOf<T>>,
     {
         decode_storage_key(
             pallet_name,
@@ -123,16 +122,12 @@ pub mod storage {
         cursor: &mut &'scale [u8],
         metadata: &'resolver T,
         visitor: V,
-    ) -> Result<
-        V::Value<'scale, 'resolver>,
-        StorageValueDecodeError<<T::Info as StorageTypeInfo>::TypeId>,
-    >
+    ) -> Result<V::Value<'scale, 'resolver>, StorageValueDecodeError<TypeIdOf<T>>>
     where
         T: InfoAndResolver,
         T::Info: StorageTypeInfo,
-        <T::Info as StorageTypeInfo>::TypeId: core::fmt::Debug + Clone,
-        T::Resolver:
-            scale_type_resolver::TypeResolver<TypeId = <T::Info as StorageTypeInfo>::TypeId>,
+        TypeIdOf<T>: core::fmt::Debug + Clone,
+        T::Resolver: scale_type_resolver::TypeResolver<TypeId = TypeIdOf<T>>,
         V: Visitor<TypeResolver = T::Resolver>,
         V::Error: core::fmt::Debug,
     {
