@@ -9,6 +9,90 @@ use core::ops::Range;
 use parity_scale_codec::{Compact, Decode};
 use scale_type_resolver::TypeResolver;
 
+/// An error returned trying to decode extrinsic bytes.
+#[non_exhaustive]
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub enum ExtrinsicDecodeError {
+    CannotDecodeLength,
+    WrongLength {
+        expected_len: usize,
+        actual_len: usize,
+    },
+    NotEnoughBytes,
+    VersionNotSupported(u8),
+    VersionTypeNotSupported(u8),
+    CannotGetInfo(ExtrinsicInfoError<'static>),
+    CannotDecodeSignature(DecodeErrorTrace),
+    CannotDecodePalletIndex(parity_scale_codec::Error),
+    CannotDecodeCallIndex(parity_scale_codec::Error),
+    CannotDecodeExtensionsVersion(parity_scale_codec::Error),
+    CannotDecodeCallData {
+        pallet_name: String,
+        call_name: String,
+        argument_name: String,
+        reason: DecodeErrorTrace,
+    },
+}
+
+impl core::error::Error for ExtrinsicDecodeError {}
+impl core::fmt::Display for ExtrinsicDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ExtrinsicDecodeError::CannotDecodeLength => {
+                write!(f, "Cannot decode the compact-encoded extrinsic length.")
+            }
+            ExtrinsicDecodeError::WrongLength {
+                expected_len,
+                actual_len,
+            } => {
+                write!(f, "The actual number of bytes does not match the compact-encoded extrinsic length; expected {expected_len} bytes but got {actual_len} bytes.")
+            }
+            ExtrinsicDecodeError::NotEnoughBytes => {
+                write!(f, "Not enough bytes to decode a valid extrinsic.")
+            }
+            ExtrinsicDecodeError::VersionNotSupported(extrinsic_version) => {
+                write!(
+                    f,
+                    "This extrinsic version ({extrinsic_version}) is not supported."
+                )
+            }
+            ExtrinsicDecodeError::VersionTypeNotSupported(version_ty) => {
+                write!(
+                    f,
+                    "This extrinsic version type ({version_ty}) is not supported; only Bare, Signed and General types are supported."
+                )
+            }
+            ExtrinsicDecodeError::CannotGetInfo(extrinsic_info_error) => {
+                write!(f, "Cannot get extrinsic info:\n\n{extrinsic_info_error}")
+            }
+            ExtrinsicDecodeError::CannotDecodeSignature(decode_error_trace) => {
+                write!(f, "Cannot decode signature:\n\n{decode_error_trace}")
+            }
+            ExtrinsicDecodeError::CannotDecodePalletIndex(error) => {
+                write!(f, "Cannot decode pallet index byte:\n\n{error}")
+            }
+            ExtrinsicDecodeError::CannotDecodeCallIndex(error) => {
+                write!(f, "Cannot decode call index byte:\n\n{error}")
+            }
+            ExtrinsicDecodeError::CannotDecodeExtensionsVersion(error) => {
+                write!(
+                    f,
+                    "Cannot decode transaction extensions version byte:\n\n{error}"
+                )
+            }
+            ExtrinsicDecodeError::CannotDecodeCallData {
+                pallet_name,
+                call_name,
+                argument_name,
+                reason,
+            } => {
+                write!(f, "Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}")
+            }
+        }
+    }
+}
+
 /// An owned variant of an Extrinsic (note: this may still contain
 /// references if the visitor used to decode the extrinsic contents holds
 /// onto any)
@@ -17,9 +101,12 @@ pub type ExtrinsicOwned<TypeId> = Extrinsic<'static, TypeId>;
 /// Information about the extrinsic.
 #[derive(Clone, Debug)]
 pub struct Extrinsic<'info, TypeId> {
+    compact_prefix_len: u8,
     version: u8,
+    version_ty: ExtrinsicType,
     byte_len: u32,
-    signature: Option<ExtrinsicSignature<'info, TypeId>>,
+    signature: Option<ExtrinsicSignature<TypeId>>,
+    extensions: Option<ExtrinsicExtensions<'info, TypeId>>,
     call_name: Cow<'info, str>,
     call_index: u8,
     pallet_name: Cow<'info, str>,
@@ -32,9 +119,12 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
     /// the extrinsic info or bytes.
     pub fn into_owned(self) -> ExtrinsicOwned<TypeId> {
         Extrinsic {
+            compact_prefix_len: self.compact_prefix_len,
             version: self.version,
+            version_ty: self.version_ty,
             byte_len: self.byte_len,
-            signature: self.signature.map(|s| s.into_owned()),
+            signature: self.signature,
+            extensions: self.extensions.map(|e| e.into_owned()),
             call_name: Cow::Owned(self.call_name.into_owned()),
             call_index: self.call_index,
             pallet_name: Cow::Owned(self.pallet_name.into_owned()),
@@ -74,34 +164,16 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
         self.signature.is_some()
     }
 
-    /// Return the extrinsic signature payload, if present.
-    pub fn signature_payload(&self) -> Option<&ExtrinsicSignature<'info, TypeId>> {
+    /// Return the extrinsic signature payload, if present. This contains the
+    /// address and signature information.
+    pub fn signature_payload(&self) -> Option<&ExtrinsicSignature<TypeId>> {
         self.signature.as_ref()
     }
 
-    /// Return a range denoting the signature payload bytes.
-    pub fn signature_payload_range(&self) -> Range<usize> {
-        let Some(sig) = &self.signature else {
-            return Range { start: 1, end: 1 };
-        };
-
-        Range {
-            start: 1,
-            end: sig.signed_exts_end_idx(),
-        }
-    }
-
-    /// Return a range denoting the signed extension bytes.
-    pub fn signed_extensions_range(&self) -> Range<usize> {
-        let Some(sig) = &self.signature else {
-            return Range { start: 1, end: 1 };
-        };
-
-        sig.signed_extensions()
-            .fold(Range { start: 1, end: 1 }, |range, s| Range {
-                start: (s.range.start as usize).min(range.start),
-                end: (s.range.end as usize).max(range.end),
-            })
+    /// Return the transaction extension payload, if present. This contains the
+    /// transaction extensions.
+    pub fn transaction_extension_payload(&self) -> Option<&ExtrinsicExtensions<'info, TypeId>> {
+        self.extensions.as_ref()
     }
 
     /// Iterate over the call data argument names and types.
@@ -111,16 +183,18 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
 
     /// Return a range denoting the call data bytes.
     pub fn call_data_range(&self) -> Range<usize> {
-        self.signature
-            .as_ref()
-            .map(|s| Range {
-                start: s.signed_exts_end_idx(),
-                end: self.byte_len as usize,
-            })
-            .unwrap_or(Range {
-                start: 1,
-                end: self.byte_len as usize,
-            })
+        let start = self
+            .call_data()
+            .map(|a| a.range.start as usize)
+            .min()
+            .unwrap_or(0);
+        let end = self
+            .call_data()
+            .map(|a| a.range.end as usize)
+            .min()
+            .unwrap_or(0);
+
+        Range { start, end }
     }
 
     /// Map the signature type IDs to something else.
@@ -129,9 +203,12 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
         F: FnMut(TypeId) -> NewTypeId,
     {
         Extrinsic {
+            compact_prefix_len: self.compact_prefix_len,
             version: self.version,
+            version_ty: self.version_ty,
             byte_len: self.byte_len,
             signature: self.signature.map(|s| s.map_type_id(&mut f)),
+            extensions: self.extensions.map(|e| e.map_type_id(&mut f)),
             call_name: self.call_name,
             call_index: self.call_index,
             pallet_name: self.pallet_name,
@@ -145,82 +222,20 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
     }
 }
 
-/// An error returned trying to decode extrinsic bytes.
-#[non_exhaustive]
-#[allow(missing_docs)]
-#[derive(Debug, Clone)]
-pub enum ExtrinsicDecodeError {
-    CannotDecodeLength,
-    WrongLength {
-        expected_len: usize,
-        actual_len: usize,
-    },
-    NotEnoughBytes,
-    VersionNotSupported {
-        extrinsic_version: u8,
-    },
-    CannotGetInfo(ExtrinsicInfoError<'static>),
-    CannotDecodeSignature(DecodeErrorTrace),
-    CannotDecodePalletIndex(parity_scale_codec::Error),
-    CannotDecodeCallIndex(parity_scale_codec::Error),
-    CannotDecodeCallData {
-        pallet_name: String,
-        call_name: String,
-        argument_name: String,
-        reason: DecodeErrorTrace,
-    },
-}
-
-impl core::error::Error for ExtrinsicDecodeError {}
-
-impl core::fmt::Display for ExtrinsicDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ExtrinsicDecodeError::CannotDecodeLength => {
-                write!(f, "Cannot decode the compact-encoded extrinsic length.")
-            }
-            ExtrinsicDecodeError::WrongLength {
-                expected_len,
-                actual_len,
-            } => {
-                write!(f, "The actual number of bytes does not match the compact-encoded extrinsic length; expected {expected_len} bytes but got {actual_len} bytes.")
-            }
-            ExtrinsicDecodeError::NotEnoughBytes => {
-                write!(f, "Not enough bytes to decode a valid extrinsic")
-            }
-            ExtrinsicDecodeError::VersionNotSupported { extrinsic_version } => {
-                write!(
-                    f,
-                    "This extrinsic version ({extrinsic_version}) is not supported"
-                )
-            }
-            ExtrinsicDecodeError::CannotGetInfo(extrinsic_info_error) => {
-                write!(f, "Cannot get extrinsic info:\n\n{extrinsic_info_error}")
-            }
-            ExtrinsicDecodeError::CannotDecodeSignature(decode_error_trace) => {
-                write!(f, "Cannot decode signature:\n\n{decode_error_trace}")
-            }
-            ExtrinsicDecodeError::CannotDecodePalletIndex(error) => {
-                write!(f, "Cannot decode pallet index:\n\n{error}")
-            }
-            ExtrinsicDecodeError::CannotDecodeCallIndex(error) => {
-                write!(f, "Cannot decode call index:\n\n{error}")
-            }
-            ExtrinsicDecodeError::CannotDecodeCallData {
-                pallet_name,
-                call_name,
-                argument_name,
-                reason,
-            } => {
-                write!(f, "Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}")
-            }
-        }
-    }
+/// The type of the extrinsic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub enum ExtrinsicType {
+    /// Only call data
+    Bare,
+    /// Transaction extensions and call data
+    General,
+    /// Address, signature, transaction extensions and call data
+    Signed,
 }
 
 /// Information about the extrinsic signature.
 #[derive(Clone, Debug)]
-pub struct ExtrinsicSignature<'info, TypeId> {
+pub struct ExtrinsicSignature<TypeId> {
     // Store byte offsets so people can ask for raw
     // bytes to do their own thing.
     address_start_idx: u32,
@@ -233,26 +248,9 @@ pub struct ExtrinsicSignature<'info, TypeId> {
     // something if desired.
     address_ty: TypeId,
     signature_ty: TypeId,
-    signed_extensions: Vec<NamedArg<'info, TypeId>>,
 }
 
-impl<'info, TypeId> ExtrinsicSignature<'info, TypeId> {
-    /// Take ownership of the signature.
-    pub fn into_owned(self) -> ExtrinsicSignature<'static, TypeId> {
-        ExtrinsicSignature {
-            address_start_idx: self.address_start_idx,
-            address_end_idx: self.address_end_idx,
-            signature_end_idx: self.signature_end_idx,
-            address_ty: self.address_ty,
-            signature_ty: self.signature_ty,
-            signed_extensions: self
-                .signed_extensions
-                .into_iter()
-                .map(|e| e.into_owned())
-                .collect(),
-        }
-    }
-
+impl<TypeId> ExtrinsicSignature<TypeId> {
     /// Return a range denoting the address bytes.
     pub fn address_range(&self) -> Range<usize> {
         Range {
@@ -279,13 +277,8 @@ impl<'info, TypeId> ExtrinsicSignature<'info, TypeId> {
         &self.signature_ty
     }
 
-    /// Iterate over the signed extension argument names and types.
-    pub fn signed_extensions(&self) -> impl Iterator<Item = &NamedArg<'info, TypeId>> {
-        self.signed_extensions.iter()
-    }
-
     /// Map the signature type IDs to something else.
-    pub fn map_type_id<NewTypeId, F>(self, mut f: F) -> ExtrinsicSignature<'info, NewTypeId>
+    pub fn map_type_id<NewTypeId, F>(self, mut f: F) -> ExtrinsicSignature<NewTypeId>
     where
         F: FnMut(TypeId) -> NewTypeId,
     {
@@ -295,19 +288,65 @@ impl<'info, TypeId> ExtrinsicSignature<'info, TypeId> {
             signature_end_idx: self.signature_end_idx,
             address_ty: f(self.address_ty),
             signature_ty: f(self.signature_ty),
-            signed_extensions: self
-                .signed_extensions
+        }
+    }
+}
+
+/// Information about the extrinsic signed extensions.
+#[derive(Clone, Debug)]
+pub struct ExtrinsicExtensions<'info, TypeId> {
+    transaction_extensions_version: u8,
+    transaction_extensions: Vec<NamedArg<'info, TypeId>>,
+}
+
+impl<'info, TypeId> ExtrinsicExtensions<'info, TypeId> {
+    /// Take ownership of the signature.
+    pub fn into_owned(self) -> ExtrinsicExtensions<'static, TypeId> {
+        ExtrinsicExtensions {
+            transaction_extensions_version: self.transaction_extensions_version,
+            transaction_extensions: self
+                .transaction_extensions
                 .into_iter()
-                .map(|s| s.map_type_id(&mut f))
+                .map(|e| e.into_owned())
                 .collect(),
         }
     }
 
-    fn signed_exts_end_idx(&self) -> usize {
-        self.signed_extensions
-            .last()
-            .map(|e| e.range.end)
-            .unwrap_or(self.signature_end_idx) as usize
+    /// The version of the transaction extensions
+    pub fn version(&self) -> u8 {
+        self.transaction_extensions_version
+    }
+
+    /// Iterate over the signed extension argument names and types.
+    pub fn iter(&self) -> impl Iterator<Item = &NamedArg<'info, TypeId>> {
+        self.transaction_extensions.iter()
+    }
+
+    /// Return a range denoting the transaction extension bytes.
+    pub fn range(&self) -> Range<usize> {
+        let start = self
+            .iter()
+            .map(|a| a.range.start as usize)
+            .min()
+            .unwrap_or(0);
+        let end = self.iter().map(|a| a.range.end as usize).min().unwrap_or(0);
+
+        Range { start, end }
+    }
+
+    /// Map the extensions type IDs to something else.
+    pub fn map_type_id<NewTypeId, F>(self, mut f: F) -> ExtrinsicExtensions<'info, NewTypeId>
+    where
+        F: FnMut(TypeId) -> NewTypeId,
+    {
+        ExtrinsicExtensions {
+            transaction_extensions_version: self.transaction_extensions_version,
+            transaction_extensions: self
+                .transaction_extensions
+                .into_iter()
+                .map(|s| s.map_type_id(&mut f))
+                .collect(),
+        }
     }
 }
 
@@ -379,13 +418,12 @@ where
     Info::TypeId: core::fmt::Debug + Clone,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
 {
-    let original_len = cursor.len();
+    let bytes = *cursor;
     let ext_len = Compact::<u64>::decode(cursor)
         .map_err(|_| ExtrinsicDecodeError::CannotDecodeLength)?
         .0 as usize;
 
-    // How many bytes in are we. All ranges calculated need to take this into account.
-    let offset = original_len - cursor.len();
+    let compact_prefix_len = (bytes.len() - cursor.len()) as u8;
 
     if cursor.len() != ext_len {
         return Err(ExtrinsicDecodeError::WrongLength {
@@ -402,38 +440,31 @@ where
     // As of https://github.com/paritytech/polkadot-sdk/pull/3685,
     // only 6 bits used for version. Shouldn't break old impls.
     let version = cursor[0] & 0b0011_1111;
-
-    match version {
-        4 => decode_extrinsic_v4(offset, cursor, info, type_resolver),
-        v => Err(ExtrinsicDecodeError::VersionNotSupported {
-            extrinsic_version: v,
-        }),
-    }
-}
-
-fn decode_extrinsic_v4<'info, Info, Resolver>(
-    offset: usize,
-    cursor: &mut &[u8],
-    info: &'info Info,
-    type_resolver: &Resolver,
-) -> Result<Extrinsic<'info, Info::TypeId>, ExtrinsicDecodeError>
-where
-    Info: ExtrinsicTypeInfo,
-    Info::TypeId: Clone + core::fmt::Debug,
-    Resolver: TypeResolver<TypeId = Info::TypeId>,
-{
-    let bytes = *cursor;
-    let curr_idx = |cursor: &mut &[u8]| (bytes.len() - cursor.len() + offset) as u32;
-    let is_signed = bytes[0] & 0b1000_0000 != 0;
+    let version_type = cursor[0] >> 6;
     *cursor = &cursor[1..];
 
-    // Signature part
-    let signature = is_signed
-        .then(|| {
-            let signature_info = info
-                .get_signature_info()
-                .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
+    // We only know how to decode v4 and v5 extrinsics.
+    if version != 4 && version != 5 {
+        return Err(ExtrinsicDecodeError::VersionNotSupported(version));
+    }
 
+    // We know about the following types of extrinsic.
+    let version_ty = match version_type {
+        0b00 => ExtrinsicType::Bare,
+        0b10 => ExtrinsicType::Signed,
+        0b01 => ExtrinsicType::General,
+        _ => return Err(ExtrinsicDecodeError::VersionTypeNotSupported(version_type)),
+    };
+
+    let curr_idx = |cursor: &mut &[u8]| (bytes.len() - cursor.len()) as u32;
+
+    let signature_info = info
+        .get_signature_info()
+        .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
+
+    // Signature part. Present for V4 or V5 signed extrinsics
+    let signature = (version_ty == ExtrinsicType::Signed)
+        .then(|| {
             let address_start_idx = curr_idx(cursor);
             decode_with_error_tracing(
                 cursor,
@@ -453,8 +484,29 @@ where
             .map_err(ExtrinsicDecodeError::CannotDecodeSignature)?;
             let signature_end_idx = curr_idx(cursor);
 
-            let mut signed_extensions = vec![];
-            for ext in signature_info.signed_extension_ids {
+            Ok(ExtrinsicSignature {
+                address_start_idx,
+                address_end_idx,
+                signature_end_idx,
+                address_ty: signature_info.address_id,
+                signature_ty: signature_info.signature_id,
+            })
+        })
+        .transpose()?;
+
+    // Transaction extensions part. Present for Signed or General extrinsics.
+    let extensions = (version_ty == ExtrinsicType::General || version_ty == ExtrinsicType::Signed)
+        .then(|| {
+            let transaction_extensions_version = if version_ty == ExtrinsicType::General
+                || version == 5
+            {
+                u8::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion)?
+            } else {
+                0
+            };
+
+            let mut transaction_extensions = vec![];
+            for ext in signature_info.transaction_extension_ids {
                 let start_idx = curr_idx(cursor);
                 decode_with_error_tracing(
                     cursor,
@@ -465,7 +517,7 @@ where
                 .map_err(ExtrinsicDecodeError::CannotDecodeSignature)?;
                 let end_idx = curr_idx(cursor);
 
-                signed_extensions.push(NamedArg {
+                transaction_extensions.push(NamedArg {
                     name: ext.name,
                     range: Range {
                         start: start_idx,
@@ -475,13 +527,9 @@ where
                 });
             }
 
-            Ok::<_, ExtrinsicDecodeError>(ExtrinsicSignature {
-                address_start_idx,
-                address_end_idx,
-                signature_end_idx,
-                address_ty: signature_info.address_id,
-                signature_ty: signature_info.signature_id,
-                signed_extensions,
+            Ok::<_, ExtrinsicDecodeError>(ExtrinsicExtensions {
+                transaction_extensions_version,
+                transaction_extensions,
             })
         })
         .transpose()?;
@@ -523,9 +571,12 @@ where
     }
 
     let ext = Extrinsic {
-        version: 4,
+        compact_prefix_len,
+        version,
+        version_ty,
         byte_len: bytes.len() as u32,
         signature,
+        extensions,
         call_name: extrinsic_info.call_name,
         call_index,
         pallet_name: extrinsic_info.pallet_name,

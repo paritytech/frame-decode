@@ -186,7 +186,7 @@ pub struct ExtrinsicSignatureInfo<'a, TypeId> {
     /// Type ID of the signature.
     pub signature_id: TypeId,
     /// Names and type IDs of the signed extensions.
-    pub signed_extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>,
+    pub transaction_extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>,
 }
 
 macro_rules! impl_call_arg_ids_body_for_v14_to_v15 {
@@ -277,7 +277,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
     fn get_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
-        let signed_extension_ids = self
+        let transaction_extension_ids = self
             .extrinsic
             .signed_extensions
             .iter()
@@ -292,7 +292,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
         Ok(ExtrinsicSignatureInfo {
             address_id: extrincis_parts.address,
             signature_id: extrincis_parts.signature,
-            signed_extension_ids,
+            transaction_extension_ids,
         })
     }
 }
@@ -309,7 +309,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
     fn get_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
-        let signed_extension_ids = self
+        let transaction_extension_ids = self
             .extrinsic
             .signed_extensions
             .iter()
@@ -322,7 +322,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
         Ok(ExtrinsicSignatureInfo {
             address_id: self.extrinsic.address_ty.id,
             signature_id: self.extrinsic.signature_ty.id,
-            signed_extension_ids,
+            transaction_extension_ids,
         })
     }
 }
@@ -453,7 +453,7 @@ const _: () = {
                     Ok(ExtrinsicSignatureInfo {
                         address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
                         signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                        signed_extension_ids: vec![ExtrinsicInfoArg {
+                        transaction_extension_ids: vec![ExtrinsicInfoArg {
                             name: Cow::Borrowed("ExtrinsicSignedExtensions"),
                             id: parse_lookup_name("hardcoded::ExtrinsicSignedExtensions")?,
                         }],
@@ -481,7 +481,7 @@ const _: () = {
         ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
             // In V11 metadata we start exposing signed extension names, so we use those directly instead of
             // a hardcoded ExtrinsicSignedExtensions type that the user is expected to define.
-            let signed_extension_ids = self
+            let transaction_extension_ids = self
                 .extrinsic
                 .signed_extensions
                 .iter()
@@ -499,7 +499,7 @@ const _: () = {
             Ok(ExtrinsicSignatureInfo {
                 address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
                 signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                signed_extension_ids,
+                transaction_extension_ids,
             })
         }
     }
@@ -573,7 +573,7 @@ const _: () = {
                 ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
                     // In V12 metadata we are exposing signed extension names, so we use those directly instead of
                     // a hardcoded ExtrinsicSignedExtensions type that the user is expected to define.
-                    let signed_extension_ids = self
+                    let transaction_extension_ids = self
                         .extrinsic
                         .signed_extensions
                         .iter()
@@ -591,7 +591,7 @@ const _: () = {
                     Ok(ExtrinsicSignatureInfo {
                         address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
                         signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                        signed_extension_ids,
+                        transaction_extension_ids,
                     })
                 }
             }
