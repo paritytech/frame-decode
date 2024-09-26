@@ -21,7 +21,9 @@ pub struct Extrinsic<'info, TypeId> {
     byte_len: u32,
     signature: Option<ExtrinsicSignature<'info, TypeId>>,
     call_name: Cow<'info, str>,
+    call_index: u8,
     pallet_name: Cow<'info, str>,
+    pallet_index: u8,
     call_data: Vec<NamedArg<'info, TypeId>>,
 }
 
@@ -34,7 +36,9 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
             byte_len: self.byte_len,
             signature: self.signature.map(|s| s.into_owned()),
             call_name: Cow::Owned(self.call_name.into_owned()),
+            call_index: self.call_index,
             pallet_name: Cow::Owned(self.pallet_name.into_owned()),
+            pallet_index: self.pallet_index,
             call_data: self.call_data.into_iter().map(|e| e.into_owned()).collect(),
         }
     }
@@ -49,9 +53,19 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
         &self.pallet_name
     }
 
+    /// the index of the pallet that this extrinsic is calling into.
+    pub fn pallet_index(&self) -> u8 {
+        self.pallet_index
+    }
+
     /// The name of the call that the extrinsic is making.
     pub fn call_name(&self) -> &str {
         &self.call_name
+    }
+
+    /// the index of the call that the extrinsic is making.
+    pub fn call_index(&self) -> u8 {
+        self.call_index
     }
 
     /// Does the extrinsic have a signature.
@@ -66,13 +80,27 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
 
     /// Return a range denoting the signature payload bytes.
     pub fn signature_payload_range(&self) -> Range<usize> {
-        self.signature
-            .as_ref()
-            .map(|s| Range {
-                start: 1,
-                end: s.signed_exts_end_idx(),
+        let Some(sig) = &self.signature else {
+            return Range { start: 1, end: 1 };
+        };
+
+        Range {
+            start: 1,
+            end: sig.signed_exts_end_idx(),
+        }
+    }
+
+    /// Return a range denoting the signed extension bytes.
+    pub fn signed_extensions_range(&self) -> Range<usize> {
+        let Some(sig) = &self.signature else {
+            return Range { start: 1, end: 1 };
+        };
+
+        sig.signed_extensions()
+            .fold(Range { start: 1, end: 1 }, |range, s| Range {
+                start: (s.range.start as usize).min(range.start),
+                end: (s.range.end as usize).max(range.end),
             })
-            .unwrap_or(Range { start: 1, end: 1 })
     }
 
     /// Iterate over the call data argument names and types.
@@ -104,7 +132,9 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
             byte_len: self.byte_len,
             signature: self.signature.map(|s| s.map_type_id(&mut f)),
             call_name: self.call_name,
+            call_index: self.call_index,
             pallet_name: self.pallet_name,
+            pallet_index: self.pallet_index,
             call_data: self
                 .call_data
                 .into_iter()
@@ -496,7 +526,9 @@ where
         byte_len: bytes.len() as u32,
         signature,
         call_name: extrinsic_info.call_name,
+        call_index,
         pallet_name: extrinsic_info.pallet_name,
+        pallet_index,
         call_data,
     };
 

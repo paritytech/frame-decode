@@ -13,7 +13,7 @@ pub mod extrinsics {
     use scale_type_resolver::TypeResolver;
 
     pub use crate::decoding::extrinsic_decoder::{
-        decode_extrinsic, Extrinsic, ExtrinsicDecodeError,
+        decode_extrinsic, Extrinsic, ExtrinsicDecodeError, ExtrinsicOwned, ExtrinsicSignature,
     };
     pub use crate::decoding::extrinsic_type_info::{
         ExtrinsicInfo, ExtrinsicInfoArg, ExtrinsicInfoError, ExtrinsicSignatureInfo,
