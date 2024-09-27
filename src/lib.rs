@@ -79,8 +79,7 @@ pub mod extrinsics {
     /// use scale_info_legacy::ChainTypeRegistry;
     ///
     /// let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
-    /// let outer_metadata = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap();
-    /// let RuntimeMetadata::V12(ref metadata) = outer_metadata else { panic!() };
+    /// let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
     ///
     /// let extrinsics_bytes = std::fs::read("artifacts/exts_5000000_30.json").unwrap();
     /// let extrinsics_hex: Vec<String> = serde_json::from_slice(&extrinsics_bytes).unwrap();
@@ -97,14 +96,14 @@ pub mod extrinsics {
     ///
     /// // We also want to embelish these types with information from the metadata itself. This avoids
     /// // needing to hardcode a load of type definitions that we can already construct from the metadata.
-    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&outer_metadata).unwrap();
+    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&metadata).unwrap();
     /// historic_types_for_spec.prepend(types_from_metadata);
     ///
     /// for ext_hex in extrinsics_hex {
     ///     let ext_bytes = hex::decode(ext_hex.trim_start_matches("0x")).unwrap();
     ///
     ///     // Decode the extrinsic, returning information about it:
-    ///     let ext_info = decode_extrinsic_legacy(&mut &*ext_bytes, metadata, &historic_types_for_spec).unwrap();
+    ///     let ext_info = decode_extrinsic_legacy(&mut &*ext_bytes, &metadata, &historic_types_for_spec).unwrap();
     ///
     ///     // Now we can use this information to inspect the extrinsic and decode the
     ///     // different values inside it (see the `decode_extrinsic` docs).
@@ -216,8 +215,7 @@ pub mod storage {
     /// use scale_info_legacy::ChainTypeRegistry;
     ///
     /// let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
-    /// let outer_metadata = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap();
-    /// let RuntimeMetadata::V12(ref metadata) = outer_metadata else { panic!() };
+    /// let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
     ///  
     /// let storage_keyval_bytes = std::fs::read("artifacts/storage_5000000_30_staking_validators.json").unwrap();
     /// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
@@ -234,7 +232,7 @@ pub mod storage {
     ///
     /// // We also want to embelish these types with information from the metadata itself. This avoids
     /// // needing to hardcode a load of type definitions that we can already construct from the metadata.
-    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&outer_metadata).unwrap();
+    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&metadata).unwrap();
     /// historic_types_for_spec.prepend(types_from_metadata);
     ///
     /// for (key, _val) in storage_keyval_hex {
@@ -245,7 +243,7 @@ pub mod storage {
     ///         "Staking",
     ///         "Validators",
     ///         &mut &*key_bytes,
-    ///         metadata,
+    ///         &metadata,
     ///         &historic_types_for_spec
     ///     ).unwrap();
     ///
@@ -340,8 +338,7 @@ pub mod storage {
     /// use scale_value::scale::ValueVisitor;
     ///
     /// let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
-    /// let outer_metadata = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap();
-    /// let RuntimeMetadata::V12(ref metadata) = outer_metadata else { panic!() };
+    /// let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
     ///  
     /// let storage_keyval_bytes = std::fs::read("artifacts/storage_5000000_30_staking_validators.json").unwrap();
     /// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
@@ -358,7 +355,7 @@ pub mod storage {
     ///
     /// // We also want to embelish these types with information from the metadata itself. This avoids
     /// // needing to hardcode a load of type definitions that we can already construct from the metadata.
-    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&outer_metadata).unwrap();
+    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&metadata).unwrap();
     /// historic_types_for_spec.prepend(types_from_metadata);
     ///
     /// for (_key, val) in storage_keyval_hex {
@@ -369,7 +366,7 @@ pub mod storage {
     ///         "Staking",
     ///         "Validators",
     ///         &mut &*value_bytes,
-    ///         metadata,
+    ///         &metadata,
     ///         &historic_types_for_spec,
     ///         ValueVisitor::new()
     ///     ).unwrap();
