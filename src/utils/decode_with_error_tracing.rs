@@ -15,7 +15,6 @@
 
 use alloc::format;
 use alloc::string::String;
-use alloc::string::ToString;
 
 /// Decode some bytes given a type ID and type resolver, and a visitor which decides the output value.
 ///
@@ -56,7 +55,7 @@ where
                 .map(|v| v.map_context(|id| format!("{id:?}")))
                 .map_err(|te| DecodeErrorTrace {
                     original_error: format!("{e:?}"),
-                    tracing_error: te.to_string(),
+                    tracing_error: alloc::string::ToString::to_string(&te),
                 })?;
 
             // If the above succeeds (we're expecting it to fail), then print the value out here.

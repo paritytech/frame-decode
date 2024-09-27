@@ -15,7 +15,6 @@
 
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
-use alloc::vec;
 use alloc::vec::Vec;
 
 /// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the
@@ -379,7 +378,7 @@ mod legacy {
                             path::StorageEntryType::Plain(ty) => {
                                 let value_id = decode_lookup_name_or_err(ty, pallet_name)?;
                                 Ok(StorageInfo {
-                                    keys: vec![],
+                                    keys: Vec::new(),
                                     value_id,
                                 })
                             }
@@ -390,7 +389,7 @@ mod legacy {
                                 let hasher = $to_storage_hasher(hasher);
                                 let value_id = decode_lookup_name_or_err(value, pallet_name)?;
                                 Ok(StorageInfo {
-                                    keys: vec![StorageKeyInfo { hasher, key_id }],
+                                    keys: Vec::from_iter([StorageKeyInfo { hasher, key_id }]),
                                     value_id,
                                 })
                             }
@@ -407,7 +406,7 @@ mod legacy {
                                 let key2_hasher = $to_storage_hasher(key2_hasher);
                                 let value_id = decode_lookup_name_or_err(value, pallet_name)?;
                                 Ok(StorageInfo {
-                                    keys: vec![
+                                    keys: Vec::from_iter([
                                         StorageKeyInfo {
                                             hasher: key1_hasher,
                                             key_id: key1_id,
@@ -416,7 +415,7 @@ mod legacy {
                                             hasher: key2_hasher,
                                             key_id: key2_id,
                                         },
-                                    ],
+                                    ]),
                                     value_id,
                                 })
                             }
@@ -493,7 +492,7 @@ mod legacy {
                 frame_metadata::v13::StorageEntryType::Plain(ty) => {
                     let value_id = decode_lookup_name_or_err(ty, pallet_name)?;
                     Ok(StorageInfo {
-                        keys: vec![],
+                        keys: Vec::new(),
                         value_id,
                     })
                 }
@@ -504,7 +503,7 @@ mod legacy {
                     let hasher = to_storage_hasher_v13(hasher);
                     let value_id = decode_lookup_name_or_err(value, pallet_name)?;
                     Ok(StorageInfo {
-                        keys: vec![StorageKeyInfo { hasher, key_id }],
+                        keys: Vec::from_iter([StorageKeyInfo { hasher, key_id }]),
                         value_id,
                     })
                 }
@@ -521,7 +520,7 @@ mod legacy {
                     let key2_hasher = to_storage_hasher_v13(key2_hasher);
                     let value_id = decode_lookup_name_or_err(value, pallet_name)?;
                     Ok(StorageInfo {
-                        keys: vec![
+                        keys: Vec::from_iter([
                             StorageKeyInfo {
                                 hasher: key1_hasher,
                                 key_id: key1_id,
@@ -530,7 +529,7 @@ mod legacy {
                                 hasher: key2_hasher,
                                 key_id: key2_id,
                             },
-                        ],
+                        ]),
                         value_id,
                     })
                 }

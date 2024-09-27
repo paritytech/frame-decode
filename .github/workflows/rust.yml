@@ -73,7 +73,7 @@ jobs:
         uses: actions-rs/cargo@v1.0.3
         with:
           command: check
-          args: --all-targets --all-features --target wasm32-unknown-unknown
+          args: --all-targets --no-default-features --features legacy,error-tracing --target wasm32-unknown-unknown
 
   fmt:
     name: Cargo fmt

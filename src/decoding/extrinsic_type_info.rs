@@ -15,7 +15,6 @@
 
 use alloc::borrow::Cow;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use core::write;
 
@@ -469,10 +468,10 @@ const _: () = {
                     Ok(ExtrinsicSignatureInfo {
                         address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
                         signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                        transaction_extension_ids: vec![ExtrinsicInfoArg {
+                        transaction_extension_ids: Vec::from_iter([ExtrinsicInfoArg {
                             name: Cow::Borrowed("ExtrinsicSignedExtensions"),
                             id: parse_lookup_name("hardcoded::ExtrinsicSignedExtensions")?,
-                        }],
+                        }]),
                     })
                 }
             }
