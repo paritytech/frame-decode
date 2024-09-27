@@ -133,6 +133,16 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
         }
     }
 
+    /// The extrinsic version.
+    pub fn version(&self) -> u8 {
+        self.version
+    }
+
+    /// The type of the extrinsic.
+    pub fn ty(&self) -> ExtrinsicType {
+        self.version_ty
+    }
+
     /// The length of the extrinsic payload, excluding the prefixed compact-encoded length bytes.
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
@@ -401,13 +411,80 @@ impl<'info, TypeId> NamedArg<'info, TypeId> {
     }
 }
 
-/// Given the bytes representing an extrinsic (including the prefixed compact-encoded
-/// length), some means to get the extrinsic information, some means to resolve types,
-/// and a visitor defining what to decode the bytes into, this returns a decoded [`Extrinsic`]
-/// or an [`ExtrinsicDecodeError`] if something went wrong.
+/// Decode an extrinsic, returning information about it.
 ///
-/// The [`Extrinsic`] type is then shows you where different types are in the original bytes,
-/// allowing them to be decoded easily using whatever means you prefer.
+/// This information can be used to then decode the various parts of the extrinsic (address,
+/// signature, transaction extensions and call data) to concrete types.
+///
+/// # Example
+///
+/// Here, we decode all of the extrinsics in a block to a [`scale_value::Value`] type.
+///
+/// ```rust
+/// use frame_decode::extrinsics::decode_extrinsic;
+/// use frame_decode::helpers::decode_with_visitor;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+/// use scale_value::scale::ValueVisitor;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let extrinsics_bytes = std::fs::read("artifacts/exts_10000000_9180.json").unwrap();
+/// let extrinsics_hex: Vec<String> = serde_json::from_slice(&extrinsics_bytes).unwrap();
+///
+/// for ext_hex in extrinsics_hex {
+///     let ext_bytes = hex::decode(ext_hex.trim_start_matches("0x")).unwrap();
+///
+///     // Decode the extrinsic, returning information about it:
+///     let ext_info = decode_extrinsic(&mut &*ext_bytes, &metadata, &metadata.types).unwrap();
+///
+///     // Decode the signature details to scale_value::Value's.
+///     if let Some(sig) = ext_info.signature_payload() {
+///         let address_bytes =  &ext_bytes[sig.address_range()];
+///         let address_value = decode_with_visitor(
+///             &mut &*address_bytes,
+///             *sig.address_type(),
+///             &metadata.types,
+///             ValueVisitor::new()
+///         ).unwrap();
+///
+///         let signature_bytes = &ext_bytes[sig.signature_range()];
+///         let signature_value = decode_with_visitor(
+///             &mut &*signature_bytes,
+///             *sig.signature_type(),
+///             &metadata.types,
+///             ValueVisitor::new()
+///         ).unwrap();
+///     }
+///
+///     // Decode the transaction extensions to scale_value::Value's.
+///     if let Some(exts) = ext_info.transaction_extension_payload() {
+///         for ext in exts.iter() {
+///             let ext_name = ext.name();
+///             let ext_bytes = &ext_bytes[ext.range()];
+///             let ext_value = decode_with_visitor(
+///                 &mut &*ext_bytes,
+///                 *ext.ty(),
+///                 &metadata.types,
+///                 ValueVisitor::new()
+///             ).unwrap();
+///         }
+///     }
+///
+///     // Decode the call data args to scale_value::Value's.
+///     for arg in ext_info.call_data() {
+///         let arg_name = arg.name();
+///         let arg_bytes = &ext_bytes[arg.range()];
+///         let arg_value = decode_with_visitor(
+///             &mut &*arg_bytes,
+///             *arg.ty(),
+///             &metadata.types,
+///             ValueVisitor::new()
+///         ).unwrap();
+///     }
+/// }
+/// ```
 pub fn decode_extrinsic<'info, Info, Resolver>(
     cursor: &mut &[u8],
     info: &'info Info,

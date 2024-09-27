@@ -253,9 +253,58 @@ impl<TypeId> StorageKeyPartValue<TypeId> {
     }
 }
 
-/// Decode a storage key given the pallet name, storage entry name, some raw bytes, some
-/// metadata providing information about the storage entry, and a type resolver providing
-/// the necessary type information.
+/// Decode a storage key, returning information about it.
+///
+/// This information can be used to identify and, where possible, decode the parts of the storage key.
+///
+/// # Example
+///
+/// Here, we decode some storage keys from a block.
+///
+/// ```rust
+/// use frame_decode::storage::decode_storage_key;
+/// use frame_decode::helpers::decode_with_visitor;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+/// use scale_value::scale::ValueVisitor;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let storage_keyval_bytes = std::fs::read("artifacts/storage_10000000_9180_system_account.json").unwrap();
+/// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
+///
+/// for (key, _val) in storage_keyval_hex {
+///     let key_bytes = hex::decode(key.trim_start_matches("0x")).unwrap();
+///
+///     // Decode the storage key, returning information about it:
+///     let storage_info = decode_storage_key(
+///         "System",
+///         "Account",
+///         &mut &*key_bytes,
+///         &metadata,
+///         &metadata.types
+///     ).unwrap();
+///
+///     for part in storage_info.parts() {
+///         // Access information about the hasher for this part of the key:
+///         let hash_bytes = &key_bytes[part.hash_range()];
+///         let hasher = part.hasher();
+///
+///         // If the value is encoded as part of the hasher, we can find and
+///         // decode the value too:
+///         if let Some(value_info) = part.value() {
+///             let value_bytes = &key_bytes[value_info.range()];
+///             let value = decode_with_visitor(
+///                 &mut &*value_bytes,
+///                 *value_info.ty(),
+///                 &metadata.types,
+///                 ValueVisitor::new()
+///             ).unwrap();
+///         }
+///     }
+/// }
+/// ```
 pub fn decode_storage_key<Info, Resolver>(
     pallet_name: &str,
     storage_entry: &str,
@@ -413,9 +462,39 @@ where
     Ok(StorageKey { parts })
 }
 
-/// Decode a storage value given the pallet name, storage entry name, some raw bytes, some
-/// metadata providing information about the storage entry, a type resolver providing
-/// the necessary type information, and a visitor which determines what the output type should be.
+/// Decode a storage value.
+///
+/// # Example
+///
+/// Here, we decode some storage values from a block.
+///
+/// ```rust
+/// use frame_decode::storage::decode_storage_value;
+/// use frame_decode::helpers::decode_with_visitor;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+/// use scale_value::scale::ValueVisitor;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let storage_keyval_bytes = std::fs::read("artifacts/storage_10000000_9180_system_account.json").unwrap();
+/// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
+///
+/// for (_key, val) in storage_keyval_hex {
+///     let value_bytes = hex::decode(val.trim_start_matches("0x")).unwrap();
+///
+///     // Decode the storage value, here into a scale_value::Value:
+///     let account_value = decode_storage_value(
+///         "System",
+///         "Account",
+///         &mut &*value_bytes,
+///         &metadata,
+///         &metadata.types,
+///         ValueVisitor::new()
+///     ).unwrap();
+/// }
+/// ```
 pub fn decode_storage_value<'scale, 'resolver, Info, Resolver, V>(
     pallet_name: &str,
     storage_entry: &str,

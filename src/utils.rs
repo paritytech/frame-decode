@@ -27,25 +27,25 @@ pub trait InfoAndResolver {
 }
 
 impl InfoAndResolver for frame_metadata::v14::RuntimeMetadataV14 {
-    type Info = scale_info::PortableRegistry;
-    type Resolver = frame_metadata::v14::RuntimeMetadataV14;
+    type Info = frame_metadata::v14::RuntimeMetadataV14;
+    type Resolver = scale_info::PortableRegistry;
 
     fn info(&self) -> &Self::Info {
-        &self.types
+        self
     }
     fn resolver(&self) -> &Self::Resolver {
-        self
+        &self.types
     }
 }
 
 impl InfoAndResolver for frame_metadata::v15::RuntimeMetadataV15 {
-    type Info = scale_info::PortableRegistry;
-    type Resolver = frame_metadata::v15::RuntimeMetadataV15;
+    type Info = frame_metadata::v15::RuntimeMetadataV15;
+    type Resolver = scale_info::PortableRegistry;
 
     fn info(&self) -> &Self::Info {
-        &self.types
+        self
     }
     fn resolver(&self) -> &Self::Resolver {
-        self
+        &self.types
     }
 }
