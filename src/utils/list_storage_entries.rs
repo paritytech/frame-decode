@@ -109,8 +109,8 @@ const _: () = {
                         Either::Right(entries.iter().map(|entry_meta| {
                             let entry = as_decoded(&entry_meta.name);
                             StorageEntry {
-                                pallet: Cow::Borrowed(pallet.as_str()),
-                                entry: Cow::Borrowed(entry.as_str()),
+                                pallet: Cow::Borrowed(pallet.as_ref()),
+                                entry: Cow::Borrowed(entry.as_ref()),
                             }
                         }))
                     })

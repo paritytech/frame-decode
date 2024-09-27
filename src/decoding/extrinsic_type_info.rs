@@ -15,6 +15,7 @@
 
 use alloc::borrow::Cow;
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::write;
 

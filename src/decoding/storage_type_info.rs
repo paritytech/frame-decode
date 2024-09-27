@@ -15,6 +15,7 @@
 
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
+use alloc::vec;
 use alloc::vec::Vec;
 
 /// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the
@@ -635,11 +636,11 @@ mod legacy {
         Ok(id)
     }
 
-    fn sanitize_type_name(name: &str) -> std::borrow::Cow<'_, str> {
+    fn sanitize_type_name(name: &str) -> Cow<'_, str> {
         if name.contains('\n') {
-            std::borrow::Cow::Owned(name.replace('\n', ""))
+            Cow::Owned(name.replace('\n', ""))
         } else {
-            std::borrow::Cow::Borrowed(name)
+            Cow::Borrowed(name)
         }
     }
 }

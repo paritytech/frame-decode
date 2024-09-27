@@ -40,15 +40,19 @@ pub trait ToTypeRegistry {
 
 #[cfg(feature = "legacy")]
 const _: () = {
+    use super::as_decoded;
+    use alloc::borrow::ToOwned;
+    use alloc::format;
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use scale_info_legacy::type_shape::{Field, TypeShape, Variant, VariantDesc};
+    use scale_info_legacy::InsertName;
+    use scale_info_legacy::{LookupName, TypeRegistry};
+
     macro_rules! impl_for_v8_to_v13 {
         ($path:path $(, $builtin_index:ident)?) => {
             impl ToTypeRegistry for $path {
                 fn to_type_registry(&self) -> Result<scale_info_legacy::TypeRegistry, scale_info_legacy::lookup_name::ParseError> {
-                    use super::as_decoded;
-                    use scale_info_legacy::type_shape::{Field, TypeShape, Variant, VariantDesc};
-                    use scale_info_legacy::InsertName;
-                    use scale_info_legacy::{LookupName, TypeRegistry};
-
                     let metadata = self;
                     let mut new_types = TypeRegistry::empty();
                     let modules = as_decoded(&metadata.modules);
@@ -87,7 +91,9 @@ const _: () = {
                             };
                         )?
 
-                        let module_name = as_decoded(&module.name);
+                        // as_ref to work when scale-info returns `&static str`
+                        // instead of `String` in no-std mode.
+                        let module_name: &str = as_decoded(&module.name).as_ref();
 
                         //// 1. Add calls to the type registry
                         if let Some(calls) = &module.calls.as_ref() {
@@ -96,12 +102,13 @@ const _: () = {
                             // Iterate over each call in the module and turn into variants:
                             let mut call_variants: Vec<Variant> = vec![];
                             for (c_idx, call) in calls.iter().enumerate() {
-                                let call_name = as_decoded(&call.name);
+                                let call_name: &str = as_decoded(&call.name).as_ref();
                                 let args = as_decoded(&call.arguments)
                                     .iter()
                                     .map(|arg| {
+                                        let name: &str = as_decoded(&arg.name).as_ref();
                                         Ok(Field {
-                                            name: as_decoded(&arg.name).to_owned(),
+                                            name: name.to_owned(),
                                             value: LookupName::parse(&as_decoded(&arg.ty))?.in_pallet(module_name),
                                         })
                                     })
@@ -109,7 +116,7 @@ const _: () = {
 
                                 call_variants.push(Variant {
                                     index: c_idx as u8,
-                                    name: call_name.clone(),
+                                    name: call_name.to_owned(),
                                     fields: VariantDesc::StructOf(args)
                                 });
                             }
@@ -123,7 +130,7 @@ const _: () = {
                             let call_enum_lookup_name = LookupName::parse(&call_enum_name_str).unwrap();
                             call_module_variants.push(Variant {
                                 index: calls_index,
-                                name: module_name.clone(),
+                                name: module_name.to_owned(),
                                 fields: VariantDesc::TupleOf(vec![call_enum_lookup_name])
                             });
                         }
@@ -134,7 +141,7 @@ const _: () = {
 
                             let mut event_variants: Vec<Variant> = vec![];
                             for (e_idx, event)in events.iter().enumerate() {
-                                let event_name = as_decoded(&event.name);
+                                let event_name: &str = as_decoded(&event.name).as_ref();
                                 let args = as_decoded(&event.arguments)
                                     .iter()
                                     .map(|arg| {
@@ -144,7 +151,7 @@ const _: () = {
 
                                 event_variants.push(Variant {
                                     index: e_idx as u8,
-                                    name: event_name.clone(),
+                                    name: event_name.to_owned(),
                                     fields: VariantDesc::TupleOf(args)
                                 });
                             }
@@ -158,7 +165,7 @@ const _: () = {
                             let event_enum_lookup_name = LookupName::parse(&event_enum_name_str).unwrap();
                             event_module_variants.push(Variant {
                                 index: events_index,
-                                name: module_name.clone(),
+                                name: module_name.to_owned(),
                                 fields: VariantDesc::TupleOf(vec![event_enum_lookup_name])
                             });
                         }

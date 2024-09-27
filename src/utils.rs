@@ -22,7 +22,7 @@ pub use list_storage_entries::{list_storage_entries, StorageEntry};
 #[cfg(feature = "legacy")]
 pub use type_registry_from_metadata::type_registry_from_metadata;
 
-/// A utility function to unwrap the [`DecodeDifferent`] enum found in earlier metadata versions.
+/// A utility function to unwrap the `DecodeDifferent` enum found in earlier metadata versions.
 #[cfg(feature = "legacy")]
 pub fn as_decoded<A, B>(item: &frame_metadata::decode_different::DecodeDifferent<A, B>) -> &B {
     match item {
