@@ -15,6 +15,7 @@
 
 use alloc::format;
 use alloc::string::String;
+use alloc::string::ToString;
 
 /// Decode some bytes given a type ID and type resolver, and a visitor which decides the output value.
 ///
@@ -66,6 +67,7 @@ where
                 "Failed to decode value with custom visitor (but tracing decoded it):\n\n"
             )
             .unwrap();
+
             scale_value::stringify::to_writer_custom()
                 .pretty()
                 .format_context(|type_id, w: &mut &mut String| write!(w, "{type_id}"))
