@@ -18,7 +18,20 @@ use alloc::boxed::Box;
 use frame_metadata::RuntimeMetadata;
 
 /// Returns an iterator listing the available storage entries in some metadata.
-pub fn list_storage_entries(metadata: &RuntimeMetadata) -> impl Iterator<Item = StorageEntry<'_>> {
+///
+/// This can be handed any version of the metadata, for instance [`frame_metadata::v13::RuntimeMetadataV13`].
+pub fn list_storage_entries<Md: ToStorageEntriesList>(
+    metadata: &Md,
+) -> impl Iterator<Item = StorageEntry<'_>> {
+    metadata.storage_entries_list()
+}
+
+/// Returns an iterator listing the available storage entries in some metadata.
+///
+/// Unlike [`list_storage_entries`], this is handed the outer [`frame_metadata::RuntimeMetadata`] enum.
+pub fn list_storage_entries_any(
+    metadata: &RuntimeMetadata,
+) -> impl Iterator<Item = StorageEntry<'_>> {
     match metadata {
         RuntimeMetadata::V0(_deprecated_metadata)
         | RuntimeMetadata::V1(_deprecated_metadata)
@@ -86,7 +99,7 @@ impl<'a> StorageEntry<'a> {
     }
 }
 
-trait StorageEntriesList {
+pub trait ToStorageEntriesList {
     /// List all of the storage entries available in some metadata.
     fn storage_entries_list(&self) -> impl Iterator<Item = StorageEntry<'_>>;
 }
@@ -95,7 +108,7 @@ trait StorageEntriesList {
 const _: () = {
     macro_rules! impl_storage_entries_list_for_v8_to_v13 {
         ($path:path) => {
-            impl StorageEntriesList for $path {
+            impl ToStorageEntriesList for $path {
                 fn storage_entries_list(&self) -> impl Iterator<Item = StorageEntry<'_>> {
                     use crate::utils::as_decoded;
                     as_decoded(&self.modules).iter().flat_map(|module| {
@@ -129,7 +142,7 @@ const _: () = {
 
 macro_rules! impl_storage_entries_list_for_v14_to_v15 {
     ($path:path) => {
-        impl StorageEntriesList for $path {
+        impl ToStorageEntriesList for $path {
             fn storage_entries_list(&self) -> impl Iterator<Item = StorageEntry<'_>> {
                 self.pallets.iter().flat_map(|pallet| {
                     let Some(storage) = &pallet.storage else {

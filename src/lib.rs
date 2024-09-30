@@ -13,7 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Decode extrinsics and storage values from substrate based networks like Polkadot.
+//! Decode extrinsics and storage values from substrate based networks which expose `frame-metadata::RuntimeMetadata`
+//! like Polkadot.
+//!
+//! - See [`extrinsics`] for decoding Extrinsics.
+//! - See [`storage`] for decoding storage keys and values.
+//!
 #![deny(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -23,6 +28,11 @@ mod decoding;
 mod utils;
 
 /// This module contains functions for decoding extrinsics.
+///
+/// - See [`decode_extrinsic`] for a general function to decode modern or historic extrinsics.
+/// - See [`decode_extrinsic_current`] for a helper to decode modern extrinsics.
+/// - See [`decode_extrinsic_legacy`] for a helper (and example) on decoding legacy extrinsics.
+///
 pub mod extrinsics {
     use crate::utils::InfoAndResolver;
     use scale_type_resolver::TypeResolver;
@@ -139,6 +149,14 @@ pub mod extrinsics {
 }
 
 /// This module contains functions for decoding storage keys and values.
+///
+/// - See [`decode_storage_key`] and [`decode_storage_value`] to decode storage keys or values
+///   from modern or historic runtimes.
+/// - See [`decode_storage_key_current`] and [`decode_storage_value_current`] to decode modern
+///   storage keys and values.
+/// - See [`decode_storage_key_legacy`] and [`decode_storage_value_legacy`] to decode historic
+///   storage keys and values (with examples).
+///
 pub mod storage {
     use crate::utils::InfoAndResolver;
     use scale_decode::Visitor;
@@ -415,11 +433,20 @@ pub mod storage {
 }
 
 /// Helper functions and types to assist with decoding.
+///
+/// - [`type_registry_from_metadata`] is expected to be used when decoding things from historic
+///   runtimes, adding the ability to decode some types from information in the metadata.
+/// - [`decode_with_error_tracing`] is like [`decode_with_visitor`], but
+///   will use a tracing visitor (if the `error-tracing` feature is enabled) to provide more
+///   information in the event that decoding fails.
+/// - [`list_storage_entries`] returns an iterator over all of the storage entries available in
+///   some metadata.
+///
 pub mod helpers {
-    #[cfg(feature = "legacy")]
-    pub use crate::utils::type_registry_from_metadata;
     pub use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
-    pub use crate::utils::{list_storage_entries, StorageEntry};
+    pub use crate::utils::{list_storage_entries, list_storage_entries_any, StorageEntry};
+    #[cfg(feature = "legacy")]
+    pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};
 
     /// An alias to [`scale_decode::visitor::decode_with_visitor`]. This can be used to decode the byte ranges
     /// given back from functions like [`crate::extrinsics::decode_extrinsic_current`] or

@@ -18,9 +18,11 @@ mod list_storage_entries;
 mod type_registry_from_metadata;
 
 pub use decode_with_error_tracing::{decode_with_error_tracing, DecodeErrorTrace};
-pub use list_storage_entries::{list_storage_entries, StorageEntry};
+pub use list_storage_entries::{list_storage_entries, list_storage_entries_any, StorageEntry};
 #[cfg(feature = "legacy")]
-pub use type_registry_from_metadata::type_registry_from_metadata;
+pub use type_registry_from_metadata::{
+    type_registry_from_metadata, type_registry_from_metadata_any,
+};
 
 /// A utility function to unwrap the `DecodeDifferent` enum found in earlier metadata versions.
 #[cfg(feature = "legacy")]

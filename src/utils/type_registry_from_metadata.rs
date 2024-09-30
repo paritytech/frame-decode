@@ -31,6 +31,33 @@ pub fn type_registry_from_metadata<Md: ToTypeRegistry>(
     metadata.to_type_registry()
 }
 
+/// This is like [`type_registry_from_metadata`], except it can be handed the outer [`frame_metadata::RuntimeMetadata`]
+/// enum and will extract types from it where appropriate (handing back no types for deprecated or modern metadata).
+#[cfg(feature = "legacy")]
+pub fn type_registry_from_metadata_any(
+    metadata: &frame_metadata::RuntimeMetadata,
+) -> Result<scale_info_legacy::TypeRegistry, scale_info_legacy::lookup_name::ParseError> {
+    use frame_metadata::RuntimeMetadata;
+    match metadata {
+        RuntimeMetadata::V0(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V1(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V2(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V3(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V4(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V5(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V6(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V7(_d) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V8(m) => m.to_type_registry(),
+        RuntimeMetadata::V9(m) => m.to_type_registry(),
+        RuntimeMetadata::V10(m) => m.to_type_registry(),
+        RuntimeMetadata::V11(m) => m.to_type_registry(),
+        RuntimeMetadata::V12(m) => m.to_type_registry(),
+        RuntimeMetadata::V13(m) => m.to_type_registry(),
+        RuntimeMetadata::V14(_m) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V15(_m) => Ok(scale_info_legacy::TypeRegistry::empty()),
+    }
+}
+
 #[cfg(feature = "legacy")]
 pub trait ToTypeRegistry {
     fn to_type_registry(
