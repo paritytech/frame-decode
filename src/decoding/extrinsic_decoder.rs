@@ -122,10 +122,11 @@ pub struct Extrinsic<'info, TypeId> {
     byte_len: u32,
     signature: Option<ExtrinsicSignature<TypeId>>,
     extensions: Option<ExtrinsicExtensions<'info, TypeId>>,
-    call_name: Cow<'info, str>,
-    call_index: u8,
     pallet_name: Cow<'info, str>,
     pallet_index: u8,
+    pallet_index_idx: u32,
+    call_name: Cow<'info, str>,
+    call_index: u8,
     call_data: Vec<NamedArg<'info, TypeId>>,
 }
 
@@ -140,10 +141,11 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
             byte_len: self.byte_len,
             signature: self.signature,
             extensions: self.extensions.map(|e| e.into_owned()),
-            call_name: Cow::Owned(self.call_name.into_owned()),
-            call_index: self.call_index,
             pallet_name: Cow::Owned(self.pallet_name.into_owned()),
             pallet_index: self.pallet_index,
+            pallet_index_idx: self.pallet_index_idx,
+            call_name: Cow::Owned(self.call_name.into_owned()),
+            call_index: self.call_index,
             call_data: self.call_data.into_iter().map(|e| e.into_owned()).collect(),
         }
     }
@@ -206,17 +208,27 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
         self.call_data.iter()
     }
 
-    /// Return a range denoting the call data bytes.
+    /// Return a range denoting the call data bytes. This includes the pallet index and
+    /// call index bytes and then any encoded arguments for the call.
     pub fn call_data_range(&self) -> Range<usize> {
-        let start = self
-            .call_data()
-            .map(|a| a.range.start as usize)
-            .min()
-            .unwrap_or(0);
+        let start = self.pallet_index_idx as usize;
         let end = self
             .call_data()
             .map(|a| a.range.end as usize)
-            .min()
+            .max()
+            .unwrap_or(0);
+
+        Range { start, end }
+    }
+
+    /// Return a range denoting the arguments given to the call. This does *not* include
+    /// the pallet index and call index bytes.
+    pub fn call_data_args_range(&self) -> Range<usize> {
+        let start = (self.pallet_index_idx + 2) as usize;
+        let end = self
+            .call_data()
+            .map(|a| a.range.end as usize)
+            .max()
             .unwrap_or(0);
 
         Range { start, end }
@@ -234,10 +246,11 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
             byte_len: self.byte_len,
             signature: self.signature.map(|s| s.map_type_id(&mut f)),
             extensions: self.extensions.map(|e| e.map_type_id(&mut f)),
-            call_name: self.call_name,
-            call_index: self.call_index,
             pallet_name: self.pallet_name,
             pallet_index: self.pallet_index,
+            pallet_index_idx: self.pallet_index_idx,
+            call_name: self.call_name,
+            call_index: self.call_index,
             call_data: self
                 .call_data
                 .into_iter()
@@ -347,14 +360,15 @@ impl<'info, TypeId> ExtrinsicExtensions<'info, TypeId> {
         self.transaction_extensions.iter()
     }
 
-    /// Return a range denoting the transaction extension bytes.
+    /// Return a range denoting the transaction extension bytes. This does
+    /// *not* include any version byte.
     pub fn range(&self) -> Range<usize> {
         let start = self
             .iter()
             .map(|a| a.range.start as usize)
             .min()
             .unwrap_or(0);
-        let end = self.iter().map(|a| a.range.end as usize).min().unwrap_or(0);
+        let end = self.iter().map(|a| a.range.end as usize).max().unwrap_or(0);
 
         Range { start, end }
     }
@@ -627,6 +641,7 @@ where
         .transpose()?;
 
     // Call data part
+    let pallet_index_idx = curr_idx(cursor);
     let pallet_index: u8 =
         Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodePalletIndex)?;
     let call_index: u8 =
@@ -669,10 +684,11 @@ where
         byte_len: bytes.len() as u32,
         signature,
         extensions,
-        call_name: extrinsic_info.call_name,
-        call_index,
         pallet_name: extrinsic_info.pallet_name,
         pallet_index,
+        pallet_index_idx,
+        call_name: extrinsic_info.call_name,
+        call_index,
         call_data,
     };
 
