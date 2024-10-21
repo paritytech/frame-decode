@@ -624,9 +624,12 @@ where
         .then(|| {
             // For v5 "General" extrinsics, there is a transaction extensions version byte, too.
             let transaction_extensions_version = if version_ty == ExtrinsicType::General {
-                u8::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion)?
+                Some(
+                    u8::decode(cursor)
+                        .map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion)?,
+                )
             } else {
-                0
+                None
             };
 
             let extension_info = info
@@ -656,7 +659,7 @@ where
             }
 
             Ok::<_, ExtrinsicDecodeError>(ExtrinsicExtensions {
-                transaction_extensions_version,
+                transaction_extensions_version: transaction_extensions_version.unwrap_or(0),
                 transaction_extensions,
             })
         })

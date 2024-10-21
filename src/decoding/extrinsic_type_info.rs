@@ -39,7 +39,7 @@ pub trait ExtrinsicTypeInfo {
     /// Get the information needed to decode the transaction extensions.
     fn get_extension_info(
         &self,
-        extension_version: u8,
+        extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
 }
 
@@ -76,6 +76,9 @@ pub enum ExtrinsicInfoError<'a> {
     },
     ExtrinsicAddressTypeNotFound,
     ExtrinsicSignatureTypeNotFound,
+    ExtrinsicExtensionVersionNotSupported {
+        extension_version: u8,
+    },
     ExtrinsicExtensionVersionNotFound {
         extension_version: u8,
     },
@@ -122,6 +125,12 @@ impl<'a> core::fmt::Display for ExtrinsicInfoError<'a> {
             }
             ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound => {
                 write!(f, "Could not find the extrinsic signature type.")
+            }
+            ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported { extension_version } => {
+                // Dev note: If we see a V5 GEneral extrinsic, it will have a byte for the version of the transaction extensions.
+                // In V15 or below metadata, we don't know which set of transaction extensions we're being told about though. Is it
+                // the set that corresponds to the version byte we see or not?
+                write!(f, "The extrinsic contains an extension version (here, {extension_version}), but in metadata <=V15 it's not clear if we can decode this version or not.")
             }
             ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version } => {
                 write!(f, "Could not find information about extensions with version {extension_version} in the metadata. Note: Metadata <=V15 only supports version 0.")
@@ -179,6 +188,9 @@ impl<'a> ExtrinsicInfoError<'a> {
             }
             ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound => {
                 ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound
+            }
+            ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported { extension_version } => {
+                ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported { extension_version }
             }
             ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version } => {
                 ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version }
@@ -320,13 +332,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
     }
     fn get_extension_info(
         &self,
-        extension_version: u8,
+        extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-        if extension_version != 0 {
-            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
-                extension_version,
-            });
-        }
+        err_if_bad_extension_version(extension_version)?;
 
         let extension_ids = self
             .extrinsic
@@ -361,13 +369,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
     }
     fn get_extension_info(
         &self,
-        extension_version: u8,
+        extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-        if extension_version != 0 {
-            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
-                extension_version,
-            });
-        }
+        err_if_bad_extension_version(extension_version)?;
 
         let extension_ids = self
             .extrinsic
@@ -428,6 +432,27 @@ fn get_v14_extrinsic_parts(
 struct ExtrinsicParts {
     address: u32,
     signature: u32,
+}
+
+fn err_if_bad_extension_version<'a>(
+    extension_version: Option<u8>,
+) -> Result<(), ExtrinsicInfoError<'a>> {
+    if let Some(extension_version) = extension_version {
+        // Dev note: at the time of writing this comment, there is only one
+        // possible extensions version (0), so any metadata is capable of decoding
+        // transactions that we see with this version.
+        //
+        // As soon as there is more than one extension version in the wild, we should
+        // change this to always fail if not >=V16 metadata, since at that point we'll
+        // no longer know if the extension_version given lines up with the extensions
+        // we're told about in the metadata or are for some older version of them.
+        if extension_version != 0 {
+            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported {
+                extension_version,
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(feature = "legacy")]
@@ -513,13 +538,9 @@ const _: () = {
                 }
                 fn get_extension_info(
                     &self,
-                    extension_version: u8,
+                    extension_version: Option<u8>,
                 ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-                    if extension_version != 0 {
-                        return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
-                            extension_version,
-                        });
-                    }
+                    err_if_bad_extension_version(extension_version)?;
 
                     Ok(ExtrinsicExtensionInfo {
                         extension_ids: Vec::from_iter([ExtrinsicInfoArg {
@@ -555,13 +576,9 @@ const _: () = {
         }
         fn get_extension_info(
             &self,
-            extension_version: u8,
+            extension_version: Option<u8>,
         ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-            if extension_version != 0 {
-                return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
-                    extension_version,
-                });
-            }
+            err_if_bad_extension_version(extension_version)?;
 
             // In V11 metadata we start exposing signed extension names, so we use those directly instead of
             // a hardcoded ExtrinsicSignedExtensions type that the user is expected to define.
@@ -658,13 +675,9 @@ const _: () = {
                 }
                 fn get_extension_info(
                     &self,
-                    extension_version: u8,
+                    extension_version: Option<u8>,
                 ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-                    if extension_version != 0 {
-                        return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
-                            extension_version,
-                        });
-                    }
+                    err_if_bad_extension_version(extension_version)?;
 
                     // In V12 metadata we are exposing signed extension names, so we use those directly instead of
                     // a hardcoded ExtrinsicSignedExtensions type that the user is expected to define.
