@@ -323,7 +323,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
         extension_version: u8,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         if extension_version != 0 {
-            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version });
+            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
+                extension_version,
+            });
         }
 
         let extension_ids = self
@@ -362,7 +364,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
         extension_version: u8,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         if extension_version != 0 {
-            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version });
+            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
+                extension_version,
+            });
         }
 
         let extension_ids = self

@@ -623,9 +623,7 @@ where
     let extensions = (version_ty == ExtrinsicType::General || version_ty == ExtrinsicType::Signed)
         .then(|| {
             // For v5 "General" extrinsics, there is a transaction extensions version byte, too.
-            let transaction_extensions_version = if version_ty == ExtrinsicType::General
-                && version == 5
-            {
+            let transaction_extensions_version = if version_ty == ExtrinsicType::General {
                 u8::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion)?
             } else {
                 0
