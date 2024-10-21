@@ -36,7 +36,10 @@ pub enum ExtrinsicDecodeError {
     },
     NotEnoughBytes,
     VersionNotSupported(u8),
-    VersionTypeNotSupported(u8),
+    ExtrinsicTypeNotSupported {
+        version: u8,
+        extrinsic_type: u8,
+    },
     CannotGetInfo(ExtrinsicInfoError<'static>),
     CannotDecodeSignature(DecodeErrorTrace),
     CannotDecodePalletIndex(parity_scale_codec::Error),
@@ -72,10 +75,13 @@ impl core::fmt::Display for ExtrinsicDecodeError {
                     "This extrinsic version ({extrinsic_version}) is not supported."
                 )
             }
-            ExtrinsicDecodeError::VersionTypeNotSupported(version_ty) => {
+            ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
+                version,
+                extrinsic_type,
+            } => {
                 write!(
                     f,
-                    "This extrinsic version type ({version_ty}) is not supported; only Bare, Signed and General types are supported."
+                    "The extrinsic type {extrinsic_type:02b} is not supported (given extrinsic version {version})."
                 )
             }
             ExtrinsicDecodeError::CannotGetInfo(extrinsic_info_error) => {
@@ -559,18 +565,31 @@ where
         0b00 => ExtrinsicType::Bare,
         0b10 => ExtrinsicType::Signed,
         0b01 => ExtrinsicType::General,
-        _ => return Err(ExtrinsicDecodeError::VersionTypeNotSupported(version_type)),
+        _ => {
+            return Err(ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
+                version,
+                extrinsic_type: version_type,
+            })
+        }
     };
+
+    // V5 extrinsics have no notion of "signed" extrinsics.
+    if version == 5 && version_ty == ExtrinsicType::Signed {
+        return Err(ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
+            version,
+            extrinsic_type: version_type,
+        });
+    }
 
     let curr_idx = |cursor: &mut &[u8]| (bytes.len() - cursor.len()) as u32;
 
-    let signature_info = info
-        .get_signature_info()
-        .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
-
-    // Signature part. Present for V4 or V5 signed extrinsics
+    // Signature part. Present for V4 signed extrinsics
     let signature = (version_ty == ExtrinsicType::Signed)
         .then(|| {
+            let signature_info = info
+                .get_signature_info()
+                .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
+
             let address_start_idx = curr_idx(cursor);
             decode_with_error_tracing(
                 cursor,
@@ -603,16 +622,21 @@ where
     // Transaction extensions part. Present for Signed or General extrinsics.
     let extensions = (version_ty == ExtrinsicType::General || version_ty == ExtrinsicType::Signed)
         .then(|| {
+            // For v5 "General" extrinsics, there is a transaction extensions version byte, too.
             let transaction_extensions_version = if version_ty == ExtrinsicType::General
-                || version == 5
+                && version == 5
             {
                 u8::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion)?
             } else {
                 0
             };
 
+            let extension_info = info
+                .get_extension_info(transaction_extensions_version)
+                .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
+
             let mut transaction_extensions = vec![];
-            for ext in signature_info.transaction_extension_ids {
+            for ext in extension_info.extension_ids {
                 let start_idx = curr_idx(cursor);
                 decode_with_error_tracing(
                     cursor,
@@ -646,12 +670,12 @@ where
         Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodePalletIndex)?;
     let call_index: u8 =
         Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeCallIndex)?;
-    let extrinsic_info = info
-        .get_extrinsic_info(pallet_index, call_index)
+    let call_info = info
+        .get_call_info(pallet_index, call_index)
         .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
 
     let mut call_data = vec![];
-    for arg in extrinsic_info.args {
+    for arg in call_info.args {
         let start_idx = curr_idx(cursor);
         decode_with_error_tracing(
             cursor,
@@ -660,8 +684,8 @@ where
             scale_decode::visitor::IgnoreVisitor::new(),
         )
         .map_err(|e| ExtrinsicDecodeError::CannotDecodeCallData {
-            pallet_name: extrinsic_info.pallet_name.to_string(),
-            call_name: extrinsic_info.call_name.to_string(),
+            pallet_name: call_info.pallet_name.to_string(),
+            call_name: call_info.call_name.to_string(),
             argument_name: arg.name.to_string(),
             reason: e,
         })?;
@@ -684,10 +708,10 @@ where
         byte_len: bytes.len() as u32,
         signature,
         extensions,
-        pallet_name: extrinsic_info.pallet_name,
+        pallet_name: call_info.pallet_name,
         pallet_index,
         pallet_index_idx,
-        call_name: extrinsic_info.call_name,
+        call_name: call_info.call_name,
         call_index,
         call_data,
     };

@@ -26,16 +26,21 @@ use {crate::utils::as_decoded, scale_info_legacy::LookupName};
 pub trait ExtrinsicTypeInfo {
     /// The type of type IDs that we are using to obtain type information.
     type TypeId;
-    /// Get the information about a given extrinsic.
-    fn get_extrinsic_info(
+    /// Get the information about the call data of a given extrinsic.
+    fn get_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
     /// Get the information needed to decode the extrinsic signature bytes.
     fn get_signature_info(
         &self,
-    ) -> Result<ExtrinsicSignatureInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
+    ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>>;
+    /// Get the information needed to decode the transaction extensions.
+    fn get_extension_info(
+        &self,
+        extension_version: u8,
+    ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
 }
 
 /// An error returned trying to access extrinsic type information.
@@ -71,6 +76,9 @@ pub enum ExtrinsicInfoError<'a> {
     },
     ExtrinsicAddressTypeNotFound,
     ExtrinsicSignatureTypeNotFound,
+    ExtrinsicExtensionVersionNotFound {
+        extension_version: u8,
+    },
 }
 
 impl<'a> core::error::Error for ExtrinsicInfoError<'a> {}
@@ -86,7 +94,7 @@ impl<'a> core::fmt::Display for ExtrinsicInfoError<'a> {
                 pallet_index,
                 pallet_name,
             } => {
-                write!(f, "Call with index {index} not found in pallet '{pallet_name}' (pallet index {pallet_index})")
+                write!(f, "Call with index {index} not found in pallet '{pallet_name}' (pallet index {pallet_index}).")
             }
             #[cfg(feature = "legacy")]
             ExtrinsicInfoError::CannotParseTypeName { name, reason } => {
@@ -97,23 +105,26 @@ impl<'a> core::fmt::Display for ExtrinsicInfoError<'a> {
                 pallet_index,
                 pallet_name,
             } => {
-                write!(f, "Cannot find calls type with id {id} in pallet '{pallet_name}' (pallet index {pallet_index})")
+                write!(f, "Cannot find calls type with id {id} in pallet '{pallet_name}' (pallet index {pallet_index}).")
             }
             ExtrinsicInfoError::CallsTypeShouldBeVariant {
                 id,
                 pallet_index,
                 pallet_name,
             } => {
-                write!(f, "Calls type with id {id} should be a variant in pallet '{pallet_name}' (pallet index {pallet_index})")
+                write!(f, "Calls type with id {id} should be a variant in pallet '{pallet_name}' (pallet index {pallet_index}).")
             }
             ExtrinsicInfoError::ExtrinsicTypeNotFound { id } => {
-                write!(f, "Could not find the extrinsic type with id {id}")
+                write!(f, "Could not find the extrinsic type with id {id}.")
             }
             ExtrinsicInfoError::ExtrinsicAddressTypeNotFound => {
-                write!(f, "Could not find the extrinsic address type")
+                write!(f, "Could not find the extrinsic address type.")
             }
             ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound => {
-                write!(f, "Could not find the extrinsic signature type")
+                write!(f, "Could not find the extrinsic signature type.")
+            }
+            ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version } => {
+                write!(f, "Could not find information about extensions with version {extension_version} in the metadata. Note: Metadata <=V15 only supports version 0.")
             }
         }
     }
@@ -169,6 +180,9 @@ impl<'a> ExtrinsicInfoError<'a> {
             ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound => {
                 ExtrinsicInfoError::ExtrinsicSignatureTypeNotFound
             }
+            ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version } => {
+                ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version }
+            }
         }
     }
 }
@@ -184,7 +198,7 @@ pub struct ExtrinsicInfoArg<'a, TypeId> {
 
 /// Extrinsic call data information.
 #[derive(Debug, Clone)]
-pub struct ExtrinsicInfo<'a, TypeId> {
+pub struct ExtrinsicCallInfo<'a, TypeId> {
     /// Name of the pallet.
     pub pallet_name: Cow<'a, str>,
     /// Name of the call.
@@ -195,13 +209,18 @@ pub struct ExtrinsicInfo<'a, TypeId> {
 
 /// Extrinsic signature information.
 #[derive(Debug, Clone)]
-pub struct ExtrinsicSignatureInfo<'a, TypeId> {
+pub struct ExtrinsicSignatureInfo<TypeId> {
     /// Type ID of the address.
     pub address_id: TypeId,
     /// Type ID of the signature.
     pub signature_id: TypeId,
-    /// Names and type IDs of the signed extensions.
-    pub transaction_extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>,
+}
+
+/// Extrinsic extension information.
+#[derive(Debug, Clone)]
+pub struct ExtrinsicExtensionInfo<'a, TypeId> {
+    /// Names and type IDs of the transaction extensions.
+    pub extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>,
 }
 
 macro_rules! impl_call_arg_ids_body_for_v14_to_v15 {
@@ -272,7 +291,7 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v15 {
             })
             .collect();
 
-        Ok(ExtrinsicInfo {
+        Ok(ExtrinsicCallInfo {
             pallet_name: Cow::Borrowed(pallet_name),
             call_name: Cow::Borrowed(&call_variant.name),
             args,
@@ -282,17 +301,32 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v15 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
     type TypeId = u32;
-    fn get_extrinsic_info(
+    fn get_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v15!(self, pallet_index, call_index)
     }
     fn get_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
-        let transaction_extension_ids = self
+        let extrinsic_parts = get_v14_extrinsic_parts(self)?;
+
+        Ok(ExtrinsicSignatureInfo {
+            address_id: extrinsic_parts.address,
+            signature_id: extrinsic_parts.signature,
+        })
+    }
+    fn get_extension_info(
+        &self,
+        extension_version: u8,
+    ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        if extension_version != 0 {
+            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version });
+        }
+
+        let extension_ids = self
             .extrinsic
             .signed_extensions
             .iter()
@@ -302,29 +336,36 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
             })
             .collect();
 
-        let extrincis_parts = get_v14_extrinsic_parts(self)?;
-
-        Ok(ExtrinsicSignatureInfo {
-            address_id: extrincis_parts.address,
-            signature_id: extrincis_parts.signature,
-            transaction_extension_ids,
-        })
+        Ok(ExtrinsicExtensionInfo { extension_ids })
     }
 }
 
 impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
     type TypeId = u32;
-    fn get_extrinsic_info(
+    fn get_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v15!(self, pallet_index, call_index)
     }
     fn get_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
-        let transaction_extension_ids = self
+        Ok(ExtrinsicSignatureInfo {
+            address_id: self.extrinsic.address_ty.id,
+            signature_id: self.extrinsic.signature_ty.id,
+        })
+    }
+    fn get_extension_info(
+        &self,
+        extension_version: u8,
+    ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        if extension_version != 0 {
+            return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version });
+        }
+
+        let extension_ids = self
             .extrinsic
             .signed_extensions
             .iter()
@@ -334,11 +375,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
             })
             .collect();
 
-        Ok(ExtrinsicSignatureInfo {
-            address_id: self.extrinsic.address_ty.id,
-            signature_id: self.extrinsic.signature_ty.id,
-            transaction_extension_ids,
-        })
+        Ok(ExtrinsicExtensionInfo { extension_ids })
     }
 }
 
@@ -443,7 +480,7 @@ const _: () = {
                 })
                 .collect::<Result<_, ExtrinsicInfoError>>()?;
 
-            Ok(ExtrinsicInfo {
+            Ok(ExtrinsicCallInfo {
                 pallet_name: Cow::Borrowed(m_name),
                 call_name: Cow::Borrowed(c_name),
                 args,
@@ -455,11 +492,11 @@ const _: () = {
         ($path:path) => {
             impl ExtrinsicTypeInfo for $path {
                 type TypeId = LookupName;
-                fn get_extrinsic_info(
+                fn get_call_info(
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
                     impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
                 }
                 fn get_signature_info(
@@ -468,7 +505,20 @@ const _: () = {
                     Ok(ExtrinsicSignatureInfo {
                         address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
                         signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                        transaction_extension_ids: Vec::from_iter([ExtrinsicInfoArg {
+                    })
+                }
+                fn get_extension_info(
+                    &self,
+                    extension_version: u8,
+                ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                    if extension_version != 0 {
+                        return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
+                            extension_version,
+                        });
+                    }
+
+                    Ok(ExtrinsicExtensionInfo {
+                        extension_ids: Vec::from_iter([ExtrinsicInfoArg {
                             name: Cow::Borrowed("ExtrinsicSignedExtensions"),
                             id: parse_lookup_name("hardcoded::ExtrinsicSignedExtensions")?,
                         }]),
@@ -484,19 +534,34 @@ const _: () = {
 
     impl ExtrinsicTypeInfo for frame_metadata::v11::RuntimeMetadataV11 {
         type TypeId = LookupName;
-        fn get_extrinsic_info(
+        fn get_call_info(
             &self,
             pallet_index: u8,
             call_index: u8,
-        ) -> Result<ExtrinsicInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+        ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
             impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
         }
         fn get_signature_info(
             &self,
         ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+            Ok(ExtrinsicSignatureInfo {
+                address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
+                signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
+            })
+        }
+        fn get_extension_info(
+            &self,
+            extension_version: u8,
+        ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+            if extension_version != 0 {
+                return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
+                    extension_version,
+                });
+            }
+
             // In V11 metadata we start exposing signed extension names, so we use those directly instead of
             // a hardcoded ExtrinsicSignedExtensions type that the user is expected to define.
-            let transaction_extension_ids = self
+            let extension_ids = self
                 .extrinsic
                 .signed_extensions
                 .iter()
@@ -511,11 +576,7 @@ const _: () = {
                 })
                 .collect::<Result<Vec<_>, ExtrinsicInfoError<'_>>>()?;
 
-            Ok(ExtrinsicSignatureInfo {
-                address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
-                signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                transaction_extension_ids,
-            })
+            Ok(ExtrinsicExtensionInfo { extension_ids })
         }
     }
 
@@ -523,11 +584,11 @@ const _: () = {
         ($path:path) => {
             impl ExtrinsicTypeInfo for $path {
                 type TypeId = LookupName;
-                fn get_extrinsic_info(
+                fn get_call_info(
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
                     let modules = as_decoded(&self.modules);
 
                     let m = modules
@@ -577,7 +638,7 @@ const _: () = {
                         })
                         .collect::<Result<_, ExtrinsicInfoError>>()?;
 
-                    Ok(ExtrinsicInfo {
+                    Ok(ExtrinsicCallInfo {
                         pallet_name: Cow::Borrowed(m_name),
                         call_name: Cow::Borrowed(c_name),
                         args,
@@ -586,9 +647,24 @@ const _: () = {
                 fn get_signature_info(
                     &self,
                 ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+                    Ok(ExtrinsicSignatureInfo {
+                        address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
+                        signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
+                    })
+                }
+                fn get_extension_info(
+                    &self,
+                    extension_version: u8,
+                ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                    if extension_version != 0 {
+                        return Err(ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound {
+                            extension_version,
+                        });
+                    }
+
                     // In V12 metadata we are exposing signed extension names, so we use those directly instead of
                     // a hardcoded ExtrinsicSignedExtensions type that the user is expected to define.
-                    let transaction_extension_ids = self
+                    let extension_ids = self
                         .extrinsic
                         .signed_extensions
                         .iter()
@@ -603,11 +679,7 @@ const _: () = {
                         })
                         .collect::<Result<Vec<_>, _>>()?;
 
-                    Ok(ExtrinsicSignatureInfo {
-                        address_id: parse_lookup_name("hardcoded::ExtrinsicAddress")?,
-                        signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
-                        transaction_extension_ids,
-                    })
+                    Ok(ExtrinsicExtensionInfo { extension_ids })
                 }
             }
         };

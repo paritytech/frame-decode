@@ -43,8 +43,8 @@ pub mod extrinsics {
         ExtrinsicSignature, ExtrinsicType,
     };
     pub use crate::decoding::extrinsic_type_info::{
-        ExtrinsicInfo, ExtrinsicInfoArg, ExtrinsicInfoError, ExtrinsicSignatureInfo,
-        ExtrinsicTypeInfo,
+        ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
+        ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
     };
 
     /// Decode an extrinsic in a modern runtime (ie one exposing V14+ metadata).
