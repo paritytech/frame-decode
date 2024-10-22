@@ -81,7 +81,7 @@ impl core::fmt::Display for ExtrinsicDecodeError {
             } => {
                 write!(
                     f,
-                    "The extrinsic type {extrinsic_type:02b} is not supported (given extrinsic version {version})."
+                    "The extrinsic type 0b{extrinsic_type:02b} is not supported (given extrinsic version {version})."
                 )
             }
             ExtrinsicDecodeError::CannotGetInfo(extrinsic_info_error) => {
@@ -560,11 +560,14 @@ where
         return Err(ExtrinsicDecodeError::VersionNotSupported(version));
     }
 
-    // We know about the following types of extrinsic.
+    // We know about the following types of extrinsics:
+    // - "Bare": no signature or extensions. V4 inherents encode the same as V5 bare.
+    // - "Signed": an address, signature and extensions. Only exists in V4.
+    // - "General": no signature, just extensions (one of which can include sig). Only exists in V5.
     let version_ty = match version_type {
         0b00 => ExtrinsicType::Bare,
-        0b10 => ExtrinsicType::Signed,
-        0b01 => ExtrinsicType::General,
+        0b10 if version == 4 => ExtrinsicType::Signed,
+        0b01 if version == 5 => ExtrinsicType::General,
         _ => {
             return Err(ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
                 version,
@@ -572,14 +575,6 @@ where
             })
         }
     };
-
-    // V5 extrinsics have no notion of "signed" extrinsics.
-    if version == 5 && version_ty == ExtrinsicType::Signed {
-        return Err(ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
-            version,
-            extrinsic_type: version_type,
-        });
-    }
 
     let curr_idx = |cursor: &mut &[u8]| (bytes.len() - cursor.len()) as u32;
 
@@ -619,21 +614,16 @@ where
         })
         .transpose()?;
 
-    // Transaction extensions part. Present for Signed or General extrinsics.
+    // "General" extensions now have a single byte representing the extension version.
+    let extension_version = (version_ty == ExtrinsicType::General)
+        .then(|| u8::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion))
+        .transpose()?;
+
+    // Signed and General extrinsics both now have a set of transaction extensions.
     let extensions = (version_ty == ExtrinsicType::General || version_ty == ExtrinsicType::Signed)
         .then(|| {
-            // For v5 "General" extrinsics, there is a transaction extensions version byte, too.
-            let transaction_extensions_version = if version_ty == ExtrinsicType::General {
-                Some(
-                    u8::decode(cursor)
-                        .map_err(ExtrinsicDecodeError::CannotDecodeExtensionsVersion)?,
-                )
-            } else {
-                None
-            };
-
             let extension_info = info
-                .get_extension_info(transaction_extensions_version)
+                .get_extension_info(extension_version)
                 .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
 
             let mut transaction_extensions = vec![];
@@ -659,13 +649,13 @@ where
             }
 
             Ok::<_, ExtrinsicDecodeError>(ExtrinsicExtensions {
-                transaction_extensions_version: transaction_extensions_version.unwrap_or(0),
+                transaction_extensions_version: extension_version.unwrap_or(0),
                 transaction_extensions,
             })
         })
         .transpose()?;
 
-    // Call data part
+    // All extrinsics now have the encoded call data.
     let pallet_index_idx = curr_idx(cursor);
     let pallet_index: u8 =
         Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodePalletIndex)?;

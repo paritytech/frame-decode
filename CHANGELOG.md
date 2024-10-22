@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog].
 ## 0.4.0 (2024-10-21)
 
 - Split `ExtrinsicTypeInfo` trait to get signature and extensions info separately, and support being given an extension version in the latter.
-- Remove support for V5 signed extrinsics, which are no longer a thing.
+- Remove support for V5 signed extrinsics, which are no longer a thing (see [#3685](https://github.com/paritytech/polkadot-sdk/pull/3685) for context).
 
 ## 0.3.0 (2024-09-30)
 

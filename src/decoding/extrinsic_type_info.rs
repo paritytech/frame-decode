@@ -127,10 +127,10 @@ impl<'a> core::fmt::Display for ExtrinsicInfoError<'a> {
                 write!(f, "Could not find the extrinsic signature type.")
             }
             ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported { extension_version } => {
-                // Dev note: If we see a V5 GEneral extrinsic, it will have a byte for the version of the transaction extensions.
-                // In V15 or below metadata, we don't know which set of transaction extensions we're being told about though. Is it
-                // the set that corresponds to the version byte we see or not?
-                write!(f, "The extrinsic contains an extension version (here, {extension_version}), but in metadata <=V15 it's not clear if we can decode this version or not.")
+                // Dev note: If we see a V5 General extrinsic, it will contain a byte for the version of the transaction extensions.
+                // In V15 or below metadata, we don't know which version of the transaction extensions we're being told about. Thus,
+                // We can't be sure that we can decode a given extrinsic with V15 or below metadata.
+                write!(f, "The extrinsic contains an extension version (here, version {extension_version}), but in metadata <=V15 it's not obvious how to decode this.")
             }
             ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version } => {
                 write!(f, "Could not find information about extensions with version {extension_version} in the metadata. Note: Metadata <=V15 only supports version 0.")
