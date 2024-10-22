@@ -46,6 +46,7 @@ scale-value = { version = "0.16.3", default-features = false, optional = true }
 sp-crypto-hashing = { version = "0.1.0", default-features = false }
 
 [dev-dependencies]
+hex = "0.4.3"
 serde_yaml = "0.9"
 serde_json = "1"
 scale-value = "0.16.2"
