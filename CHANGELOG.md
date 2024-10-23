@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog].
 
 ## 0.5.0 (2024-10-23)
 
-- Bump scale-decode to 0.14 and scale-value to 0.16 ([#7](https://github.com/paritytech/frame-decode/pull/7))
+- Bump scale-decode 0.14, scale-value 0.17 and scale-info v2.11.4 ([#7](https://github.com/paritytech/frame-decode/pull/7))
 - Remove unused dependency hex ([#8](https://github.com/paritytech/frame-decode/pull/8))
 - Bump frame-metadata from 16.0.0 to 17.0.0 ([#9](https://github.com/paritytech/frame-decode/pull/8))
 
