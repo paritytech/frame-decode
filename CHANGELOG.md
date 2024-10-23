@@ -4,6 +4,13 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.5.0 (2024-10-23)
+
+- Bump scale-decode 0.14, scale-value 0.17 and scale-info v2.11.4 ([#7](https://github.com/paritytech/frame-decode/pull/7))
+- Remove unused dependency hex ([#8](https://github.com/paritytech/frame-decode/pull/8))
+- Bump frame-metadata from 16.0.0 to 17.0.0 ([#9](https://github.com/paritytech/frame-decode/pull/8))
+- Bump scale-info-legacy from 0.2.1 to 0.2.2 ([#10](https://github.com/paritytech/frame-decode/pull/10))
+
 ## 0.4.0 (2024-10-21)
 
 - Split `ExtrinsicTypeInfo` trait to get signature and extensions info separately, and support being given an extension version in the latter.
