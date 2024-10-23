@@ -55,6 +55,7 @@ pub fn type_registry_from_metadata_any(
         RuntimeMetadata::V13(m) => m.to_type_registry(),
         RuntimeMetadata::V14(_m) => Ok(scale_info_legacy::TypeRegistry::empty()),
         RuntimeMetadata::V15(_m) => Ok(scale_info_legacy::TypeRegistry::empty()),
+        RuntimeMetadata::V16(_m) => Ok(scale_info_legacy::TypeRegistry::empty()),
     }
 }
 

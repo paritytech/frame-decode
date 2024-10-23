@@ -3,18 +3,6 @@
 version = 3
 
 [[package]]
-name = "ahash"
-version = "0.8.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
-dependencies = [
- "cfg-if",
- "once_cell",
- "version_check",
- "zerocopy",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -124,13 +112,23 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.18"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.77",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -157,10 +155,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
+name = "foldhash"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f81ec6369c545a7d40e4589b5597581fa1c441fe1cce96dd1de43159910a36a2"
+
+[[package]]
 name = "frame-decode"
 version = "0.5.0"
 dependencies = [
- "frame-metadata 16.0.0",
+ "frame-metadata",
  "hex",
  "parity-scale-codec",
  "scale-decode",
@@ -175,20 +179,9 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "15.1.0"
+version = "17.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "878babb0b136e731cc77ec2fd883ff02745ff21e6fb662729953d44923df009c"
-dependencies = [
- "cfg-if",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "frame-metadata"
-version = "16.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87cf1549fba25a6fcac22785b61698317d958e96cac72a59102ea45b9ae64692"
+checksum = "701bac17e9b55e0f95067c428ebcb46496587f08e8cf4ccc0fe5903bea10dbb8"
 dependencies = [
  "cfg-if",
  "parity-scale-codec",
@@ -228,9 +221,16 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+
+[[package]]
+name = "hashbrown"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e087f84d4f86bf4b218b927129862374b72199ae7d8657835f1e89000eea4fb"
 dependencies = [
- "ahash",
  "allocator-api2",
+ "equivalent",
+ "foldhash",
  "serde",
 ]
 
@@ -258,7 +258,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b900aa2f7301e21c36462b170ee99994de34dff39a4a6a528e80e7376d07e5"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.14.5",
 ]
 
 [[package]]
@@ -287,12 +287,6 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
-
-[[package]]
-name = "once_cell"
-version = "1.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "parity-scale-codec"
@@ -412,9 +406,9 @@ dependencies = [
 
 [[package]]
 name = "scale-decode"
-version = "0.13.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e98f3262c250d90e700bb802eb704e1f841e03331c2eb815e46516c4edbf5b27"
+checksum = "f8ae9cc099ae85ff28820210732b00f019546f36f33225f509fe25d5816864a0"
 dependencies = [
  "derive_more",
  "parity-scale-codec",
@@ -425,9 +419,9 @@ dependencies = [
 
 [[package]]
 name = "scale-encode"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba0b9c48dc0eb20c60b083c29447c0c4617cb7c4a4c9fef72aa5c5bc539e15e"
+checksum = "5f9271284d05d0749c40771c46180ce89905fd95aa72a2a2fddb4b7c0aa424db"
 dependencies = [
  "derive_more",
  "parity-scale-codec",
@@ -438,9 +432,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info"
-version = "2.11.3"
+version = "2.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eca070c12893629e2cc820a9761bedf6ce1dcddc9852984d1dc734b8bd9bd024"
+checksum = "22760a375f81a31817aeaf6f5081e9ccb7ffd7f2da1809a6e3fc82b6656f10d5"
 dependencies = [
  "bitvec",
  "cfg-if",
@@ -452,9 +446,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-derive"
-version = "2.11.3"
+version = "2.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d35494501194174bda522a32605929eefc9ecf7e0a326c26db1fdd85881eb62"
+checksum = "abc61ebe25a5c410c0e245028fc9934bf8fa4817199ef5a24a68092edfd34614"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -464,12 +458,12 @@ dependencies = [
 
 [[package]]
 name = "scale-info-legacy"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eb04ed2b1e16cd492e7964b406d4c8cc43094e0cf700ebd18999ae76998fd62"
+checksum = "fe4c781c622e7c19fa3dd5442cad73da9946a370facc07d9d30743ac7fecd110"
 dependencies = [
  "derive_more",
- "hashbrown",
+ "hashbrown 0.15.0",
  "scale-type-resolver",
  "serde",
  "smallstr",
@@ -489,15 +483,14 @@ dependencies = [
 
 [[package]]
 name = "scale-value"
-version = "0.16.3"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cd6ab090d823e75cfdb258aad5fe92e13f2af7d04b43a55d607d25fcc38c811"
+checksum = "f5e0ef2a0ee1e02a69ada37feb87ea1616ce9808aca072befe2d3131bf28576e"
 dependencies = [
  "base58",
  "blake2",
  "derive_more",
  "either",
- "frame-metadata 15.1.0",
  "parity-scale-codec",
  "scale-bits",
  "scale-decode",
@@ -683,6 +676,12 @@ name = "unicode-ident"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "unsafe-libyaml"
