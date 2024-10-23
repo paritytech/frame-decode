@@ -69,6 +69,7 @@ pub fn list_storage_entries_any(
         RuntimeMetadata::V13(_opaque) => Box::new(core::iter::empty()),
         RuntimeMetadata::V14(m) => Box::new(m.storage_entries_list()),
         RuntimeMetadata::V15(m) => Box::new(m.storage_entries_list()),
+        // TODO: support unstable metadata v16 https://github.com/paritytech/frame-decode/issues/11
         RuntimeMetadata::V16(_opaque) => Box::new(core::iter::empty()),
     }
 }
