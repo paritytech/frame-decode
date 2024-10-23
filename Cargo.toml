@@ -40,7 +40,7 @@ frame-metadata = { version = "16.0.0", features = ["current"], default-features 
 parity-scale-codec = { version = "3.6.12", default-features = false }
 scale-decode = { version = "0.14.0", default-features = false }
 scale-info = { version = "2.11.4", default-features = false }
-scale-info-legacy = { version = "0.2.1", default-features = false, optional = true }
+scale-info-legacy = { version = "0.2.2", default-features = false, optional = true }
 scale-type-resolver = "0.2.0"
 scale-value = { version = "0.17.0", default-features = false, optional = true }
 sp-crypto-hashing = { version = "0.1.0", default-features = false }
@@ -50,4 +50,4 @@ hex = "0.4.3"
 serde_yaml = "0.9"
 serde_json = "1"
 scale-value = "0.17.0"
-scale-info-legacy = "0.2.1"
+scale-info-legacy = "0.2.2"
