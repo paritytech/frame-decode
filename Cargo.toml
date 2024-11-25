@@ -37,7 +37,7 @@ legacy = [
 frame-metadata = { version = "18.0.0", features = ["current"], default-features = false }
 parity-scale-codec = { version = "3.6.12", default-features = false }
 scale-decode = { version = "0.16.0", default-features = false }
-scale-info = { version = "2.11.4", default-features = false }
+scale-info = { version = "2.11.6", default-features = false }
 scale-info-legacy = { version = "0.2.2", default-features = false, optional = true }
 scale-type-resolver = "0.2.0"
 scale-value = { version = "0.18.0", default-features = false, optional = true }
