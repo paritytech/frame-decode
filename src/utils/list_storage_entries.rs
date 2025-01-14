@@ -81,7 +81,7 @@ pub struct StorageEntry<'a> {
     entry: Cow<'a, str>,
 }
 
-impl<'a> StorageEntry<'a> {
+impl StorageEntry<'_> {
     /// Take ownership of this storage entry, converting lifetimes to `'static`
     pub fn into_owned(self) -> StorageEntry<'static> {
         StorageEntry {
