@@ -417,7 +417,7 @@ impl<'info, TypeId> NamedArg<'info, TypeId> {
     }
 }
 
-impl<'info, TypeId> NamedArg<'info, TypeId> {
+impl<TypeId> NamedArg<'_, TypeId> {
     /// Take ownership of this named argument.
     pub fn into_owned(self) -> NamedArg<'static, TypeId> {
         NamedArg {
