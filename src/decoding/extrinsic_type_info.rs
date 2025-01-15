@@ -84,9 +84,9 @@ pub enum ExtrinsicInfoError<'a> {
     },
 }
 
-impl<'a> core::error::Error for ExtrinsicInfoError<'a> {}
+impl core::error::Error for ExtrinsicInfoError<'_> {}
 
-impl<'a> core::fmt::Display for ExtrinsicInfoError<'a> {
+impl core::fmt::Display for ExtrinsicInfoError<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             ExtrinsicInfoError::PalletNotFound { index } => {
@@ -139,7 +139,7 @@ impl<'a> core::fmt::Display for ExtrinsicInfoError<'a> {
     }
 }
 
-impl<'a> ExtrinsicInfoError<'a> {
+impl ExtrinsicInfoError<'_> {
     /// Take ownership of this error.
     pub fn into_owned(self) -> ExtrinsicInfoError<'static> {
         match self {

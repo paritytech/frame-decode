@@ -60,9 +60,9 @@ pub enum StorageInfoError<'a> {
     },
 }
 
-impl<'a> core::error::Error for StorageInfoError<'a> {}
+impl core::error::Error for StorageInfoError<'_> {}
 
-impl<'a> core::fmt::Display for StorageInfoError<'a> {
+impl core::fmt::Display for StorageInfoError<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             StorageInfoError::PalletNotFound { name } => {
@@ -100,7 +100,7 @@ impl<'a> core::fmt::Display for StorageInfoError<'a> {
     }
 }
 
-impl<'a> StorageInfoError<'a> {
+impl StorageInfoError<'_> {
     /// Take ownership of this error, turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfoError<'static> {
         match self {
