@@ -13,6 +13,7 @@ use frame_decode::extrinsics::decode_extrinsic_legacy;
 use frame_metadata::RuntimeMetadata;
 use parity_scale_codec::Decode;
 use scale_info_legacy::ChainTypeRegistry;
+use scale_value::scale::ValueVisitor;
 
 let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
 let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
@@ -95,6 +96,7 @@ use frame_decode::storage::decode_storage_key_legacy;
 use frame_metadata::RuntimeMetadata;
 use parity_scale_codec::Decode;
 use scale_info_legacy::ChainTypeRegistry;
+use scale_value::scale::ValueVisitor;
 
 let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
 let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
