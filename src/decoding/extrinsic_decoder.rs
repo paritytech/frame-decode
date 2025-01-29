@@ -222,7 +222,7 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
             .call_data()
             .map(|a| a.range.end as usize)
             .max()
-            .unwrap_or(0);
+            .unwrap_or(start);
 
         Range { start, end }
     }
@@ -235,7 +235,7 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
             .call_data()
             .map(|a| a.range.end as usize)
             .max()
-            .unwrap_or(0);
+            .unwrap_or(start);
 
         Range { start, end }
     }
@@ -374,7 +374,11 @@ impl<'info, TypeId> ExtrinsicExtensions<'info, TypeId> {
             .map(|a| a.range.start as usize)
             .min()
             .unwrap_or(0);
-        let end = self.iter().map(|a| a.range.end as usize).max().unwrap_or(0);
+        let end = self
+            .iter()
+            .map(|a| a.range.end as usize)
+            .max()
+            .unwrap_or(start);
 
         Range { start, end }
     }
