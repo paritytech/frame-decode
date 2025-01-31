@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.6.1 (2025-01-31)
+
+- Fix a decoding error where the ranges end at 0 if an extrinsic is 0 bytes in length ([#30](https://github.com/paritytech/frame-decode/pull/30))
+
 ## 0.5.0 (2024-10-23)
 
 - Bump scale-decode 0.14, scale-value 0.17 and scale-info v2.11.4 ([#7](https://github.com/paritytech/frame-decode/pull/7))
