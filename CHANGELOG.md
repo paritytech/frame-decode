@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.7.0 (2025-03-05)
+
+- Bump `frame-metadata` to latest: 20.0.0
+
 ## 0.6.1 (2025-01-30)
 
 - Fix a decoding error where the ranges end at 0 if an extrinsic is 0 bytes in length ([#30](https://github.com/paritytech/frame-decode/pull/30))
