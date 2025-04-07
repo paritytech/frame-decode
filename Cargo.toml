@@ -34,7 +34,7 @@ legacy = [
 ]
 
 [dependencies]
-frame-metadata = { version = "20.0.0", features = ["current"], default-features = false }
+frame-metadata = { version = "21.0.0", features = ["current"], default-features = false }
 parity-scale-codec = { version = "3.6.12", default-features = false }
 scale-decode = { version = "0.16.0", default-features = false }
 scale-info = { version = "2.11.4", default-features = false }
