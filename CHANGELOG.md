@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.8.0 (2025-05-07)
+
+- Support `frame-metadata` v23. That stabilized V16 metadata, so we implement the relevant traits for that here to support it.
 
 ## 0.7.1 (2025-04-23)
 

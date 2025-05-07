@@ -235,7 +235,7 @@ pub struct ExtrinsicExtensionInfo<'a, TypeId> {
     pub extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>,
 }
 
-macro_rules! impl_call_arg_ids_body_for_v14_to_v15 {
+macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
     ($self:ident, $pallet_index:ident, $call_index:ident) => {{
         let pallet = $self
             .pallets
@@ -318,7 +318,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
-        impl_call_arg_ids_body_for_v14_to_v15!(self, pallet_index, call_index)
+        impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn get_signature_info(
         &self,
@@ -357,7 +357,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
-        impl_call_arg_ids_body_for_v14_to_v15!(self, pallet_index, call_index)
+        impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn get_signature_info(
         &self,
@@ -380,6 +380,61 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
             .map(|e| ExtrinsicInfoArg {
                 id: e.ty.id,
                 name: Cow::Borrowed(&e.identifier),
+            })
+            .collect();
+
+        Ok(ExtrinsicExtensionInfo { extension_ids })
+    }
+}
+
+impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
+    type TypeId = u32;
+    fn get_call_info(
+        &self,
+        pallet_index: u8,
+        call_index: u8,
+    ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
+    }
+    fn get_signature_info(
+        &self,
+    ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+        Ok(ExtrinsicSignatureInfo {
+            address_id: self.extrinsic.address_ty.id,
+            signature_id: self.extrinsic.signature_ty.id,
+        })
+    }
+    fn get_extension_info(
+        &self,
+        extension_version: Option<u8>,
+    ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        // If no extension version is provided (ie we are decoding a v4 transaction),
+        // we always use version 0 of the transaction extensions. Else, we try to find
+        // the version of transaction extensions that the transaction declared it's
+        // using.
+        let extension_version = extension_version.unwrap_or(0);
+
+        let extension_indexes = self
+            .extrinsic
+            .transaction_extensions_by_version
+            .get(&extension_version)
+            .ok_or_else(
+                || ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported { extension_version },
+            )?;
+
+        let extension_ids = extension_indexes
+            .into_iter()
+            .map(|idx| {
+                let ext = self
+                    .extrinsic
+                    .transaction_extensions
+                    .get(idx.0 as usize)
+                    .expect("Index in transaction_extensions_by_version should exist in transaction_extensions");
+
+                ExtrinsicInfoArg {
+                    id: ext.ty.id,
+                    name: Cow::Borrowed(&ext.identifier),
+                }
             })
             .collect();
 
