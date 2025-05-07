@@ -27,7 +27,7 @@ pub use type_registry_from_metadata::{
 // We don't want to expose these traits at the moment, but want to test them.
 #[cfg(all(test, feature = "legacy"))]
 pub use list_storage_entries::ToStorageEntriesList;
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy"))]
 pub use type_registry_from_metadata::ToTypeRegistry;
 
 /// A utility function to unwrap the `DecodeDifferent` enum found in earlier metadata versions.
