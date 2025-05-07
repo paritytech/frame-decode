@@ -418,12 +418,12 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
             .extrinsic
             .transaction_extensions_by_version
             .get(&extension_version)
-            .ok_or_else(
-                || ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported { extension_version },
-            )?;
+            .ok_or(ExtrinsicInfoError::ExtrinsicExtensionVersionNotSupported {
+                extension_version,
+            })?;
 
         let extension_ids = extension_indexes
-            .into_iter()
+            .iter()
             .map(|idx| {
                 let ext = self
                     .extrinsic
