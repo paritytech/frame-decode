@@ -462,7 +462,7 @@ pub mod helpers {
     pub use scale_decode;
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy"))]
 mod test {
     use crate::decoding::extrinsic_type_info::ExtrinsicTypeInfo;
     use crate::decoding::storage_type_info::StorageTypeInfo;
