@@ -461,3 +461,67 @@ pub mod helpers {
     ///
     pub use scale_decode;
 }
+
+#[cfg(all(test, feature = "legacy"))]
+mod test {
+    use crate::decoding::extrinsic_type_info::ExtrinsicTypeInfo;
+    use crate::decoding::storage_type_info::StorageTypeInfo;
+    use crate::utils::{InfoAndResolver, ToStorageEntriesList, ToTypeRegistry};
+
+    macro_rules! impls_trait {
+        ($type:ty, $trait:path) => {
+            const _: () = {
+                const fn assert_impl<T: $trait>() {}
+                assert_impl::<$type>();
+            };
+        };
+    }
+
+    // Just a sanity check that all of the metadata versions we expect implement
+    // all of the key traits. Makes it harder to miss something when adding a new metadata
+    // version; just add it below and implement the traits until everything compiles.
+    #[rustfmt::skip]
+    const _: () = {
+        impls_trait!(frame_metadata::v14::RuntimeMetadataV14, InfoAndResolver);
+        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, InfoAndResolver);
+        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, InfoAndResolver);
+
+        impls_trait!(frame_metadata::v8::RuntimeMetadataV8, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v9::RuntimeMetadataV9, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v10::RuntimeMetadataV10, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v11::RuntimeMetadataV11, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v12::RuntimeMetadataV12, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v13::RuntimeMetadataV13, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v14::RuntimeMetadataV14, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, ExtrinsicTypeInfo);
+        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, ExtrinsicTypeInfo);
+
+        impls_trait!(frame_metadata::v8::RuntimeMetadataV8, StorageTypeInfo);
+        impls_trait!(frame_metadata::v9::RuntimeMetadataV9, StorageTypeInfo);
+        impls_trait!(frame_metadata::v10::RuntimeMetadataV10, StorageTypeInfo);
+        impls_trait!(frame_metadata::v11::RuntimeMetadataV11, StorageTypeInfo);
+        impls_trait!(frame_metadata::v12::RuntimeMetadataV12, StorageTypeInfo);
+        impls_trait!(frame_metadata::v13::RuntimeMetadataV13, StorageTypeInfo);
+        impls_trait!(frame_metadata::v14::RuntimeMetadataV14, StorageTypeInfo);
+        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, StorageTypeInfo);
+        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, StorageTypeInfo);
+
+        impls_trait!(frame_metadata::v8::RuntimeMetadataV8, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v9::RuntimeMetadataV9, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v10::RuntimeMetadataV10, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v11::RuntimeMetadataV11, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v12::RuntimeMetadataV12, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v13::RuntimeMetadataV13, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v14::RuntimeMetadataV14, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, ToStorageEntriesList);
+        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, ToStorageEntriesList);
+
+        // This is a legacy trait and so only legacy metadata versions implement it:
+        impls_trait!(frame_metadata::v8::RuntimeMetadataV8, ToTypeRegistry);
+        impls_trait!(frame_metadata::v9::RuntimeMetadataV9, ToTypeRegistry);
+        impls_trait!(frame_metadata::v10::RuntimeMetadataV10, ToTypeRegistry);
+        impls_trait!(frame_metadata::v11::RuntimeMetadataV11, ToTypeRegistry);
+        impls_trait!(frame_metadata::v12::RuntimeMetadataV12, ToTypeRegistry);
+        impls_trait!(frame_metadata::v13::RuntimeMetadataV13, ToTypeRegistry);
+    };
+}

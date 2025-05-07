@@ -24,6 +24,12 @@ pub use type_registry_from_metadata::{
     type_registry_from_metadata, type_registry_from_metadata_any,
 };
 
+// We don't want to expose these traits at the moment, but want to test them.
+#[cfg(all(test, feature = "legacy"))]
+pub use list_storage_entries::ToStorageEntriesList;
+#[cfg(all(test, feature = "legacy"))]
+pub use type_registry_from_metadata::ToTypeRegistry;
+
 /// A utility function to unwrap the `DecodeDifferent` enum found in earlier metadata versions.
 #[cfg(feature = "legacy")]
 pub fn as_decoded<A, B>(item: &frame_metadata::decode_different::DecodeDifferent<A, B>) -> &B {
@@ -57,6 +63,18 @@ impl InfoAndResolver for frame_metadata::v14::RuntimeMetadataV14 {
 
 impl InfoAndResolver for frame_metadata::v15::RuntimeMetadataV15 {
     type Info = frame_metadata::v15::RuntimeMetadataV15;
+    type Resolver = scale_info::PortableRegistry;
+
+    fn info(&self) -> &Self::Info {
+        self
+    }
+    fn resolver(&self) -> &Self::Resolver {
+        &self.types
+    }
+}
+
+impl InfoAndResolver for frame_metadata::v16::RuntimeMetadataV16 {
+    type Info = frame_metadata::v16::RuntimeMetadataV16;
     type Resolver = scale_info::PortableRegistry;
 
     fn info(&self) -> &Self::Info {

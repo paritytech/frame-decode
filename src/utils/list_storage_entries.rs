@@ -69,8 +69,7 @@ pub fn list_storage_entries_any(
         RuntimeMetadata::V13(_opaque) => Box::new(core::iter::empty()),
         RuntimeMetadata::V14(m) => Box::new(m.storage_entries_list()),
         RuntimeMetadata::V15(m) => Box::new(m.storage_entries_list()),
-        // TODO: support unstable metadata v16 https://github.com/paritytech/frame-decode/issues/11
-        RuntimeMetadata::V16(_opaque) => Box::new(core::iter::empty()),
+        RuntimeMetadata::V16(m) => Box::new(m.storage_entries_list()),
     }
 }
 
@@ -142,7 +141,7 @@ const _: () = {
     impl_storage_entries_list_for_v8_to_v13!(frame_metadata::v13::RuntimeMetadataV13);
 };
 
-macro_rules! impl_storage_entries_list_for_v14_to_v15 {
+macro_rules! impl_storage_entries_list_for_v14_to_v16 {
     ($path:path) => {
         impl ToStorageEntriesList for $path {
             fn storage_entries_list(&self) -> impl Iterator<Item = StorageEntry<'_>> {
@@ -164,8 +163,9 @@ macro_rules! impl_storage_entries_list_for_v14_to_v15 {
     };
 }
 
-impl_storage_entries_list_for_v14_to_v15!(frame_metadata::v14::RuntimeMetadataV14);
-impl_storage_entries_list_for_v14_to_v15!(frame_metadata::v15::RuntimeMetadataV15);
+impl_storage_entries_list_for_v14_to_v16!(frame_metadata::v14::RuntimeMetadataV14);
+impl_storage_entries_list_for_v14_to_v16!(frame_metadata::v15::RuntimeMetadataV15);
+impl_storage_entries_list_for_v14_to_v16!(frame_metadata::v16::RuntimeMetadataV16);
 
 enum Either<L, R> {
     Left(L),

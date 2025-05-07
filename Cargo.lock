@@ -162,7 +162,7 @@ checksum = "f81ec6369c545a7d40e4589b5597581fa1c441fe1cce96dd1de43159910a36a2"
 
 [[package]]
 name = "frame-decode"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "frame-metadata",
  "hex",
@@ -179,9 +179,9 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "21.0.0"
+version = "23.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20dfd1d7eae1d94e32e869e2fb272d81f52dd8db57820a373adb83ea24d7d862"
+checksum = "d8c26fcb0454397c522c05fdad5380c4e622f8a875638af33bff5a320d1fc965"
 dependencies = [
  "cfg-if",
  "parity-scale-codec",

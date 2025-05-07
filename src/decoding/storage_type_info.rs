@@ -181,7 +181,7 @@ pub enum StorageHasher {
     Identity,
 }
 
-macro_rules! impl_storage_type_info_for_v14_to_v15 {
+macro_rules! impl_storage_type_info_for_v14_to_v16 {
     ($path:path, $name:ident, $to_storage_hasher:ident) => {
         const _: () = {
             use $path as path;
@@ -298,15 +298,20 @@ macro_rules! impl_storage_type_info_for_v14_to_v15 {
     };
 }
 
-impl_storage_type_info_for_v14_to_v15!(
+impl_storage_type_info_for_v14_to_v16!(
     frame_metadata::v14,
     RuntimeMetadataV14,
     to_storage_hasher_v14
 );
-impl_storage_type_info_for_v14_to_v15!(
+impl_storage_type_info_for_v14_to_v16!(
     frame_metadata::v15,
     RuntimeMetadataV15,
     to_storage_hasher_v15
+);
+impl_storage_type_info_for_v14_to_v16!(
+    frame_metadata::v16,
+    RuntimeMetadataV16,
+    to_storage_hasher_v16
 );
 
 macro_rules! to_latest_storage_hasher {
@@ -327,6 +332,7 @@ macro_rules! to_latest_storage_hasher {
 
 to_latest_storage_hasher!(to_storage_hasher_v14, frame_metadata::v14::StorageHasher);
 to_latest_storage_hasher!(to_storage_hasher_v15, frame_metadata::v15::StorageHasher);
+to_latest_storage_hasher!(to_storage_hasher_v16, frame_metadata::v16::StorageHasher);
 
 #[cfg(feature = "legacy")]
 mod legacy {
