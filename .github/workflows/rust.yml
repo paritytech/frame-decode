@@ -140,7 +140,7 @@ jobs:
         uses: actions-rs/cargo@v1.0.3
         with:
           command: test
-          args: --all-targets --workspace
+          args: --all-targets --workspace --features legacy-types
 
       - name: Cargo test docs
         uses: actions-rs/cargo@v1.0.3

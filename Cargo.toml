@@ -1,6 +1,6 @@
 [package]
 name = "frame-decode"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 description = "Decode extrinsics and storage from Substrate based chains"
 license = "Apache-2.0"
@@ -33,6 +33,12 @@ legacy = [
     "dep:scale-info-legacy"
 ]
 
+# Provide legacy types.
+legacy-types = [
+    "legacy",
+    "dep:serde_yaml"
+]
+
 [dependencies]
 frame-metadata = { version = "23.0.0", features = ["current"], default-features = false }
 parity-scale-codec = { version = "3.6.12", default-features = false }
@@ -42,6 +48,7 @@ scale-info-legacy = { version = "0.2.2", default-features = false, optional = tr
 scale-type-resolver = "0.2.0"
 scale-value = { version = "0.18.0", default-features = false, optional = true }
 sp-crypto-hashing = { version = "0.1.0", default-features = false }
+serde_yaml = { version = "0.9", optional = true }
 
 [dev-dependencies]
 hex = "0.4.3"
