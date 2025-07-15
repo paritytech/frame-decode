@@ -449,7 +449,6 @@ pub mod legacy_types {
             serde_yaml::from_slice(bytes).expect("Polkadot types are valid YAML")
         }
     }
-
 }
 
 pub mod helpers {
@@ -491,7 +490,7 @@ mod test {
     #[test]
     fn test_deserializing_legacy_types() {
         let _ = crate::legacy_types::polkadot::relay_chain();
-    }   
+    }
 
     macro_rules! impls_trait {
         ($type:ty, $trait:path) => {
