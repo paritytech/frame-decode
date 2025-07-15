@@ -434,6 +434,24 @@ pub mod storage {
     }
 }
 
+#[cfg(feature = "legacy-types")]
+pub mod legacy_types {
+    //! This module contains legacy types that can be used to decode pre-V14 blocks and storage.
+
+    pub mod polkadot {
+        //! Legacy types for Polkadot chains.
+
+        /// Legacy types for the Polkadot Relay Chain.
+        pub fn relay_chain() -> scale_info_legacy::ChainTypeRegistry {
+            // This is a convenience function to load the Polkadot relay chain types.
+            // It is used in the examples in this crate.
+            let bytes = include_bytes!("../types/polkadot_types.yaml");
+            serde_yaml::from_slice(bytes).expect("Polkadot types are valid YAML")
+        }
+    }
+
+}
+
 pub mod helpers {
     //! Helper functions and types to assist with decoding.
     //!
@@ -467,6 +485,13 @@ mod test {
     use crate::decoding::extrinsic_type_info::ExtrinsicTypeInfo;
     use crate::decoding::storage_type_info::StorageTypeInfo;
     use crate::utils::{InfoAndResolver, ToStorageEntriesList, ToTypeRegistry};
+
+    // This will panic if there is any issue decoding the legacy types we provide.
+    #[cfg(all(test, feature = "legacy-types"))]
+    #[test]
+    fn test_deserializing_legacy_types() {
+        let _ = crate::legacy_types::polkadot::relay_chain();
+    }   
 
     macro_rules! impls_trait {
         ($type:ty, $trait:path) => {

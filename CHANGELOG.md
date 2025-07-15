@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.8.1 (2025-07-15)
+
+- Expose a `crate::legacy_types` module which provides `crate::legacy_types::polkadot::relay_chain()` to access the relay chain types. This is gated behind the "legacy-types" feature which is disabled by default.
+
 ## 0.8.0 (2025-05-07)
 
 - Support `frame-metadata` v23. That stabilized V16 metadata, so we implement the relevant traits for that here to support it.
