@@ -40,7 +40,7 @@ pub mod extrinsics {
 
     pub use crate::decoding::extrinsic_decoder::{
         decode_extrinsic, Extrinsic, ExtrinsicDecodeError, ExtrinsicExtensions, ExtrinsicOwned,
-        ExtrinsicSignature, ExtrinsicType,
+        ExtrinsicSignature, ExtrinsicType, NamedArg,
     };
     pub use crate::decoding::extrinsic_type_info::{
         ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
