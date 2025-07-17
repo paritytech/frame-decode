@@ -210,7 +210,7 @@ impl<'info, TypeId> Extrinsic<'info, TypeId> {
     }
 
     /// Iterate over the call data argument names and types.
-    pub fn call_data(&self) -> impl Iterator<Item = &NamedArg<'info, TypeId>> {
+    pub fn call_data(&self) -> impl ExactSizeIterator<Item = &NamedArg<'info, TypeId>> {
         self.call_data.iter()
     }
 
@@ -362,7 +362,7 @@ impl<'info, TypeId> ExtrinsicExtensions<'info, TypeId> {
     }
 
     /// Iterate over the signed extension argument names and types.
-    pub fn iter(&self) -> impl Iterator<Item = &NamedArg<'info, TypeId>> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &NamedArg<'info, TypeId>> {
         self.transaction_extensions.iter()
     }
 

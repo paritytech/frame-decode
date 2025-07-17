@@ -4,9 +4,13 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.8.3 (2025-07-17)
+
+- Make a couple of methods in `crate::extrinsics` return `impl ExactSizeIterator` rather than `impl Iterator`, enabling them to be used with `scale_decode::DecodeAsFields`.
+
 ## 0.8.2 (2025-07-16)
 
-- Make the `crate::extrinsics::NamedArg` type public, since it's in the public interface.
+- Make the `crate::extrinsics::NamedArg` type public, since it's in the public interface.`
 
 ## 0.8.1 (2025-07-15)
 
