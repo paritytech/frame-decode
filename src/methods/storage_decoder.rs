@@ -314,7 +314,7 @@ where
 
     // Sanity check that the storage key prefix is what we expect:
     let expected_prefix = encode_prefix(pallet_name, storage_entry);
-    if &cursor[..32] != &expected_prefix {
+    if cursor[..32] != expected_prefix {
         return Err(StorageKeyDecodeError::PrefixMismatch);
     }
 

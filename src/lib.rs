@@ -281,14 +281,13 @@ pub mod helpers {
     pub use scale_decode;
 }
 
-#[cfg(all(test, feature = "legacy"))]
+#[cfg(test)]
 mod test {
     use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
     use crate::methods::storage_type_info::StorageTypeInfo;
     use crate::utils::{InfoAndResolver, ToStorageEntriesList, ToTypeRegistry};
 
     // This will panic if there is any issue decoding the legacy types we provide.
-    #[cfg(all(test, feature = "legacy-types"))]
     #[test]
     fn test_deserializing_legacy_types() {
         let _ = crate::legacy_types::polkadot::relay_chain();

@@ -153,8 +153,8 @@ where
         .map_err(|e| StorageKeyEncodeError::CannotGetInfo(e.into_owned()))?;
 
     encode_storage_key_with_info_to(
-        &pallet_name,
-        &storage_entry,
+        pallet_name,
+        storage_entry,
         keys,
         &storage_info,
         type_resolver,
@@ -341,9 +341,7 @@ impl<K: scale_encode::EncodeAsType, const N: usize> StorageKeys for core::array:
 // Empty tuples can be used as a placeholder for no storage keys.
 impl IntoStorageKeys for () {
     type Keys = ();
-    fn into_storage_keys(self) -> Self::Keys {
-        ()
-    }
+    fn into_storage_keys(self) -> Self::Keys {}
 }
 
 impl StorageKeys for () {
@@ -436,28 +434,28 @@ mod test {
         let keys = (123u16, true, "hello");
         let mut storage_keys = keys.into_storage_keys();
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u64").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 123u64.encode());
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("bool").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, true.encode());
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("String").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, "hello".encode());
 
-        assert_eq!(storage_keys.has_next_key(), false);
+        assert!(!storage_keys.has_next_key());
         assert!(storage_keys
             .encode_next_key(LookupName::parse("foo").unwrap(), &types)
             .is_none());
@@ -478,28 +476,28 @@ mod test {
         let keys = vec![123u16, 456u16, 789u16];
         let mut storage_keys = keys.into_storage_keys();
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u64").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 123u64.encode());
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u16").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 456u16.encode());
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u32").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 789u32.encode());
 
-        assert_eq!(storage_keys.has_next_key(), false);
+        assert!(!storage_keys.has_next_key());
         assert!(storage_keys
             .encode_next_key(LookupName::parse("foo").unwrap(), &types)
             .is_none());
@@ -520,28 +518,28 @@ mod test {
         let keys: [u16; 3] = [123, 456, 789];
         let mut storage_keys = keys.into_storage_keys();
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u64").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 123u64.encode());
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u16").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 456u16.encode());
 
-        assert_eq!(storage_keys.has_next_key(), true);
+        assert!(storage_keys.has_next_key());
         let val = storage_keys
             .encode_next_key(LookupName::parse("u32").unwrap(), &types)
             .unwrap()
             .unwrap();
         assert_eq!(val, 789u32.encode());
 
-        assert_eq!(storage_keys.has_next_key(), false);
+        assert!(!storage_keys.has_next_key());
         assert!(storage_keys
             .encode_next_key(LookupName::parse("foo").unwrap(), &types)
             .is_none());
