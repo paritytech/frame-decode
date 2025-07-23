@@ -168,6 +168,7 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "scale-decode",
+ "scale-encode",
  "scale-info",
  "scale-info-legacy",
  "scale-type-resolver",
@@ -175,6 +176,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sp-crypto-hashing",
+ "thiserror",
 ]
 
 [[package]]

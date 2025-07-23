@@ -13,8 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::storage_encoder::encode_prefix;
 use super::storage_type_info::{StorageHasher, StorageTypeInfo};
-use crate::decoding::storage_type_info::StorageInfoError;
+use crate::methods::storage_type_info::StorageInfoError;
 use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
 use alloc::vec;
 use alloc::vec::Vec;
@@ -24,47 +25,22 @@ use scale_type_resolver::TypeResolver;
 /// An error returned trying to decode storage bytes.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum StorageKeyDecodeError<TypeId> {
+    #[error("Cannot get storage info: {0}")]
     CannotGetInfo(StorageInfoError<'static>),
+    #[error("The hashed storage prefix given does not match the pallet and storage name asked to decode.")]
     PrefixMismatch,
-    NotEnoughBytes {
-        needed: usize,
-        have: usize,
-    },
+    #[error("Not enough bytes left: we need at least {needed} bytes but have {have} bytes")]
+    NotEnoughBytes { needed: usize, have: usize },
+    #[error(
+        "Cannot decode storage key '{ty:?}':\n\n{reason}\n\nDecoded so far:\n\n{decoded_so_far}"
+    )]
     CannotDecodeKey {
         ty: TypeId,
         reason: DecodeErrorTrace,
         decoded_so_far: StorageKey<TypeId>,
     },
-}
-
-impl<TypeId: core::fmt::Debug> core::error::Error for StorageKeyDecodeError<TypeId> {}
-
-impl<TypeId: core::fmt::Debug> core::fmt::Display for StorageKeyDecodeError<TypeId> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            StorageKeyDecodeError::CannotGetInfo(storage_info_error) => {
-                write!(f, "Cannot get storage info:\n\n{storage_info_error}")
-            }
-            StorageKeyDecodeError::PrefixMismatch => {
-                write!(f, "The hashed storage prefix given does not match the pallet and storage name asked to decode.")
-            }
-            StorageKeyDecodeError::NotEnoughBytes { needed, have } => {
-                write!(
-                    f,
-                    "Not enough bytes left: we need at least {needed} bytes but have {have} bytes"
-                )
-            }
-            StorageKeyDecodeError::CannotDecodeKey {
-                ty,
-                reason,
-                decoded_so_far,
-            } => {
-                write!(f, "Cannot decode storage key '{ty:?}':\n\n{reason}\n\nDecoded so far:\n\n{decoded_so_far}")
-            }
-        }
-    }
 }
 
 impl<TypeId> StorageKeyDecodeError<TypeId> {
@@ -336,24 +312,44 @@ where
         .get_storage_info(pallet_name, storage_entry)
         .map_err(|e| StorageKeyDecodeError::CannotGetInfo(e.into_owned()))?;
 
-    let bytes = *cursor;
-    let curr_idx = |cursor: &mut &[u8]| (bytes.len() - cursor.len()) as u32;
-
-    let prefix = strip_bytes(cursor, 32)?;
-
-    // Check that the storage key prefix is what we expect:
-    let expected_prefix = {
-        let mut v = Vec::<u8>::with_capacity(16);
-        v.extend(&sp_crypto_hashing::twox_128(pallet_name.as_bytes()));
-        v.extend(&sp_crypto_hashing::twox_128(storage_entry.as_bytes()));
-        v
-    };
-    if prefix != expected_prefix {
+    // Sanity check that the storage key prefix is what we expect:
+    let expected_prefix = encode_prefix(pallet_name, storage_entry);
+    if &cursor[..32] != &expected_prefix {
         return Err(StorageKeyDecodeError::PrefixMismatch);
     }
 
+    decode_storage_key_with_info(cursor, &storage_info, type_resolver)
+}
+
+/// Decode a storage key, returning information about it.
+///
+/// Unlike [`decode_storage_key`], which obtains the storage info internally given the pallet and storage entry names,
+/// this function takes the storage info as an argument. This is useful if you already have the storage info available,
+/// for example if you are decoding multiple keys for the same storage entry.
+///
+/// # Warning
+///
+/// Unlike [`decode_storage_key`], this does not check that the bytes start with the expected prefix; ensuring that the
+/// storage information lines up with the bytes is the caller's responsibility.
+pub fn decode_storage_key_with_info<Resolver>(
+    cursor: &mut &[u8],
+    storage_info: &crate::storage::StorageInfo<<Resolver as TypeResolver>::TypeId>,
+    type_resolver: &Resolver,
+) -> Result<
+    StorageKey<<Resolver as TypeResolver>::TypeId>,
+    StorageKeyDecodeError<<Resolver as TypeResolver>::TypeId>,
+>
+where
+    Resolver: TypeResolver,
+    <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
+{
+    let bytes = *cursor;
+    let curr_idx = |cursor: &mut &[u8]| (bytes.len() - cursor.len()) as u32;
+
+    let _prefix = strip_bytes(cursor, 32)?;
+
     let mut parts = vec![];
-    for key in storage_info.keys {
+    for key in &storage_info.keys {
         let hasher = key.hasher;
         let start_idx = curr_idx(cursor);
         let part = match &hasher {
@@ -405,7 +401,7 @@ where
                             start: hash_end_idx,
                             end: curr_idx(cursor),
                         },
-                        ty: key.key_id,
+                        ty: key.key_id.clone(),
                     }),
                     hasher,
                 }
@@ -436,7 +432,7 @@ where
                             start: hash_end_idx,
                             end: curr_idx(cursor),
                         },
-                        ty: key.key_id,
+                        ty: key.key_id.clone(),
                     }),
                     hasher,
                 }
@@ -465,7 +461,7 @@ where
                             start: start_idx,
                             end: curr_idx(cursor),
                         },
-                        ty: key.key_id,
+                        ty: key.key_id.clone(),
                     }),
                     hasher,
                 }
@@ -529,15 +525,35 @@ where
         .get_storage_info(pallet_name, storage_entry)
         .map_err(|e| StorageValueDecodeError::CannotGetInfo(e.into_owned()))?;
 
-    let value_id = storage_info.value_id;
+    decode_storage_value_with_info(cursor, &storage_info, type_resolver, visitor)
+}
 
-    let decoded = decode_with_error_tracing(cursor, value_id.clone(), type_resolver, visitor)
-        .map_err(|e| StorageValueDecodeError::CannotDecodeValue {
+/// Decode a storage value.
+///
+/// Unlike [`decode_storage_value`], which obtains the storage info internally given the pallet and storage entry names,
+/// this function takes the storage info as an argument. This is useful if you already have the storage info available,
+/// for example if you are decoding multiple keys for the same storage entry.
+pub fn decode_storage_value_with_info<'scale, 'resolver, V>(
+    cursor: &mut &'scale [u8],
+    storage_info: &crate::storage::StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
+    type_resolver: &'resolver V::TypeResolver,
+    visitor: V,
+) -> Result<
+    V::Value<'scale, 'resolver>,
+    StorageValueDecodeError<<V::TypeResolver as TypeResolver>::TypeId>,
+>
+where
+    V: scale_decode::Visitor,
+    V::Error: core::fmt::Debug,
+{
+    let value_id = storage_info.value_id.clone();
+
+    decode_with_error_tracing(cursor, value_id.clone(), type_resolver, visitor).map_err(|e| {
+        StorageValueDecodeError::CannotDecodeValue {
             ty: value_id,
             reason: e,
-        })?;
-
-    Ok(decoded)
+        }
+    })
 }
 
 fn strip_bytes<'a, T>(
