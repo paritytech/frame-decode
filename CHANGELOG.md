@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.9.0 (2025-07-24)
+
+- Remove the `_legacy` functions; just use the non suffixed versions which are identical.
+- Adds storage key encoding via `frame_decode::storage::encode_storage_key`, `frame_decode::storage::encode_storage_key_to`, and`frame_decode::storage::encode_storage_key_with_info_to`, with supporting traits.
+- Rename `prefix` to `encode_prefix` to align with the above.
+
 ## 0.8.3 (2025-07-17)
 
 - Make a couple of methods in `crate::extrinsics` return `impl ExactSizeIterator` rather than `impl Iterator`, enabling them to be used with `scale_decode::DecodeAsFields`.
