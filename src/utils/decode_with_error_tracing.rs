@@ -99,13 +99,11 @@ where
 }
 
 /// A tracing decode error.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub struct DecodeErrorTrace {
     original_error: String,
     tracing_error: String,
 }
-
-impl core::error::Error for DecodeErrorTrace {}
 
 impl core::fmt::Display for DecodeErrorTrace {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

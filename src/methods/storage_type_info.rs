@@ -33,71 +33,34 @@ pub trait StorageTypeInfo {
 /// An error returned trying to access storage type information.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum StorageInfoError<'a> {
-    PalletNotFound {
-        name: Cow<'a, str>,
-    },
+    #[error("Pallet not found: {name}")]
+    PalletNotFound { name: Cow<'a, str> },
+    #[error("Storage item not found: {name} in pallet {pallet_name}")]
     StorageNotFound {
         name: Cow<'a, str>,
         pallet_name: Cow<'a, str>,
     },
+    #[error("Cannot parse type name {name}:\n\n{reason}.")]
     #[cfg(feature = "legacy")]
     CannotParseTypeName {
         name: Cow<'a, str>,
         reason: scale_info_legacy::lookup_name::ParseError,
     },
+    #[error("Number of hashers and keys does not line up for {pallet_name}.{entry_name}; we have {num_hashers} hashers and {num_keys} keys.")]
     HasherKeyMismatch {
         entry_name: Cow<'a, str>,
         pallet_name: Cow<'a, str>,
         num_hashers: usize,
         num_keys: usize,
     },
+    #[error("Cannot find type ID {id} for {pallet_name}.{entry_name}.")]
     StorageTypeNotFound {
         entry_name: Cow<'a, str>,
         pallet_name: Cow<'a, str>,
         id: u32,
     },
-}
-
-impl core::error::Error for StorageInfoError<'_> {}
-
-impl core::fmt::Display for StorageInfoError<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            StorageInfoError::PalletNotFound { name } => {
-                write!(f, "Pallet '{name}' not found.")
-            }
-            StorageInfoError::StorageNotFound { name, pallet_name } => {
-                write!(
-                    f,
-                    "Storage item '{name}' not found in pallet '{pallet_name}'."
-                )
-            }
-            #[cfg(feature = "legacy")]
-            StorageInfoError::CannotParseTypeName { name, reason } => {
-                write!(f, "Cannot parse type name {name}:\n\n{reason}.")
-            }
-            StorageInfoError::HasherKeyMismatch {
-                entry_name,
-                pallet_name,
-                num_hashers,
-                num_keys,
-            } => {
-                write!(f, "Number of hashers and keys does not line up for {pallet_name}.{entry_name}; we have {num_hashers} hashers and {num_keys} keys.")
-            }
-            StorageInfoError::StorageTypeNotFound {
-                entry_name,
-                pallet_name,
-                id,
-            } => {
-                write!(
-                    f,
-                    "Cannot find type ID {id} for {pallet_name}.{entry_name}."
-                )
-            }
-        }
-    }
 }
 
 impl StorageInfoError<'_> {

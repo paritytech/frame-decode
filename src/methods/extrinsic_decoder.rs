@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::decoding::extrinsic_type_info::ExtrinsicInfoError;
-use crate::decoding::extrinsic_type_info::ExtrinsicTypeInfo;
+use crate::methods::extrinsic_type_info::ExtrinsicInfoError;
+use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
 use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
 use alloc::borrow::Cow;
 use alloc::string::{String, ToString};
@@ -27,91 +27,40 @@ use scale_type_resolver::TypeResolver;
 /// An error returned trying to decode extrinsic bytes.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum ExtrinsicDecodeError {
+    #[error("Cannot decode the compact-encoded extrinsic length.")]
     CannotDecodeLength,
+    #[error(
+        "The actual number of bytes does not match the compact-encoded extrinsic length; expected {expected_len} bytes but got {actual_len} bytes."
+    )]
     WrongLength {
         expected_len: usize,
         actual_len: usize,
     },
+    #[error("Not enough bytes to decode a valid extrinsic.")]
     NotEnoughBytes,
+    #[error("This extrinsic version ({0}) is not supported.")]
     VersionNotSupported(u8),
-    ExtrinsicTypeNotSupported {
-        version: u8,
-        extrinsic_type: u8,
-    },
+    #[error("The extrinsic type 0b{extrinsic_type:02b} is not supported (given extrinsic version {version}).")]
+    ExtrinsicTypeNotSupported { version: u8, extrinsic_type: u8 },
+    #[error("Cannot get extrinsic info:\n\n{0}")]
     CannotGetInfo(ExtrinsicInfoError<'static>),
+    #[error("Cannot decode signature:\n\n{0}")]
     CannotDecodeSignature(DecodeErrorTrace),
+    #[error("Cannot decode pallet index byte:\n\n{0}")]
     CannotDecodePalletIndex(parity_scale_codec::Error),
+    #[error("Cannot decode call index byte:\n\n{0}")]
     CannotDecodeCallIndex(parity_scale_codec::Error),
+    #[error("Cannot decode transaction extensions version byte:\n\n{0}")]
     CannotDecodeExtensionsVersion(parity_scale_codec::Error),
+    #[error("Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}")]
     CannotDecodeCallData {
         pallet_name: String,
         call_name: String,
         argument_name: String,
         reason: DecodeErrorTrace,
     },
-}
-
-impl core::error::Error for ExtrinsicDecodeError {}
-impl core::fmt::Display for ExtrinsicDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ExtrinsicDecodeError::CannotDecodeLength => {
-                write!(f, "Cannot decode the compact-encoded extrinsic length.")
-            }
-            ExtrinsicDecodeError::WrongLength {
-                expected_len,
-                actual_len,
-            } => {
-                write!(f, "The actual number of bytes does not match the compact-encoded extrinsic length; expected {expected_len} bytes but got {actual_len} bytes.")
-            }
-            ExtrinsicDecodeError::NotEnoughBytes => {
-                write!(f, "Not enough bytes to decode a valid extrinsic.")
-            }
-            ExtrinsicDecodeError::VersionNotSupported(extrinsic_version) => {
-                write!(
-                    f,
-                    "This extrinsic version ({extrinsic_version}) is not supported."
-                )
-            }
-            ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
-                version,
-                extrinsic_type,
-            } => {
-                write!(
-                    f,
-                    "The extrinsic type 0b{extrinsic_type:02b} is not supported (given extrinsic version {version})."
-                )
-            }
-            ExtrinsicDecodeError::CannotGetInfo(extrinsic_info_error) => {
-                write!(f, "Cannot get extrinsic info:\n\n{extrinsic_info_error}")
-            }
-            ExtrinsicDecodeError::CannotDecodeSignature(decode_error_trace) => {
-                write!(f, "Cannot decode signature:\n\n{decode_error_trace}")
-            }
-            ExtrinsicDecodeError::CannotDecodePalletIndex(error) => {
-                write!(f, "Cannot decode pallet index byte:\n\n{error}")
-            }
-            ExtrinsicDecodeError::CannotDecodeCallIndex(error) => {
-                write!(f, "Cannot decode call index byte:\n\n{error}")
-            }
-            ExtrinsicDecodeError::CannotDecodeExtensionsVersion(error) => {
-                write!(
-                    f,
-                    "Cannot decode transaction extensions version byte:\n\n{error}"
-                )
-            }
-            ExtrinsicDecodeError::CannotDecodeCallData {
-                pallet_name,
-                call_name,
-                argument_name,
-                reason,
-            } => {
-                write!(f, "Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}")
-            }
-        }
-    }
 }
 
 /// An owned variant of an Extrinsic (note: this may still contain

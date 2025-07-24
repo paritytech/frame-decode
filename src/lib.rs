@@ -24,7 +24,7 @@
 
 extern crate alloc;
 
-mod decoding;
+mod methods;
 mod utils;
 
 pub mod extrinsics {
@@ -32,17 +32,15 @@ pub mod extrinsics {
     //!
     //! - See [`decode_extrinsic`] for a general function to decode modern or historic extrinsics.
     //! - See [`decode_extrinsic_current`] for a helper to decode modern extrinsics.
-    //! - See [`decode_extrinsic_legacy`] for a helper (and example) on decoding legacy extrinsics.
     //!
 
     use crate::utils::InfoAndResolver;
-    use scale_type_resolver::TypeResolver;
 
-    pub use crate::decoding::extrinsic_decoder::{
+    pub use crate::methods::extrinsic_decoder::{
         decode_extrinsic, Extrinsic, ExtrinsicDecodeError, ExtrinsicExtensions, ExtrinsicOwned,
         ExtrinsicSignature, ExtrinsicType, NamedArg,
     };
-    pub use crate::decoding::extrinsic_type_info::{
+    pub use crate::methods::extrinsic_type_info::{
         ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
         ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
     };
@@ -90,63 +88,6 @@ pub mod extrinsics {
     {
         decode_extrinsic(cursor, metadata.info(), metadata.resolver())
     }
-
-    /// Decode an extrinsic in a historic runtime (ie one prior to V14 metadata). This is basically
-    /// just an alias for [`decode_extrinsic`].
-    ///
-    /// To understand more about the historic types required to decode old blocks, see [`scale_info_legacy`].
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use frame_decode::extrinsics::decode_extrinsic_legacy;
-    /// use frame_metadata::RuntimeMetadata;
-    /// use parity_scale_codec::Decode;
-    /// use scale_info_legacy::ChainTypeRegistry;
-    ///
-    /// let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
-    /// let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
-    ///
-    /// let extrinsics_bytes = std::fs::read("artifacts/exts_5000000_30.json").unwrap();
-    /// let extrinsics_hex: Vec<String> = serde_json::from_slice(&extrinsics_bytes).unwrap();
-    ///
-    /// // For historic types, we also need to provide type definitions, since they aren't in the
-    /// // metadata. We use scale-info-legacy to do this, and have already defined types for the
-    /// // Polkadot relay chain, so let's load those in:
-    /// let historic_type_bytes = std::fs::read("types/polkadot_types.yaml").unwrap();
-    /// let historic_types: ChainTypeRegistry = serde_yaml::from_slice(&historic_type_bytes).unwrap();
-    ///
-    /// // We configure the loaded types for the spec version of the extrinsics we want to decode,
-    /// // because types can vary between different spec versions.
-    /// let mut historic_types_for_spec = historic_types.for_spec_version(30);
-    ///
-    /// // We also want to embelish these types with information from the metadata itself. This avoids
-    /// // needing to hardcode a load of type definitions that we can already construct from the metadata.
-    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&metadata).unwrap();
-    /// historic_types_for_spec.prepend(types_from_metadata);
-    ///
-    /// for ext_hex in extrinsics_hex {
-    ///     let ext_bytes = hex::decode(ext_hex.trim_start_matches("0x")).unwrap();
-    ///
-    ///     // Decode the extrinsic, returning information about it:
-    ///     let ext_info = decode_extrinsic_legacy(&mut &*ext_bytes, &metadata, &historic_types_for_spec).unwrap();
-    ///
-    ///     // Now we can use this information to inspect the extrinsic and decode the
-    ///     // different values inside it (see the `decode_extrinsic` docs).
-    /// }
-    /// ```
-    pub fn decode_extrinsic_legacy<'info, Info, Resolver>(
-        cursor: &mut &[u8],
-        info: &'info Info,
-        type_resolver: &Resolver,
-    ) -> Result<Extrinsic<'info, Info::TypeId>, ExtrinsicDecodeError>
-    where
-        Info: ExtrinsicTypeInfo,
-        Info::TypeId: core::fmt::Debug + Clone,
-        Resolver: TypeResolver<TypeId = Info::TypeId>,
-    {
-        decode_extrinsic(cursor, info, type_resolver)
-    }
 }
 
 pub mod storage {
@@ -156,21 +97,25 @@ pub mod storage {
     //!   from modern or historic runtimes.
     //! - See [`decode_storage_key_current`] and [`decode_storage_value_current`] to decode modern
     //!   storage keys and values.
-    //! - See [`decode_storage_key_legacy`] and [`decode_storage_value_legacy`] to decode historic
-    //!   storage keys and values (with examples).
-    //!
+    //! - See [`encode_prefix`] to encode storage prefixes, and [`encode_storage_key`] to encode
+    //!   storage keys.
 
     use crate::utils::InfoAndResolver;
     use scale_decode::Visitor;
     use scale_type_resolver::TypeResolver;
 
-    pub use crate::decoding::storage_type_info::{
+    pub use crate::methods::storage_type_info::{
         StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
     };
 
-    pub use crate::decoding::storage_decoder::{
-        decode_storage_key, decode_storage_value, StorageKey, StorageKeyDecodeError,
-        StorageKeyPart, StorageKeyPartValue, StorageValueDecodeError,
+    pub use crate::methods::storage_decoder::{
+        decode_storage_key, decode_storage_key_with_info, decode_storage_value,
+        decode_storage_value_with_info, StorageKey, StorageKeyDecodeError, StorageKeyPart,
+        StorageKeyPartValue, StorageValueDecodeError,
+    };
+    pub use crate::methods::storage_encoder::{
+        encode_prefix, encode_storage_key, encode_storage_key_to, encode_storage_key_with_info_to,
+        IntoStorageKeys, StorageKeyEncodeError, StorageKeys,
     };
 
     type TypeIdOf<T> = <<T as InfoAndResolver>::Info as StorageTypeInfo>::TypeId;
@@ -233,74 +178,6 @@ pub mod storage {
         )
     }
 
-    /// Decode a storage key in a historic (pre-V14-metadata) runtime, returning information about it.
-    ///
-    /// This information can be used to identify and, where possible, decode the parts of the storage key.
-    ///
-    /// This is basically just an alias for [`decode_storage_key`]. See that for a more complete example.
-    ///
-    /// # Example
-    ///
-    /// Here, we decode some storage keys from a block.
-    ///
-    /// ```rust
-    /// use frame_decode::storage::decode_storage_key_legacy;
-    /// use frame_metadata::RuntimeMetadata;
-    /// use parity_scale_codec::Decode;
-    /// use scale_info_legacy::ChainTypeRegistry;
-    ///
-    /// let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
-    /// let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
-    ///  
-    /// let storage_keyval_bytes = std::fs::read("artifacts/storage_5000000_30_staking_validators.json").unwrap();
-    /// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
-    ///
-    /// // For historic types, we also need to provide type definitions, since they aren't in the
-    /// // metadata. We use scale-info-legacy to do this, and have already defined types for the
-    /// // Polkadot relay chain, so let's load those in:
-    /// let historic_type_bytes = std::fs::read("types/polkadot_types.yaml").unwrap();
-    /// let historic_types: ChainTypeRegistry = serde_yaml::from_slice(&historic_type_bytes).unwrap();
-    ///
-    /// // We configure the loaded types for the spec version of the extrinsics we want to decode,
-    /// // because types can vary between different spec versions.
-    /// let mut historic_types_for_spec = historic_types.for_spec_version(30);
-    ///
-    /// // We also want to embelish these types with information from the metadata itself. This avoids
-    /// // needing to hardcode a load of type definitions that we can already construct from the metadata.
-    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&metadata).unwrap();
-    /// historic_types_for_spec.prepend(types_from_metadata);
-    ///
-    /// for (key, _val) in storage_keyval_hex {
-    ///     let key_bytes = hex::decode(key.trim_start_matches("0x")).unwrap();
-    ///
-    ///     // Decode the storage key, returning information about it:
-    ///     let storage_info = decode_storage_key_legacy(
-    ///         "Staking",
-    ///         "Validators",
-    ///         &mut &*key_bytes,
-    ///         &metadata,
-    ///         &historic_types_for_spec
-    ///     ).unwrap();
-    ///
-    ///     // See `decode_storage_key` for more.
-    /// }
-    /// ```
-    #[cfg(feature = "legacy")]
-    pub fn decode_storage_key_legacy<Info, Resolver>(
-        pallet_name: &str,
-        storage_entry: &str,
-        cursor: &mut &[u8],
-        info: &Info,
-        type_resolver: &Resolver,
-    ) -> Result<StorageKey<Info::TypeId>, StorageKeyDecodeError<Info::TypeId>>
-    where
-        Info: StorageTypeInfo,
-        Info::TypeId: Clone + core::fmt::Debug,
-        Resolver: TypeResolver<TypeId = Info::TypeId>,
-    {
-        decode_storage_key(pallet_name, storage_entry, cursor, info, type_resolver)
-    }
-
     /// Decode a storage value in a modern (V14-metadata-or-later) runtime.
     ///
     /// # Example
@@ -357,81 +234,6 @@ pub mod storage {
             visitor,
         )
     }
-
-    /// Decode a storage value in a historic (pre-V14-metadata) runtime. This is basically
-    /// just an alias for [`decode_storage_value`].
-    ///
-    /// # Example
-    ///
-    /// Here, we decode some storage values from a block.
-    ///
-    /// ```rust
-    /// use frame_decode::storage::decode_storage_value_legacy;
-    /// use frame_metadata::RuntimeMetadata;
-    /// use parity_scale_codec::Decode;
-    /// use scale_info_legacy::ChainTypeRegistry;
-    /// use scale_value::scale::ValueVisitor;
-    ///
-    /// let metadata_bytes = std::fs::read("artifacts/metadata_5000000_30.scale").unwrap();
-    /// let RuntimeMetadata::V12(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
-    ///  
-    /// let storage_keyval_bytes = std::fs::read("artifacts/storage_5000000_30_staking_validators.json").unwrap();
-    /// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
-    ///
-    /// // For historic types, we also need to provide type definitions, since they aren't in the
-    /// // metadata. We use scale-info-legacy to do this, and have already defined types for the
-    /// // Polkadot relay chain, so let's load those in:
-    /// let historic_type_bytes = std::fs::read("types/polkadot_types.yaml").unwrap();
-    /// let historic_types: ChainTypeRegistry = serde_yaml::from_slice(&historic_type_bytes).unwrap();
-    ///
-    /// // We configure the loaded types for the spec version of the extrinsics we want to decode,
-    /// // because types can vary between different spec versions.
-    /// let mut historic_types_for_spec = historic_types.for_spec_version(30);
-    ///
-    /// // We also want to embelish these types with information from the metadata itself. This avoids
-    /// // needing to hardcode a load of type definitions that we can already construct from the metadata.
-    /// let types_from_metadata = frame_decode::helpers::type_registry_from_metadata(&metadata).unwrap();
-    /// historic_types_for_spec.prepend(types_from_metadata);
-    ///
-    /// for (_key, val) in storage_keyval_hex {
-    ///     let value_bytes = hex::decode(val.trim_start_matches("0x")).unwrap();
-    ///
-    ///     // Decode the storage value, here into a scale_value::Value:
-    ///     let account_value = decode_storage_value_legacy(
-    ///         "Staking",
-    ///         "Validators",
-    ///         &mut &*value_bytes,
-    ///         &metadata,
-    ///         &historic_types_for_spec,
-    ///         ValueVisitor::new()
-    ///     ).unwrap();
-    /// }
-    /// ```    
-    #[cfg(feature = "legacy")]
-    pub fn decode_storage_value_legacy<'scale, 'resolver, Info, Resolver, V>(
-        pallet_name: &str,
-        storage_entry: &str,
-        cursor: &mut &'scale [u8],
-        info: &Info,
-        type_resolver: &'resolver Resolver,
-        visitor: V,
-    ) -> Result<V::Value<'scale, 'resolver>, StorageValueDecodeError<Info::TypeId>>
-    where
-        Info: StorageTypeInfo,
-        Info::TypeId: Clone + core::fmt::Debug,
-        Resolver: TypeResolver<TypeId = Info::TypeId>,
-        V: scale_decode::Visitor<TypeResolver = Resolver>,
-        V::Error: core::fmt::Debug,
-    {
-        decode_storage_value(
-            pallet_name,
-            storage_entry,
-            cursor,
-            info,
-            type_resolver,
-            visitor,
-        )
-    }
 }
 
 #[cfg(feature = "legacy-types")]
@@ -479,14 +281,13 @@ pub mod helpers {
     pub use scale_decode;
 }
 
-#[cfg(all(test, feature = "legacy"))]
+#[cfg(test)]
 mod test {
-    use crate::decoding::extrinsic_type_info::ExtrinsicTypeInfo;
-    use crate::decoding::storage_type_info::StorageTypeInfo;
+    use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
+    use crate::methods::storage_type_info::StorageTypeInfo;
     use crate::utils::{InfoAndResolver, ToStorageEntriesList, ToTypeRegistry};
 
     // This will panic if there is any issue decoding the legacy types we provide.
-    #[cfg(all(test, feature = "legacy-types"))]
     #[test]
     fn test_deserializing_legacy_types() {
         let _ = crate::legacy_types::polkadot::relay_chain();

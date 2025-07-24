@@ -33,23 +33,25 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1.3.0
 
+      # Dev note: we don't use `--all-targets` because tests require all features
+      # and we don't want to have to gate different tests behind different features.
       - name: Check all features
         uses: actions-rs/cargo@v1.0.3
         with:
           command: check
-          args: --all-targets --all-features --workspace
+          args: --all-features --workspace --lib --bins --examples
 
       - name: Check no features
         uses: actions-rs/cargo@v1.0.3
         with:
           command: check
-          args: --all-targets --no-default-features --workspace
+          args: --no-default-features --workspace --lib --bins --examples
         
       - name: Check legacy + error-tracing + no-std
         uses: actions-rs/cargo@v1.0.3
         with:
           command: check
-          args: --all-targets --no-default-features --features legacy,error-tracing --workspace
+          args: --no-default-features --features legacy,error-tracing --workspace --lib --bins --examples
 
   wasm:
     name: Check WASM compatibility
@@ -73,7 +75,7 @@ jobs:
         uses: actions-rs/cargo@v1.0.3
         with:
           command: check
-          args: --all-targets --no-default-features --features legacy,error-tracing --target wasm32-unknown-unknown
+          args: --no-default-features --features legacy,error-tracing --target wasm32-unknown-unknown
 
   fmt:
     name: Cargo fmt
