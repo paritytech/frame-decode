@@ -149,7 +149,7 @@ impl<TypeId: core::fmt::Debug> core::fmt::Display for StorageKey<TypeId> {
     }
 }
 
-impl <TypeId> core::ops::Index<usize> for StorageKey<TypeId> {
+impl<TypeId> core::ops::Index<usize> for StorageKey<TypeId> {
     type Output = StorageKeyPart<TypeId>;
     fn index(&self, index: usize) -> &Self::Output {
         &self.parts[index]
