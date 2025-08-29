@@ -27,38 +27,38 @@ pub trait StorageTypeInfo {
         &self,
         pallet_name: &str,
         storage_entry: &str,
-    ) -> Result<StorageInfo<Self::TypeId>, StorageInfoError<'_>>;
+    ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>>;
 }
 
 /// An error returned trying to access storage type information.
 #[non_exhaustive]
 #[allow(missing_docs)]
 #[derive(Clone, Debug, thiserror::Error)]
-pub enum StorageInfoError<'a> {
+pub enum StorageInfoError<'info> {
     #[error("Pallet not found: {name}")]
-    PalletNotFound { name: Cow<'a, str> },
+    PalletNotFound { name: Cow<'info, str> },
     #[error("Storage item not found: {name} in pallet {pallet_name}")]
     StorageNotFound {
-        name: Cow<'a, str>,
-        pallet_name: Cow<'a, str>,
+        name: Cow<'info, str>,
+        pallet_name: Cow<'info, str>,
     },
     #[error("Cannot parse type name {name}:\n\n{reason}.")]
     #[cfg(feature = "legacy")]
     CannotParseTypeName {
-        name: Cow<'a, str>,
+        name: Cow<'info, str>,
         reason: scale_info_legacy::lookup_name::ParseError,
     },
     #[error("Number of hashers and keys does not line up for {pallet_name}.{entry_name}; we have {num_hashers} hashers and {num_keys} keys.")]
     HasherKeyMismatch {
-        entry_name: Cow<'a, str>,
-        pallet_name: Cow<'a, str>,
+        entry_name: Cow<'info, str>,
+        pallet_name: Cow<'info, str>,
         num_hashers: usize,
         num_keys: usize,
     },
     #[error("Cannot find type ID {id} for {pallet_name}.{entry_name}.")]
     StorageTypeNotFound {
-        entry_name: Cow<'a, str>,
-        pallet_name: Cow<'a, str>,
+        entry_name: Cow<'info, str>,
+        pallet_name: Cow<'info, str>,
         id: u32,
     },
 }
@@ -109,11 +109,24 @@ impl StorageInfoError<'_> {
 
 /// Information about a storage entry.
 #[derive(Debug)]
-pub struct StorageInfo<TypeId> {
+pub struct StorageInfo<'info, TypeId> {
     /// No entries if a plain storage entry, or N entries for N maps.
     pub keys: Vec<StorageKeyInfo<TypeId>>,
     /// The type of the values.
     pub value_id: TypeId,
+    /// Bytes representing the default value for this entry, if one exists.
+    pub default_value: Option<Cow<'info, [u8]>>,
+}
+
+impl<'info, TypeId> StorageInfo<'info, TypeId> {
+    /// Take ownership of this [`StorageInfo`], turning any lifetimes to `'static`.
+    pub fn into_owned(self) -> StorageInfo<'static, TypeId> {
+        StorageInfo {
+            keys: self.keys,
+            value_id: self.value_id,
+            default_value: self.default_value.map(|v| Cow::Owned(v.into_owned())),
+        }
+    }
 }
 
 /// Information about a single key within a storage entry.
@@ -151,10 +164,10 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
             impl StorageTypeInfo for path::$name {
                 type TypeId = u32;
                 fn get_storage_info(
-                    &self,
+                    &'_ self,
                     pallet_name: &str,
                     storage_entry: &str,
-                ) -> Result<StorageInfo<Self::TypeId>, StorageInfoError<'_>> {
+                ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>> {
                     let pallet = self
                         .pallets
                         .iter()
@@ -179,10 +192,18 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                             pallet_name: Cow::Borrowed(&pallet.name),
                         })?;
 
+                    let default_value = match storage.modifier {
+                        path::StorageEntryModifier::Optional => None,
+                        path::StorageEntryModifier::Default => {
+                            Some(Cow::Borrowed(&*storage.default))
+                        }
+                    };
+
                     match &storage.ty {
                         path::StorageEntryType::Plain(value) => Ok(StorageInfo {
                             keys: Vec::new(),
                             value_id: value.id,
+                            default_value,
                         }),
                         path::StorageEntryType::Map {
                             hashers,
@@ -213,6 +234,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                             })
                                             .collect(),
                                         value_id,
+                                        default_value,
                                     })
                                 } else if hashers.len() == tuple.fields.len() {
                                     // One hasher per key
@@ -225,7 +247,11 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                             key_id: field.id,
                                         })
                                         .collect();
-                                    Ok(StorageInfo { keys, value_id })
+                                    Ok(StorageInfo {
+                                        keys,
+                                        value_id,
+                                        default_value,
+                                    })
                                 } else {
                                     // Hasher and key mismatch
                                     Err(StorageInfoError::HasherKeyMismatch {
@@ -243,6 +269,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                         key_id,
                                     }]),
                                     value_id,
+                                    default_value,
                                 })
                             } else {
                                 // Multiple hashers but only one key; error.
@@ -315,7 +342,7 @@ mod legacy {
                         &self,
                         pallet_name: &str,
                         storage_entry: &str,
-                    ) -> Result<StorageInfo<Self::TypeId>, StorageInfoError<'_>> {
+                    ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>> {
                         let modules = as_decoded(&self.modules);
 
                         let m = modules
@@ -343,12 +370,20 @@ mod legacy {
                                 pallet_name: Cow::Borrowed(pallet_name),
                             })?;
 
+                        let default_value = match storage.modifier {
+                            path::StorageEntryModifier::Optional => None,
+                            path::StorageEntryModifier::Default => {
+                                Some(Cow::Borrowed(&**as_decoded(&storage.default)))
+                            }
+                        };
+
                         match &storage.ty {
                             path::StorageEntryType::Plain(ty) => {
                                 let value_id = decode_lookup_name_or_err(ty, pallet_name)?;
                                 Ok(StorageInfo {
                                     keys: Vec::new(),
                                     value_id,
+                                    default_value,
                                 })
                             }
                             path::StorageEntryType::Map {
@@ -360,6 +395,7 @@ mod legacy {
                                 Ok(StorageInfo {
                                     keys: Vec::from_iter([StorageKeyInfo { hasher, key_id }]),
                                     value_id,
+                                    default_value,
                                 })
                             }
                             path::StorageEntryType::DoubleMap {
@@ -386,6 +422,7 @@ mod legacy {
                                         },
                                     ]),
                                     value_id,
+                                    default_value,
                                 })
                             }
                         }
@@ -428,7 +465,7 @@ mod legacy {
             &self,
             pallet_name: &str,
             storage_entry: &str,
-        ) -> Result<StorageInfo<Self::TypeId>, StorageInfoError<'_>> {
+        ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>> {
             let modules = as_decoded(&self.modules);
 
             let m = modules
@@ -455,6 +492,13 @@ mod legacy {
                     pallet_name: Cow::Borrowed(pallet_name),
                 })?;
 
+            let default_value = match storage.modifier {
+                frame_metadata::v13::StorageEntryModifier::Optional => None,
+                frame_metadata::v13::StorageEntryModifier::Default => {
+                    Some(Cow::Borrowed(&**as_decoded(&storage.default)))
+                }
+            };
+
             let storage_name = as_decoded(&storage.name);
 
             match &storage.ty {
@@ -463,6 +507,7 @@ mod legacy {
                     Ok(StorageInfo {
                         keys: Vec::new(),
                         value_id,
+                        default_value,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::Map {
@@ -474,6 +519,7 @@ mod legacy {
                     Ok(StorageInfo {
                         keys: Vec::from_iter([StorageKeyInfo { hasher, key_id }]),
                         value_id,
+                        default_value,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::DoubleMap {
@@ -500,6 +546,7 @@ mod legacy {
                             },
                         ]),
                         value_id,
+                        default_value,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::NMap {
@@ -543,6 +590,7 @@ mod legacy {
                     Ok(StorageInfo {
                         keys: keys?,
                         value_id,
+                        default_value,
                     })
                 }
             }

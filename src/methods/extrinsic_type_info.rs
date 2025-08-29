@@ -201,22 +201,22 @@ impl ExtrinsicInfoError<'_> {
 
 /// An argument with a name and type ID.
 #[derive(Debug, Clone)]
-pub struct ExtrinsicInfoArg<'a, TypeId> {
+pub struct ExtrinsicInfoArg<'info, TypeId> {
     /// Argument name.
-    pub name: Cow<'a, str>,
+    pub name: Cow<'info, str>,
     /// Argument type ID.
     pub id: TypeId,
 }
 
 /// Extrinsic call data information.
 #[derive(Debug, Clone)]
-pub struct ExtrinsicCallInfo<'a, TypeId> {
+pub struct ExtrinsicCallInfo<'info, TypeId> {
     /// Name of the pallet.
-    pub pallet_name: Cow<'a, str>,
+    pub pallet_name: Cow<'info, str>,
     /// Name of the call.
-    pub call_name: Cow<'a, str>,
+    pub call_name: Cow<'info, str>,
     /// Names and types of each of the extrinsic arguments.
-    pub args: Vec<ExtrinsicInfoArg<'a, TypeId>>,
+    pub args: Vec<ExtrinsicInfoArg<'info, TypeId>>,
 }
 
 /// Extrinsic signature information.
@@ -230,9 +230,9 @@ pub struct ExtrinsicSignatureInfo<TypeId> {
 
 /// Extrinsic extension information.
 #[derive(Debug, Clone)]
-pub struct ExtrinsicExtensionInfo<'a, TypeId> {
+pub struct ExtrinsicExtensionInfo<'info, TypeId> {
     /// Names and type IDs of the transaction extensions.
-    pub extension_ids: Vec<ExtrinsicInfoArg<'a, TypeId>>,
+    pub extension_ids: Vec<ExtrinsicInfoArg<'info, TypeId>>,
 }
 
 macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
@@ -317,7 +317,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn get_signature_info(
@@ -356,7 +356,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn get_signature_info(
@@ -393,7 +393,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn get_signature_info(
@@ -580,7 +580,7 @@ const _: () = {
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
                     impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
                 }
                 fn get_signature_info(
@@ -618,7 +618,7 @@ const _: () = {
             &self,
             pallet_index: u8,
             call_index: u8,
-        ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+        ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
             impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
         }
         fn get_signature_info(
@@ -664,7 +664,7 @@ const _: () = {
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicCallInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
                     let modules = as_decoded(&self.modules);
 
                     let m = modules
