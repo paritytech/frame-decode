@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.10.0 (2025-08-29)
+
+- Provide information about the default value in `StorageInfo`, if one exists. This may be borrowed, and so adds a lifetime to the `StorageInfo` type (which `.into_owned()` can handle if necessary).
+
 ## 0.9.0 (2025-07-24)
 
 - Remove the `_legacy` functions; just use the non suffixed versions which are identical.
