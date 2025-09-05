@@ -236,6 +236,27 @@ pub mod storage {
     }
 }
 
+pub mod runtime_apis {
+    //! This module contains types and functions for working with Runtime APIs.
+
+    // TODO Once back:
+    // 1. StorageKeys trait could be a more general "encode list of EncodeAsType items to output".
+    //    Rename it to EncodeAsTypeList or similar and move to utils or to scale-encode. (could start
+    //    in utils and then become an alias to scale-encode if desire to move it there).
+    // 2. Use this trait for storage encoding but also for runtime encoding.
+    //    - Have similar methods to storage encoding to encode the name and args for a given runtime API
+    //      and to decode the value for a given Runtime API.
+    // 3. View Functions: encoding these will be more interesting, but ultimately the APIs should look very
+    //    much like for Runtime APIs; encoding key and decoding value.
+    // 4. Look at Subxt: we should be able to leverage the Storage / Runtime API / View Fn things much more
+    //    heavily there than we do (currently a lot of duplicated effort). Standardise on the functionality
+    //    exposed here instead. This prob involves changing the type generation logic (hopefully simplifying!)
+
+    pub use crate::methods::runtime_api_type_info::{
+        RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
+    };
+}
+
 #[cfg(feature = "legacy-types")]
 pub mod legacy_types {
     //! This module contains legacy types that can be used to decode pre-V14 blocks and storage.
@@ -261,12 +282,8 @@ pub mod helpers {
     //! - [`decode_with_error_tracing`] is like [`decode_with_visitor`], but
     //!   will use a tracing visitor (if the `error-tracing` feature is enabled) to provide more
     //!   information in the event that decoding fails.
-    //! - [`list_storage_entries`] returns an iterator over all of the storage entries available in
-    //!   some metadata.
-    //!
 
     pub use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
-    pub use crate::utils::{list_storage_entries, list_storage_entries_any, StorageEntry};
     #[cfg(feature = "legacy")]
     pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};
 
@@ -284,8 +301,9 @@ pub mod helpers {
 #[cfg(test)]
 mod test {
     use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
+    use crate::methods::runtime_api_type_info::RuntimeApiTypeInfo;
     use crate::methods::storage_type_info::StorageTypeInfo;
-    use crate::utils::{InfoAndResolver, ToStorageEntriesList, ToTypeRegistry};
+    use crate::utils::{InfoAndResolver, ToTypeRegistry};
 
     // This will panic if there is any issue decoding the legacy types we provide.
     #[test]
@@ -331,15 +349,12 @@ mod test {
         impls_trait!(frame_metadata::v15::RuntimeMetadataV15, StorageTypeInfo);
         impls_trait!(frame_metadata::v16::RuntimeMetadataV16, StorageTypeInfo);
 
-        impls_trait!(frame_metadata::v8::RuntimeMetadataV8, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v9::RuntimeMetadataV9, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v10::RuntimeMetadataV10, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v11::RuntimeMetadataV11, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v12::RuntimeMetadataV12, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v13::RuntimeMetadataV13, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v14::RuntimeMetadataV14, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, ToStorageEntriesList);
-        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, ToStorageEntriesList);
+        // Only V15+ metadata has Runtime API info in. For earlier, we lean on
+        // our scale-Info-legacy type registry to provide the information.
+        impls_trait!(scale_info_legacy::TypeRegistry, RuntimeApiTypeInfo);
+        impls_trait!(scale_info_legacy::TypeRegistrySet, RuntimeApiTypeInfo);
+        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, RuntimeApiTypeInfo);
+        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, RuntimeApiTypeInfo);
 
         // This is a legacy trait and so only legacy metadata versions implement it:
         impls_trait!(frame_metadata::v8::RuntimeMetadataV8, ToTypeRegistry);

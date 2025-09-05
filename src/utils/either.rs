@@ -13,9 +13,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod extrinsic_decoder;
-pub mod extrinsic_type_info;
-pub mod runtime_api_type_info;
-pub mod storage_decoder;
-pub mod storage_encoder;
-pub mod storage_type_info;
+pub enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<L, R> Iterator for Either<L, R>
+where
+    L: Iterator,
+    R: Iterator<Item = L::Item>,
+{
+    type Item = L::Item;
+    fn next(&mut self) -> Option<L::Item> {
+        match self {
+            Either::Left(l) => l.next(),
+            Either::Right(r) => r.next(),
+        }
+    }
+}

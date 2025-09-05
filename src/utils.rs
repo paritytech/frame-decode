@@ -14,19 +14,17 @@
 // limitations under the License.
 
 mod decode_with_error_tracing;
-mod list_storage_entries;
+mod either;
 mod type_registry_from_metadata;
 
 pub use decode_with_error_tracing::{decode_with_error_tracing, DecodeErrorTrace};
-pub use list_storage_entries::{list_storage_entries, list_storage_entries_any, StorageEntry};
+pub use either::Either;
 #[cfg(feature = "legacy")]
 pub use type_registry_from_metadata::{
     type_registry_from_metadata, type_registry_from_metadata_any,
 };
 
 // We don't want to expose these traits at the moment, but want to test them.
-#[cfg(all(test, feature = "legacy"))]
-pub use list_storage_entries::ToStorageEntriesList;
 #[cfg(all(test, feature = "legacy"))]
 pub use type_registry_from_metadata::ToTypeRegistry;
 
