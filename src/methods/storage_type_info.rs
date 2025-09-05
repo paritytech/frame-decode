@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
@@ -28,6 +29,8 @@ pub trait StorageTypeInfo {
         pallet_name: &str,
         storage_entry: &str,
     ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>>;
+    /// Iterate over all of the available storage entries.
+    fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>>;
 }
 
 /// An error returned trying to access storage type information.
@@ -36,10 +39,10 @@ pub trait StorageTypeInfo {
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum StorageInfoError<'info> {
     #[error("Pallet not found: {name}")]
-    PalletNotFound { name: Cow<'info, str> },
+    PalletNotFound { name: String },
     #[error("Storage item not found: {name} in pallet {pallet_name}")]
     StorageNotFound {
-        name: Cow<'info, str>,
+        name: String,
         pallet_name: Cow<'info, str>,
     },
     #[error("Cannot parse type name {name}:\n\n{reason}.")]
@@ -67,12 +70,10 @@ impl StorageInfoError<'_> {
     /// Take ownership of this error, turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfoError<'static> {
         match self {
-            StorageInfoError::PalletNotFound { name } => StorageInfoError::PalletNotFound {
-                name: Cow::Owned(name.into_owned()),
-            },
+            StorageInfoError::PalletNotFound { name } => StorageInfoError::PalletNotFound { name },
             StorageInfoError::StorageNotFound { name, pallet_name } => {
                 StorageInfoError::StorageNotFound {
-                    name: Cow::Owned(name.into_owned()),
+                    name,
                     pallet_name: Cow::Owned(pallet_name.into_owned()),
                 }
             }
@@ -157,6 +158,15 @@ pub enum StorageHasher {
     Identity,
 }
 
+/// Details about a single storage entry.
+#[derive(Debug, Clone)]
+pub struct StorageEntry<'a> {
+    /// The pallet containing the storage entry.
+    pub pallet_name: Cow<'a, str>,
+    /// The name of the storage entry.
+    pub storage_entry: Cow<'a, str>,
+}
+
 macro_rules! impl_storage_type_info_for_v14_to_v16 {
     ($path:path, $name:ident, $to_storage_hasher:ident) => {
         const _: () = {
@@ -173,12 +183,12 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                         .iter()
                         .find(|p| p.name.as_ref() as &str == pallet_name)
                         .ok_or_else(|| StorageInfoError::PalletNotFound {
-                            name: Cow::Owned(pallet_name.to_owned()),
+                            name: pallet_name.to_owned(),
                         })?;
 
                     let storages = pallet.storage.as_ref().ok_or_else(|| {
                         StorageInfoError::StorageNotFound {
-                            name: Cow::Owned(storage_entry.to_owned()),
+                            name: storage_entry.to_owned(),
                             pallet_name: Cow::Borrowed(&pallet.name),
                         }
                     })?;
@@ -188,7 +198,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                         .iter()
                         .find(|e| e.name.as_ref() as &str == storage_entry)
                         .ok_or_else(|| StorageInfoError::StorageNotFound {
-                            name: Cow::Owned(storage_entry.to_owned()),
+                            name: storage_entry.to_owned(),
                             pallet_name: Cow::Borrowed(&pallet.name),
                         })?;
 
@@ -283,6 +293,21 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                         }
                     }
                 }
+                fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
+                    self.pallets.iter().flat_map(|pallet| {
+                        let Some(storage) = &pallet.storage else {
+                            return Either::Left(core::iter::empty());
+                        };
+
+                        Either::Right(storage.entries.iter().map(|entry_meta| {
+                            let entry = &entry_meta.name;
+                            StorageEntry {
+                                pallet_name: Cow::Borrowed(pallet.name.as_ref()),
+                                storage_entry: Cow::Borrowed(entry.as_ref()),
+                            }
+                        }))
+                    })
+                }
             }
         };
     };
@@ -349,7 +374,7 @@ mod legacy {
                             .iter()
                             .find(|m| as_decoded(&m.name).as_ref() as &str == pallet_name)
                             .ok_or_else(|| StorageInfoError::PalletNotFound {
-                                name: Cow::Owned(pallet_name.to_owned()),
+                                name: pallet_name.to_owned(),
                             })?;
 
                         let pallet_name = as_decoded(&m.name);
@@ -357,7 +382,7 @@ mod legacy {
                         let storages =
                             m.storage.as_ref().map(|s| as_decoded(s)).ok_or_else(|| {
                                 StorageInfoError::StorageNotFound {
-                                    name: Cow::Owned(storage_entry.to_owned()),
+                                    name: storage_entry.to_owned(),
                                     pallet_name: Cow::Borrowed(pallet_name),
                                 }
                             })?;
@@ -366,7 +391,7 @@ mod legacy {
                             .iter()
                             .find(|s| as_decoded(&s.name).as_ref() as &str == storage_entry)
                             .ok_or_else(|| StorageInfoError::StorageNotFound {
-                                name: Cow::Owned(storage_entry.to_owned()),
+                                name: storage_entry.to_owned(),
                                 pallet_name: Cow::Borrowed(pallet_name),
                             })?;
 
@@ -427,6 +452,25 @@ mod legacy {
                             }
                         }
                     }
+                    fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
+                        use crate::utils::as_decoded;
+                        as_decoded(&self.modules).iter().flat_map(|module| {
+                            let Some(storage) = &module.storage else {
+                                return Either::Left(core::iter::empty());
+                            };
+                            let pallet = as_decoded(&module.name);
+                            let storage = as_decoded(storage);
+                            let entries = as_decoded(&storage.entries);
+
+                            Either::Right(entries.iter().map(|entry_meta| {
+                                let entry = as_decoded(&entry_meta.name);
+                                StorageEntry {
+                                    pallet_name: Cow::Borrowed(pallet.as_ref()),
+                                    storage_entry: Cow::Borrowed(entry.as_ref()),
+                                }
+                            }))
+                        })
+                    }
                 }
             };
         };
@@ -472,14 +516,14 @@ mod legacy {
                 .iter()
                 .find(|m| as_decoded(&m.name).as_ref() as &str == pallet_name)
                 .ok_or_else(|| StorageInfoError::PalletNotFound {
-                    name: Cow::Owned(pallet_name.to_owned()),
+                    name: pallet_name.to_owned(),
                 })?;
 
             let pallet_name = as_decoded(&m.name);
 
             let storages = m.storage.as_ref().map(as_decoded).ok_or_else(|| {
                 StorageInfoError::StorageNotFound {
-                    name: Cow::Owned(storage_entry.to_owned()),
+                    name: storage_entry.to_owned(),
                     pallet_name: Cow::Borrowed(pallet_name),
                 }
             })?;
@@ -488,7 +532,7 @@ mod legacy {
                 .iter()
                 .find(|s| as_decoded(&s.name).as_ref() as &str == storage_entry)
                 .ok_or_else(|| StorageInfoError::StorageNotFound {
-                    name: Cow::Owned(storage_entry.to_owned()),
+                    name: storage_entry.to_owned(),
                     pallet_name: Cow::Borrowed(pallet_name),
                 })?;
 
@@ -594,6 +638,25 @@ mod legacy {
                     })
                 }
             }
+        }
+        fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
+            use crate::utils::as_decoded;
+            as_decoded(&self.modules).iter().flat_map(|module| {
+                let Some(storage) = &module.storage else {
+                    return Either::Left(core::iter::empty());
+                };
+                let pallet = as_decoded(&module.name);
+                let storage = as_decoded(storage);
+                let entries = as_decoded(&storage.entries);
+
+                Either::Right(entries.iter().map(|entry_meta| {
+                    let entry = as_decoded(&entry_meta.name);
+                    StorageEntry {
+                        pallet_name: Cow::Borrowed(pallet.as_ref()),
+                        storage_entry: Cow::Borrowed(entry.as_ref()),
+                    }
+                }))
+            })
         }
     }
 
