@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@
 //! like Polkadot.
 //!
 //! - See [`extrinsics`] for decoding Extrinsics.
-//! - See [`storage`] for decoding storage keys and values.
+//! - See [`storage`] for encoding/decoding storage keys and decoding values.
+//! - See [`runtime_apis`] for encoding Runtime API inputs and decoding Runtime API responses
+//! - See [`legacy_types`] to access historic type information for certain chains.
 //!
 #![deny(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -31,10 +33,7 @@ pub mod extrinsics {
     //! This module contains functions for decoding extrinsics.
     //!
     //! - See [`decode_extrinsic`] for a general function to decode modern or historic extrinsics.
-    //! - See [`decode_extrinsic_current`] for a helper to decode modern extrinsics.
-    //!
-
-    use crate::utils::InfoAndResolver;
+    //! - See [`ExtrinsicTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::extrinsic_decoder::{
         decode_extrinsic, Extrinsic, ExtrinsicDecodeError, ExtrinsicExtensions, ExtrinsicOwned,
@@ -44,50 +43,6 @@ pub mod extrinsics {
         ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
         ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
     };
-
-    /// Decode an extrinsic in a modern runtime (ie one exposing V14+ metadata).
-    ///
-    /// See [`decode_extrinsic`] for a more comprehensive example.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use frame_decode::extrinsics::decode_extrinsic_current;
-    /// use frame_metadata::RuntimeMetadata;
-    /// use parity_scale_codec::Decode;
-    ///
-    /// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
-    /// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { panic!() };
-    ///
-    /// let extrinsics_bytes = std::fs::read("artifacts/exts_10000000_9180.json").unwrap();
-    /// let extrinsics_hex: Vec<String> = serde_json::from_slice(&extrinsics_bytes).unwrap();
-    ///
-    /// for ext_hex in extrinsics_hex {
-    ///     let ext_bytes = hex::decode(ext_hex.trim_start_matches("0x")).unwrap();
-    ///
-    ///     // Decode the extrinsic, returning information about it:
-    ///     let ext_info = decode_extrinsic_current(&mut &*ext_bytes, &metadata).unwrap();
-    ///
-    ///     // Now we can use this information to inspect the extrinsic and decode the
-    ///     // different values inside it (see the `decode_extrinsic` docs).
-    /// }
-    /// ```
-    pub fn decode_extrinsic_current<'info_and_resolver, T>(
-        cursor: &mut &[u8],
-        metadata: &'info_and_resolver T,
-    ) -> Result<
-        Extrinsic<'info_and_resolver, <T::Info as ExtrinsicTypeInfo>::TypeId>,
-        ExtrinsicDecodeError,
-    >
-    where
-        T: InfoAndResolver,
-        T::Info: ExtrinsicTypeInfo,
-        <T::Info as ExtrinsicTypeInfo>::TypeId: core::fmt::Debug + Clone,
-        T::Resolver:
-            scale_type_resolver::TypeResolver<TypeId = <T::Info as ExtrinsicTypeInfo>::TypeId>,
-    {
-        decode_extrinsic(cursor, metadata.info(), metadata.resolver())
-    }
 }
 
 pub mod storage {
@@ -95,19 +50,13 @@ pub mod storage {
     //!
     //! - See [`decode_storage_key`] and [`decode_storage_value`] to decode storage keys or values
     //!   from modern or historic runtimes.
-    //! - See [`decode_storage_key_current`] and [`decode_storage_value_current`] to decode modern
-    //!   storage keys and values.
     //! - See [`encode_prefix`] to encode storage prefixes, and [`encode_storage_key`] to encode
     //!   storage keys.
-
-    use crate::utils::InfoAndResolver;
-    use scale_decode::Visitor;
-    use scale_type_resolver::TypeResolver;
+    //! - See [`StorageTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::storage_type_info::{
         StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
     };
-
     pub use crate::methods::storage_decoder::{
         decode_storage_key, decode_storage_key_with_info, decode_storage_value,
         decode_storage_value_with_info, StorageKey, StorageKeyDecodeError, StorageKeyPart,
@@ -115,146 +64,35 @@ pub mod storage {
     };
     pub use crate::methods::storage_encoder::{
         encode_prefix, encode_storage_key, encode_storage_key_to, encode_storage_key_with_info_to,
-        IntoStorageKeys, StorageKeyEncodeError, StorageKeys,
+        StorageKeyEncodeError,
     };
-
-    type TypeIdOf<T> = <<T as InfoAndResolver>::Info as StorageTypeInfo>::TypeId;
-
-    /// Decode a storage key in a modern runtime, returning information about it.
-    ///
-    /// This information can be used to identify and, where possible, decode the parts of the storage key.
-    ///
-    /// See [`decode_storage_key`] for a more complete example.
-    ///
-    /// # Example
-    ///
-    /// Here, we decode some storage keys from a block.
-    ///
-    /// ```rust
-    /// use frame_decode::storage::decode_storage_key_current;
-    /// use frame_decode::helpers::decode_with_visitor;
-    /// use frame_metadata::RuntimeMetadata;
-    /// use parity_scale_codec::Decode;
-    /// use scale_value::scale::ValueVisitor;
-    ///
-    /// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
-    /// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
-    ///
-    /// let storage_keyval_bytes = std::fs::read("artifacts/storage_10000000_9180_system_account.json").unwrap();
-    /// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
-    ///
-    /// for (key, _val) in storage_keyval_hex {
-    ///     let key_bytes = hex::decode(key.trim_start_matches("0x")).unwrap();
-    ///
-    ///     // Decode the storage key, returning information about it:
-    ///     let storage_info = decode_storage_key_current(
-    ///         "System",
-    ///         "Account",
-    ///         &mut &*key_bytes,
-    ///         &metadata,
-    ///     ).unwrap();
-    ///
-    ///     // See `decode_storage_key` for more.
-    /// }
-    /// ```
-    pub fn decode_storage_key_current<T>(
-        pallet_name: &str,
-        storage_entry: &str,
-        cursor: &mut &[u8],
-        metadata: &T,
-    ) -> Result<StorageKey<TypeIdOf<T>>, StorageKeyDecodeError<TypeIdOf<T>>>
-    where
-        T: InfoAndResolver,
-        T::Info: StorageTypeInfo,
-        TypeIdOf<T>: core::fmt::Debug + Clone,
-        T::Resolver: TypeResolver<TypeId = TypeIdOf<T>>,
-    {
-        decode_storage_key(
-            pallet_name,
-            storage_entry,
-            cursor,
-            metadata.info(),
-            metadata.resolver(),
-        )
-    }
-
-    /// Decode a storage value in a modern (V14-metadata-or-later) runtime.
-    ///
-    /// # Example
-    ///
-    /// Here, we decode some storage values from a block.
-    ///
-    /// ```rust
-    /// use frame_decode::storage::decode_storage_value_current;
-    /// use frame_decode::helpers::decode_with_visitor;
-    /// use frame_metadata::RuntimeMetadata;
-    /// use parity_scale_codec::Decode;
-    /// use scale_value::scale::ValueVisitor;
-    ///
-    /// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
-    /// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
-    ///
-    /// let storage_keyval_bytes = std::fs::read("artifacts/storage_10000000_9180_system_account.json").unwrap();
-    /// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
-    ///
-    /// for (_key, val) in storage_keyval_hex {
-    ///     let value_bytes = hex::decode(val.trim_start_matches("0x")).unwrap();
-    ///
-    ///     // Decode the storage value, here into a scale_value::Value:
-    ///     let account_value = decode_storage_value_current(
-    ///         "System",
-    ///         "Account",
-    ///         &mut &*value_bytes,
-    ///         &metadata,
-    ///         ValueVisitor::new()
-    ///     ).unwrap();
-    /// }
-    /// ```
-    pub fn decode_storage_value_current<'scale, 'resolver, T, V>(
-        pallet_name: &str,
-        storage_entry: &str,
-        cursor: &mut &'scale [u8],
-        metadata: &'resolver T,
-        visitor: V,
-    ) -> Result<V::Value<'scale, 'resolver>, StorageValueDecodeError<TypeIdOf<T>>>
-    where
-        T: InfoAndResolver,
-        T::Info: StorageTypeInfo,
-        TypeIdOf<T>: core::fmt::Debug + Clone,
-        T::Resolver: scale_type_resolver::TypeResolver<TypeId = TypeIdOf<T>>,
-        V: Visitor<TypeResolver = T::Resolver>,
-        V::Error: core::fmt::Debug,
-    {
-        decode_storage_value(
-            pallet_name,
-            storage_entry,
-            cursor,
-            metadata.info(),
-            metadata.resolver(),
-            visitor,
-        )
-    }
+    pub use crate::utils::{ EncodableValues, IntoEncodableValues };
 }
 
 pub mod runtime_apis {
     //! This module contains types and functions for working with Runtime APIs.
-
-    // TODO Once back:
-    // 1. StorageKeys trait could be a more general "encode list of EncodeAsType items to output".
-    //    Rename it to EncodeAsTypeList or similar and move to utils or to scale-encode. (could start
-    //    in utils and then become an alias to scale-encode if desire to move it there).
-    // 2. Use this trait for storage encoding but also for runtime encoding.
-    //    - Have similar methods to storage encoding to encode the name and args for a given runtime API
-    //      and to decode the value for a given Runtime API.
-    // 3. View Functions: encoding these will be more interesting, but ultimately the APIs should look very
-    //    much like for Runtime APIs; encoding key and decoding value.
-    // 4. Look at Subxt: we should be able to leverage the Storage / Runtime API / View Fn things much more
-    //    heavily there than we do (currently a lot of duplicated effort). Standardise on the functionality
-    //    exposed here instead. This prob involves changing the type generation logic (hopefully simplifying!)
+    //! 
+    //! - See [`encode_runtime_api_name`] and [`encode_runtime_api_inputs`] to encode
+    //!   the name and inputs to make a Runtime API call.
+    //! - See [`decode_runtime_api_response`] to decode Runtime API responses.
+    //! - See [`RuntimeApiTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::runtime_api_type_info::{
         RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
     };
+    pub use crate::methods::runtime_api_decoder::{
+        RuntimeApiDecodeError,
+        decode_runtime_api_response,
+        decode_runtime_api_response_with_info,
+    };
+    pub use crate::methods::runtime_api_encoder::{
+        RuntimeApiInputsEncodeError,
+        encode_runtime_api_name,
+        encode_runtime_api_inputs,
+        encode_runtime_api_inputs_to,
+        encode_runtime_api_inputs_with_info_to,
+    };
+    pub use crate::utils::{ EncodableValues, IntoEncodableValues };
 }
 
 #[cfg(feature = "legacy-types")]
@@ -290,11 +128,9 @@ pub mod helpers {
     /// An alias to [`scale_decode::visitor::decode_with_visitor`]. This can be used to decode the byte ranges
     /// given back from functions like [`crate::extrinsics::decode_extrinsic_current`] or
     /// [`crate::storage::decode_storage_key_current`].
-    ///
     pub use scale_decode::visitor::decode_with_visitor;
 
     /// An alias to the underlying [`scale-decode`] crate.
-    ///
     pub use scale_decode;
 }
 
@@ -303,7 +139,7 @@ mod test {
     use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
     use crate::methods::runtime_api_type_info::RuntimeApiTypeInfo;
     use crate::methods::storage_type_info::StorageTypeInfo;
-    use crate::utils::{InfoAndResolver, ToTypeRegistry};
+    use crate::utils::ToTypeRegistry;
 
     // This will panic if there is any issue decoding the legacy types we provide.
     #[test]
@@ -325,10 +161,6 @@ mod test {
     // version; just add it below and implement the traits until everything compiles.
     #[rustfmt::skip]
     const _: () = {
-        impls_trait!(frame_metadata::v14::RuntimeMetadataV14, InfoAndResolver);
-        impls_trait!(frame_metadata::v15::RuntimeMetadataV15, InfoAndResolver);
-        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, InfoAndResolver);
-
         impls_trait!(frame_metadata::v8::RuntimeMetadataV8, ExtrinsicTypeInfo);
         impls_trait!(frame_metadata::v9::RuntimeMetadataV9, ExtrinsicTypeInfo);
         impls_trait!(frame_metadata::v10::RuntimeMetadataV10, ExtrinsicTypeInfo);

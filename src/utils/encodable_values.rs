@@ -1,0 +1,315 @@
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use alloc::vec::Vec;
+use scale_type_resolver::TypeResolver;
+
+/// This can be implemented for anything that can be converted into something implementing [`StorageKeys`].
+/// It is implemented by default for tuples up to length 10, vectors and arrays (where the values all implement
+/// [`scale_encode::EncodeAsType`]).
+pub trait IntoEncodableValues {
+    /// An implementation of [`StorageKeys`] that can be used to iterate through the keys.
+    type Values: EncodableValues;
+    /// Return an implementation of [`StorageKeys`] for this type.
+    fn into_encodable_values(self) -> Self::Values;
+    /// The number of storage keys this type represents.
+    fn num_encodable_values(&self) -> usize;
+}
+
+/// Since [`scale_encode::EncodeAsType`] is not dyn safe, this trait is used to iterate through and encode a set of keys.
+pub trait EncodableValues {
+    /// Encode the next key, if there is one, into the provided output buffer.
+    fn encode_next_value_to<Resolver>(
+        &mut self,
+        type_id: Resolver::TypeId,
+        types: &Resolver,
+        out: &mut Vec<u8>,
+    ) -> Option<Result<(), scale_encode::Error>>
+    where
+        Resolver: TypeResolver;
+    /// Encode the next key, if there is one, and return the encoded bytes
+    fn encode_next_value<Resolver>(
+        &mut self,
+        type_id: Resolver::TypeId,
+        types: &Resolver,
+    ) -> Option<Result<Vec<u8>, scale_encode::Error>>
+    where
+        Resolver: TypeResolver,
+    {
+        let mut out = Vec::new();
+        self.encode_next_value_to(type_id, types, &mut out)
+            .map(|res| res.map(|_| out))
+    }
+}
+
+// Vecs of keys implement IntoStorageKeys.
+impl<K: scale_encode::EncodeAsType> IntoEncodableValues for Vec<K> {
+    type Values = <Self as IntoIterator>::IntoIter;
+    fn num_encodable_values(&self) -> usize {
+        self.len()
+    }
+    fn into_encodable_values(self) -> Self::Values {
+        self.into_iter()
+    }
+}
+
+impl<K: scale_encode::EncodeAsType> EncodableValues for alloc::vec::IntoIter<K> {
+    fn encode_next_value_to<Resolver>(
+        &mut self,
+        type_id: Resolver::TypeId,
+        types: &Resolver,
+        out: &mut Vec<u8>,
+    ) -> Option<Result<(), scale_encode::Error>>
+    where
+        Resolver: TypeResolver,
+    {
+        let next_key = self.next()?;
+        if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
+            return Some(Err(e));
+        }
+        Some(Ok(()))
+    }
+}
+
+// As do arrays of keys.
+impl<K: scale_encode::EncodeAsType, const N: usize> IntoEncodableValues for [K; N] {
+    type Values = <Self as IntoIterator>::IntoIter;
+    fn num_encodable_values(&self) -> usize {
+        N
+    }
+    fn into_encodable_values(self) -> Self::Values {
+        self.into_iter()
+    }
+}
+
+impl<K: scale_encode::EncodeAsType, const N: usize> EncodableValues for core::array::IntoIter<K, N> {
+    fn encode_next_value_to<Resolver>(
+        &mut self,
+        type_id: Resolver::TypeId,
+        types: &Resolver,
+        out: &mut Vec<u8>,
+    ) -> Option<Result<(), scale_encode::Error>>
+    where
+        Resolver: TypeResolver,
+    {
+        let next_key = self.next()?;
+        if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
+            return Some(Err(e));
+        }
+        Some(Ok(()))
+    }
+}
+
+// Empty tuples can be used as a placeholder for no values.
+impl IntoEncodableValues for () {
+    type Values = ();
+    fn num_encodable_values(&self) -> usize {
+        0
+    }
+    fn into_encodable_values(self) -> Self::Values {}
+}
+
+impl EncodableValues for () {
+    fn encode_next_value_to<Resolver>(
+        &mut self,
+        _type_id: Resolver::TypeId,
+        _types: &Resolver,
+        _out: &mut Vec<u8>,
+    ) -> Option<Result<(), scale_encode::Error>>
+    where
+        Resolver: TypeResolver,
+    {
+        None
+    }
+}
+
+// Tuples of different lengths can be encoded as values too.
+macro_rules! impl_tuple_encodable {
+    ($($ty:ident $number:tt),*) => {
+        const _: () = {
+            const TUPLE_LEN: usize = 0 $(+ $number - $number + 1)*;
+
+            impl <$($ty: scale_encode::EncodeAsType),*> IntoEncodableValues for ($($ty,)*) {
+                type Values = TupleIter<$($ty),*>;
+                fn num_encodable_values(&self) -> usize {
+                    TUPLE_LEN
+                }
+                fn into_encodable_values(self) -> Self::Values {
+                    TupleIter {
+                        idx: 0,
+                        items: self,
+                    }
+                }
+            }
+
+            pub struct TupleIter<$($ty),*> {
+                idx: usize,
+                items: ($($ty,)*)
+            }
+
+            impl <$($ty: scale_encode::EncodeAsType),*> EncodableValues for TupleIter<$($ty),*> {
+                fn encode_next_value_to<Resolver>(&mut self, type_id: Resolver::TypeId, types: &Resolver, out: &mut Vec<u8>) -> Option<Result<(), scale_encode::Error>>
+                where
+                    Resolver: TypeResolver,
+                {
+                    $(
+                        if self.idx == $number {
+                            let item = &self.items.$number;
+                            if let Err(e) = item.encode_as_type_to(type_id, types, out) {
+                                return Some(Err(e));
+                            }
+                            self.idx += 1;
+                            return Some(Ok(()));
+                        }
+                    )*
+                    None
+                }
+            }
+        };
+    };
+}
+
+impl_tuple_encodable!(A 0);
+impl_tuple_encodable!(A 0, B 1);
+impl_tuple_encodable!(A 0, B 1, C 2);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_tuple_encodable_values() {
+        use parity_scale_codec::Encode;
+        use scale_info_legacy::LookupName;
+
+        // We just need some basic types to test with.
+        let types = crate::legacy_types::polkadot::relay_chain();
+        let types = types.for_spec_version(0);
+
+        let keys = (123u16, true, "hello");
+        assert_eq!(keys.num_encodable_values(), 3);
+        let mut encodable_values = keys.into_encodable_values();
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u64").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 123u64.encode());
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("bool").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, true.encode());
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("String").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, "hello".encode());
+
+        assert!(encodable_values
+            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
+            .is_none());
+        assert!(encodable_values
+            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
+            .is_none());
+    }
+
+    #[test]
+    fn test_vec_encodable_values() {
+        use parity_scale_codec::Encode;
+        use scale_info_legacy::LookupName;
+
+        // We just need some basic types to test with.
+        let types = crate::legacy_types::polkadot::relay_chain();
+        let types = types.for_spec_version(0);
+
+        let keys = vec![123u16, 456u16, 789u16];
+        assert_eq!(keys.num_encodable_values(), 3);
+        let mut encodable_values = keys.into_encodable_values();
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u64").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 123u64.encode());
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u16").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 456u16.encode());
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u32").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 789u32.encode());
+
+        assert!(encodable_values
+            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
+            .is_none());
+        assert!(encodable_values
+            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
+            .is_none());
+    }
+
+    #[test]
+    fn test_array_encodable_values() {
+        use parity_scale_codec::Encode;
+        use scale_info_legacy::LookupName;
+
+        // We just need some basic types to test with.
+        let types = crate::legacy_types::polkadot::relay_chain();
+        let types = types.for_spec_version(0);
+
+        let keys: [u16; 3] = [123, 456, 789];
+        assert_eq!(keys.num_encodable_values(), 3);
+        let mut encodable_values = keys.into_encodable_values();
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u64").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 123u64.encode());
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u16").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 456u16.encode());
+
+        let val = encodable_values
+            .encode_next_value(LookupName::parse("u32").unwrap(), &types)
+            .unwrap()
+            .unwrap();
+        assert_eq!(val, 789u32.encode());
+
+        assert!(encodable_values
+            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
+            .is_none());
+        assert!(encodable_values
+            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
+            .is_none());
+    }
+}

@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,3 +19,5 @@ pub mod runtime_api_type_info;
 pub mod storage_decoder;
 pub mod storage_encoder;
 pub mod storage_type_info;
+pub mod runtime_api_decoder;
+pub mod runtime_api_encoder;

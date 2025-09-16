@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,6 +44,25 @@ pub enum RuntimeApiInfoError<'info> {
         trait_name: Cow<'info, str>,
         method_name: String,
     },
+}
+
+impl <'info> RuntimeApiInfoError<'info> {
+    /// Take ownership of this error, turning any lifetimes to `'static`.
+    pub fn into_owned(self) -> RuntimeApiInfoError<'static> {
+        match self {
+            RuntimeApiInfoError::TraitNotFound { trait_name } => {
+                RuntimeApiInfoError::TraitNotFound {
+                    trait_name,
+                }
+            }
+            RuntimeApiInfoError::MethodNotFound { trait_name, method_name } => {
+                RuntimeApiInfoError::MethodNotFound {
+                    trait_name: Cow::Owned(trait_name.into_owned()),
+                    method_name,
+                }
+            }
+        }
+    }
 }
 
 /// Information about a Runtime API.

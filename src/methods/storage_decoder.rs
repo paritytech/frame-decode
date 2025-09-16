@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use super::storage_encoder::encode_prefix;
-use super::storage_type_info::{StorageHasher, StorageTypeInfo};
+use super::storage_type_info::{StorageHasher, StorageTypeInfo, StorageInfo};
 use crate::methods::storage_type_info::StorageInfoError;
 use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
 use alloc::vec;
@@ -340,7 +340,7 @@ where
 /// storage information lines up with the bytes is the caller's responsibility.
 pub fn decode_storage_key_with_info<Resolver>(
     cursor: &mut &[u8],
-    storage_info: &crate::storage::StorageInfo<<Resolver as TypeResolver>::TypeId>,
+    storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
 ) -> Result<
     StorageKey<<Resolver as TypeResolver>::TypeId>,
@@ -542,7 +542,7 @@ where
 /// for example if you are decoding multiple keys for the same storage entry.
 pub fn decode_storage_value_with_info<'scale, 'resolver, V>(
     cursor: &mut &'scale [u8],
-    storage_info: &crate::storage::StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
+    storage_info: &StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
     type_resolver: &'resolver V::TypeResolver,
     visitor: V,
 ) -> Result<

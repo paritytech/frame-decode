@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::storage_type_info::{StorageHasher, StorageTypeInfo};
+use super::storage_type_info::{StorageHasher, StorageTypeInfo, StorageInfo};
 use crate::methods::storage_type_info::StorageInfoError;
+use crate::utils::{EncodableValues, IntoEncodableValues};
 use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
 
@@ -86,7 +87,7 @@ pub fn encode_storage_key<Info, Resolver, Keys>(
     type_resolver: &Resolver,
 ) -> Result<Vec<u8>, StorageKeyEncodeError>
 where
-    Keys: IntoStorageKeys,
+    Keys: IntoEncodableValues,
     Info: StorageTypeInfo,
     Info::TypeId: Clone + core::fmt::Debug,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -143,7 +144,7 @@ pub fn encode_storage_key_to<Info, Resolver, Keys>(
     out: &mut Vec<u8>,
 ) -> Result<(), StorageKeyEncodeError>
 where
-    Keys: IntoStorageKeys,
+    Keys: IntoEncodableValues,
     Info: StorageTypeInfo,
     Info::TypeId: Clone + core::fmt::Debug,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -172,17 +173,17 @@ pub fn encode_storage_key_with_info_to<Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
     keys: Keys,
-    storage_info: &crate::storage::StorageInfo<<Resolver as TypeResolver>::TypeId>,
+    storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
 ) -> Result<(), StorageKeyEncodeError>
 where
-    Keys: IntoStorageKeys,
+    Keys: IntoEncodableValues,
     Resolver: TypeResolver,
     <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
 {
     // If too many keys provided, bail early.
-    if storage_info.keys.len() < keys.num_keys() {
+    if storage_info.keys.len() < keys.num_encodable_values() {
         return Err(StorageKeyEncodeError::TooManyKeysProvided {
             max_keys_expected: storage_info.keys.len(),
         });
@@ -193,10 +194,10 @@ where
     out.extend_from_slice(&prefix);
 
     // Encode the keys:
-    let mut keys = keys.into_storage_keys();
+    let mut keys = keys.into_encodable_values();
     let mut temp = Vec::with_capacity(32);
     for key_info in &storage_info.keys {
-        match keys.encode_next_key_to(key_info.key_id.clone(), type_resolver, &mut temp) {
+        match keys.encode_next_value_to(key_info.key_id.clone(), type_resolver, &mut temp) {
             None => break, // No more keys to encode.
             Some(Err(e)) => return Err(StorageKeyEncodeError::EncodeError(e)),
             Some(Ok(())) => { /* All ok */ }
@@ -241,302 +242,9 @@ where
     Ok(())
 }
 
-/// This can be implemented for anything that can be converted into something implementing [`StorageKeys`].
-/// It is implemented by default for tuples up to length 10, vectors and arrays (where the values all implement
-/// [`scale_encode::EncodeAsType`]).
-pub trait IntoStorageKeys {
-    /// An implementation of [`StorageKeys`] that can be used to iterate through the keys.
-    type Keys: StorageKeys;
-    /// Return an implementation of [`StorageKeys`] for this type.
-    fn into_storage_keys(self) -> Self::Keys;
-    /// The number of storage keys this type represents.
-    fn num_keys(&self) -> usize;
-}
-
-/// Since [`scale_encode::EncodeAsType`] is not dyn safe, this trait is used to iterate through and encode a set of keys.
-pub trait StorageKeys {
-    /// Encode the next key, if there is one, into the provided output buffer.
-    fn encode_next_key_to<Resolver>(
-        &mut self,
-        type_id: Resolver::TypeId,
-        types: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
-    where
-        Resolver: TypeResolver;
-    /// Encode the next key, if there is one, and return the encoded bytes
-    fn encode_next_key<Resolver>(
-        &mut self,
-        type_id: Resolver::TypeId,
-        types: &Resolver,
-    ) -> Option<Result<Vec<u8>, scale_encode::Error>>
-    where
-        Resolver: TypeResolver,
-    {
-        let mut out = Vec::new();
-        self.encode_next_key_to(type_id, types, &mut out)
-            .map(|res| res.map(|_| out))
-    }
-}
-
-// Vecs of keys implement IntoStorageKeys.
-impl<K: scale_encode::EncodeAsType> IntoStorageKeys for Vec<K> {
-    type Keys = <Self as IntoIterator>::IntoIter;
-    fn num_keys(&self) -> usize {
-        self.len()
-    }
-    fn into_storage_keys(self) -> Self::Keys {
-        self.into_iter()
-    }
-}
-
-impl<K: scale_encode::EncodeAsType> StorageKeys for alloc::vec::IntoIter<K> {
-    fn encode_next_key_to<Resolver>(
-        &mut self,
-        type_id: Resolver::TypeId,
-        types: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
-    where
-        Resolver: TypeResolver,
-    {
-        let next_key = self.next()?;
-        if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
-            return Some(Err(e));
-        }
-        Some(Ok(()))
-    }
-}
-
-// As do arrays of keys.
-impl<K: scale_encode::EncodeAsType, const N: usize> IntoStorageKeys for [K; N] {
-    type Keys = <Self as IntoIterator>::IntoIter;
-    fn num_keys(&self) -> usize {
-        N
-    }
-    fn into_storage_keys(self) -> Self::Keys {
-        self.into_iter()
-    }
-}
-
-impl<K: scale_encode::EncodeAsType, const N: usize> StorageKeys for core::array::IntoIter<K, N> {
-    fn encode_next_key_to<Resolver>(
-        &mut self,
-        type_id: Resolver::TypeId,
-        types: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
-    where
-        Resolver: TypeResolver,
-    {
-        let next_key = self.next()?;
-        if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
-            return Some(Err(e));
-        }
-        Some(Ok(()))
-    }
-}
-
-// Empty tuples can be used as a placeholder for no storage keys.
-impl IntoStorageKeys for () {
-    type Keys = ();
-    fn num_keys(&self) -> usize {
-        0
-    }
-    fn into_storage_keys(self) -> Self::Keys {}
-}
-
-impl StorageKeys for () {
-    fn encode_next_key_to<Resolver>(
-        &mut self,
-        _type_id: Resolver::TypeId,
-        _types: &Resolver,
-        _out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
-    where
-        Resolver: TypeResolver,
-    {
-        None
-    }
-}
-
-// Tuples of different lengths can be used as storage keys, too.
-macro_rules! impl_tuple_storage_keys {
-    ($($ty:ident $number:tt),*) => {
-        const _: () = {
-            const TUPLE_LEN: usize = 0 $(+ $number - $number + 1)*;
-
-            impl <$($ty: scale_encode::EncodeAsType),*> IntoStorageKeys for ($($ty,)*) {
-                type Keys = TupleIter<$($ty),*>;
-                fn num_keys(&self) -> usize {
-                    TUPLE_LEN
-                }
-                fn into_storage_keys(self) -> Self::Keys {
-                    TupleIter {
-                        idx: 0,
-                        items: self,
-                    }
-                }
-            }
-
-            pub struct TupleIter<$($ty),*> {
-                idx: usize,
-                items: ($($ty,)*)
-            }
-
-            impl <$($ty: scale_encode::EncodeAsType),*> StorageKeys for TupleIter<$($ty),*> {
-                fn encode_next_key_to<Resolver>(&mut self, type_id: Resolver::TypeId, types: &Resolver, out: &mut Vec<u8>) -> Option<Result<(), scale_encode::Error>>
-                where
-                    Resolver: TypeResolver,
-                {
-                    $(
-                        if self.idx == $number {
-                            let item = &self.items.$number;
-                            if let Err(e) = item.encode_as_type_to(type_id, types, out) {
-                                return Some(Err(e));
-                            }
-                            self.idx += 1;
-                            return Some(Ok(()));
-                        }
-                    )*
-                    None
-                }
-            }
-        };
-    };
-}
-
-impl_tuple_storage_keys!(A 0);
-impl_tuple_storage_keys!(A 0, B 1);
-impl_tuple_storage_keys!(A 0, B 1, C 2);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3, E 4);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3, E 4, F 5);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
-impl_tuple_storage_keys!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
-
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn test_tuple_storage_keys() {
-        use parity_scale_codec::Encode;
-        use scale_info_legacy::LookupName;
-
-        // We just need some basic types to test with.
-        let types = crate::legacy_types::polkadot::relay_chain();
-        let types = types.for_spec_version(0);
-
-        let keys = (123u16, true, "hello");
-        assert_eq!(keys.num_keys(), 3);
-        let mut storage_keys = keys.into_storage_keys();
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u64").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 123u64.encode());
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("bool").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, true.encode());
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("String").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, "hello".encode());
-
-        assert!(storage_keys
-            .encode_next_key(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-        assert!(storage_keys
-            .encode_next_key(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-    }
-
-    #[test]
-    fn test_vec_storage_keys() {
-        use parity_scale_codec::Encode;
-        use scale_info_legacy::LookupName;
-
-        // We just need some basic types to test with.
-        let types = crate::legacy_types::polkadot::relay_chain();
-        let types = types.for_spec_version(0);
-
-        let keys = vec![123u16, 456u16, 789u16];
-        assert_eq!(keys.num_keys(), 3);
-        let mut storage_keys = keys.into_storage_keys();
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u64").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 123u64.encode());
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u16").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 456u16.encode());
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u32").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 789u32.encode());
-
-        assert!(storage_keys
-            .encode_next_key(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-        assert!(storage_keys
-            .encode_next_key(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-    }
-
-    #[test]
-    fn test_array_storage_keys() {
-        use parity_scale_codec::Encode;
-        use scale_info_legacy::LookupName;
-
-        // We just need some basic types to test with.
-        let types = crate::legacy_types::polkadot::relay_chain();
-        let types = types.for_spec_version(0);
-
-        let keys: [u16; 3] = [123, 456, 789];
-        assert_eq!(keys.num_keys(), 3);
-        let mut storage_keys = keys.into_storage_keys();
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u64").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 123u64.encode());
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u16").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 456u16.encode());
-
-        let val = storage_keys
-            .encode_next_key(LookupName::parse("u32").unwrap(), &types)
-            .unwrap()
-            .unwrap();
-        assert_eq!(val, 789u32.encode());
-
-        assert!(storage_keys
-            .encode_next_key(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-        assert!(storage_keys
-            .encode_next_key(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-    }
 
     #[test]
     fn test_encode_storage_key() {

@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 mod decode_with_error_tracing;
 mod either;
 mod type_registry_from_metadata;
+mod encodable_values;
+
+pub use encodable_values::{EncodableValues, IntoEncodableValues};
 
 pub use decode_with_error_tracing::{decode_with_error_tracing, DecodeErrorTrace};
 pub use either::Either;
@@ -36,49 +39,5 @@ pub fn as_decoded<A, B>(item: &frame_metadata::decode_different::DecodeDifferent
             panic!("Expecting decoded data")
         }
         frame_metadata::decode_different::DecodeDifferent::Decoded(b) => b,
-    }
-}
-
-pub trait InfoAndResolver {
-    type Info;
-    type Resolver;
-
-    fn info(&self) -> &Self::Info;
-    fn resolver(&self) -> &Self::Resolver;
-}
-
-impl InfoAndResolver for frame_metadata::v14::RuntimeMetadataV14 {
-    type Info = frame_metadata::v14::RuntimeMetadataV14;
-    type Resolver = scale_info::PortableRegistry;
-
-    fn info(&self) -> &Self::Info {
-        self
-    }
-    fn resolver(&self) -> &Self::Resolver {
-        &self.types
-    }
-}
-
-impl InfoAndResolver for frame_metadata::v15::RuntimeMetadataV15 {
-    type Info = frame_metadata::v15::RuntimeMetadataV15;
-    type Resolver = scale_info::PortableRegistry;
-
-    fn info(&self) -> &Self::Info {
-        self
-    }
-    fn resolver(&self) -> &Self::Resolver {
-        &self.types
-    }
-}
-
-impl InfoAndResolver for frame_metadata::v16::RuntimeMetadataV16 {
-    type Info = frame_metadata::v16::RuntimeMetadataV16;
-    type Resolver = scale_info::PortableRegistry;
-
-    fn info(&self) -> &Self::Info {
-        self
-    }
-    fn resolver(&self) -> &Self::Resolver {
-        &self.types
     }
 }
