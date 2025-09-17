@@ -161,6 +161,7 @@ mod test {
     use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
     use crate::methods::runtime_api_type_info::RuntimeApiTypeInfo;
     use crate::methods::storage_type_info::StorageTypeInfo;
+    use crate::methods::view_function_type_info::ViewFunctionTypeInfo;
     use crate::utils::ToTypeRegistry;
 
     // This will panic if there is any issue decoding the legacy types we provide.
@@ -202,6 +203,11 @@ mod test {
         impls_trait!(frame_metadata::v14::RuntimeMetadataV14, StorageTypeInfo);
         impls_trait!(frame_metadata::v15::RuntimeMetadataV15, StorageTypeInfo);
         impls_trait!(frame_metadata::v16::RuntimeMetadataV16, StorageTypeInfo);
+
+        // Only V16+ metadata contains any view function information. Prior to this,
+        // hardly any view functions existed. We _could_ extend our legacy type information
+        // to support them if necessary, but it's unlikely it will be.
+        impls_trait!(frame_metadata::v16::RuntimeMetadataV16, ViewFunctionTypeInfo);
 
         // Only V15+ metadata has Runtime API info in. For earlier, we lean on
         // our scale-Info-legacy type registry to provide the information.
