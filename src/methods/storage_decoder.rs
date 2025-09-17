@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use super::storage_encoder::encode_prefix;
-use super::storage_type_info::{StorageHasher, StorageTypeInfo, StorageInfo};
+use super::storage_type_info::{StorageHasher, StorageInfo, StorageTypeInfo};
 use crate::methods::storage_type_info::StorageInfoError;
 use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
 use alloc::vec;

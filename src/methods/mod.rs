@@ -15,9 +15,12 @@
 
 pub mod extrinsic_decoder;
 pub mod extrinsic_type_info;
+pub mod runtime_api_decoder;
+pub mod runtime_api_encoder;
 pub mod runtime_api_type_info;
 pub mod storage_decoder;
 pub mod storage_encoder;
 pub mod storage_type_info;
-pub mod runtime_api_decoder;
-pub mod runtime_api_encoder;
+pub mod view_function_decoder;
+pub mod view_function_encoder;
+pub mod view_function_type_info;

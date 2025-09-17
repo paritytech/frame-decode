@@ -46,21 +46,20 @@ pub enum RuntimeApiInfoError<'info> {
     },
 }
 
-impl <'info> RuntimeApiInfoError<'info> {
+impl<'info> RuntimeApiInfoError<'info> {
     /// Take ownership of this error, turning any lifetimes to `'static`.
     pub fn into_owned(self) -> RuntimeApiInfoError<'static> {
         match self {
             RuntimeApiInfoError::TraitNotFound { trait_name } => {
-                RuntimeApiInfoError::TraitNotFound {
-                    trait_name,
-                }
+                RuntimeApiInfoError::TraitNotFound { trait_name }
             }
-            RuntimeApiInfoError::MethodNotFound { trait_name, method_name } => {
-                RuntimeApiInfoError::MethodNotFound {
-                    trait_name: Cow::Owned(trait_name.into_owned()),
-                    method_name,
-                }
-            }
+            RuntimeApiInfoError::MethodNotFound {
+                trait_name,
+                method_name,
+            } => RuntimeApiInfoError::MethodNotFound {
+                trait_name: Cow::Owned(trait_name.into_owned()),
+                method_name,
+            },
         }
     }
 }
@@ -81,7 +80,7 @@ pub struct RuntimeApiInput<'a, TypeId> {
     pub id: TypeId,
 }
 
-/// Details about a single storage entry.
+/// The identifier for a single Runtime API.
 #[derive(Debug, Clone)]
 pub struct RuntimeApi<'a> {
     /// The trait containing this Runtime API.

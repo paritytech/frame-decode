@@ -54,9 +54,6 @@ pub mod storage {
     //!   storage keys.
     //! - See [`StorageTypeInfo`] for the underlying trait which extracts the relevant information.
 
-    pub use crate::methods::storage_type_info::{
-        StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
-    };
     pub use crate::methods::storage_decoder::{
         decode_storage_key, decode_storage_key_with_info, decode_storage_value,
         decode_storage_value_with_info, StorageKey, StorageKeyDecodeError, StorageKeyPart,
@@ -66,33 +63,55 @@ pub mod storage {
         encode_prefix, encode_storage_key, encode_storage_key_to, encode_storage_key_with_info_to,
         StorageKeyEncodeError,
     };
-    pub use crate::utils::{ EncodableValues, IntoEncodableValues };
+    pub use crate::methods::storage_type_info::{
+        StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
+    };
+    pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
 
 pub mod runtime_apis {
     //! This module contains types and functions for working with Runtime APIs.
-    //! 
+    //!
     //! - See [`encode_runtime_api_name`] and [`encode_runtime_api_inputs`] to encode
     //!   the name and inputs to make a Runtime API call.
     //! - See [`decode_runtime_api_response`] to decode Runtime API responses.
     //! - See [`RuntimeApiTypeInfo`] for the underlying trait which extracts the relevant information.
 
-    pub use crate::methods::runtime_api_type_info::{
-        RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
-    };
     pub use crate::methods::runtime_api_decoder::{
-        RuntimeApiDecodeError,
-        decode_runtime_api_response,
-        decode_runtime_api_response_with_info,
+        decode_runtime_api_response, decode_runtime_api_response_with_info, RuntimeApiDecodeError,
     };
     pub use crate::methods::runtime_api_encoder::{
+        encode_runtime_api_inputs, encode_runtime_api_inputs_to,
+        encode_runtime_api_inputs_with_info_to, encode_runtime_api_name,
         RuntimeApiInputsEncodeError,
-        encode_runtime_api_name,
-        encode_runtime_api_inputs,
-        encode_runtime_api_inputs_to,
-        encode_runtime_api_inputs_with_info_to,
     };
-    pub use crate::utils::{ EncodableValues, IntoEncodableValues };
+    pub use crate::methods::runtime_api_type_info::{
+        RuntimeApi, RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
+    };
+    pub use crate::utils::{EncodableValues, IntoEncodableValues};
+}
+
+pub mod view_functions {
+    //! This module contains types and functions for working with View Functions.
+    //!
+    //! - See [`RUNTIME_API_NAME`] and [`encode_view_function_inputs`] to obtain the Runtime API name
+    //!   and the encoded input data required to call a given View Function.
+    //! - See [`decode_view_function_response`] to decode View Function responses.
+    //! - See [`ViewFunctionTypeInfo`] for the underlying trait which extracts the relevant information.
+
+    pub use crate::methods::view_function_decoder::{
+        decode_view_function_response, decode_view_function_response_with_info,
+        ViewFunctionDecodeError,
+    };
+    pub use crate::methods::view_function_encoder::{
+        encode_view_function_inputs, encode_view_function_inputs_to,
+        encode_view_function_inputs_with_info_to, ViewFunctionInputsEncodeError, RUNTIME_API_NAME,
+    };
+    pub use crate::methods::view_function_type_info::{
+        ViewFunction, ViewFunctionInfo, ViewFunctionInfoError, ViewFunctionInput,
+        ViewFunctionTypeInfo,
+    };
+    pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
 
 #[cfg(feature = "legacy-types")]
@@ -132,6 +151,9 @@ pub mod helpers {
 
     /// An alias to the underlying [`scale-decode`] crate.
     pub use scale_decode;
+
+    // These are exported in each module they are used in already, but here's a general location for them.
+    pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
 
 #[cfg(test)]

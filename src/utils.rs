@@ -15,8 +15,8 @@
 
 mod decode_with_error_tracing;
 mod either;
-mod type_registry_from_metadata;
 mod encodable_values;
+mod type_registry_from_metadata;
 
 pub use encodable_values::{EncodableValues, IntoEncodableValues};
 

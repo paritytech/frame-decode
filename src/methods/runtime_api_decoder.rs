@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::runtime_api_type_info::{ RuntimeApiTypeInfo, RuntimeApiInfoError, RuntimeApiInfo };
+use super::runtime_api_type_info::{RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiTypeInfo};
 use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
 use scale_type_resolver::TypeResolver;
 
@@ -54,8 +54,8 @@ where
 
 /// Decode a runtime API response.
 ///
-/// Unlike [`decode_runtime_api_response`], which obtains the Runtime API information internally given the trait and 
-/// method names, this function takes the Runtime API info as an argument. This is useful if you already have the 
+/// Unlike [`decode_runtime_api_response`], which obtains the Runtime API information internally given the trait and
+/// method names, this function takes the Runtime API info as an argument. This is useful if you already have the
 /// Runtime API info available, for exampel if you are making multiple calls to the same API and wish to decode each one.
 pub fn decode_runtime_api_response_with_info<'scale, 'resolver, V>(
     cursor: &mut &'scale [u8],

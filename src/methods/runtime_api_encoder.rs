@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::runtime_api_type_info::{RuntimeApiTypeInfo, RuntimeApiInfoError, RuntimeApiInfo};
+use super::runtime_api_type_info::{RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiTypeInfo};
 use crate::utils::{EncodableValues, IntoEncodableValues};
 use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
@@ -28,17 +28,14 @@ pub enum RuntimeApiInputsEncodeError {
     #[error("Failed to encode Runtime API info: {0}")]
     EncodeError(#[from] scale_encode::Error),
     #[error("Too many input parameters provided: expected at most {max_inputs_expected}")]
-    TooManyKeysProvided {
+    TooManyInputsProvided {
         /// The maximum number of input parameters that were expected.
         max_inputs_expected: usize,
     },
 }
 
 /// Encode the name/ID of a Runtime API used in RPC methods given the trait name and method name.
-pub fn encode_runtime_api_name(
-    trait_name: &str,
-    method_name: &str,
-) -> String {
+pub fn encode_runtime_api_name(trait_name: &str, method_name: &str) -> String {
     format!("{trait_name}_{method_name}")
 }
 
@@ -57,14 +54,7 @@ where
     Resolver: TypeResolver<TypeId = Info::TypeId>,
 {
     let mut out = Vec::new();
-    encode_runtime_api_inputs_to(
-        trait_name,
-        method_name,
-        keys,
-        info,
-        type_resolver,
-        &mut out,
-    )?;
+    encode_runtime_api_inputs_to(trait_name, method_name, keys, info, type_resolver, &mut out)?;
     Ok(out)
 }
 
@@ -87,12 +77,7 @@ where
         .get_runtime_api_info(trait_name, method_name)
         .map_err(|e| RuntimeApiInputsEncodeError::CannotGetInfo(e.into_owned()))?;
 
-    encode_runtime_api_inputs_with_info_to(
-        keys,
-        &runtime_api_info,
-        type_resolver,
-        out,
-    )
+    encode_runtime_api_inputs_with_info_to(keys, &runtime_api_info, type_resolver, out)
 }
 
 /// Encode the inputs to a Runtime API to a provided output `Vec`.
@@ -113,7 +98,7 @@ where
 {
     // If too many inputs provided, bail early.
     if runtime_api_info.inputs.len() < inputs.num_encodable_values() {
-        return Err(RuntimeApiInputsEncodeError::TooManyKeysProvided {
+        return Err(RuntimeApiInputsEncodeError::TooManyInputsProvided {
             max_inputs_expected: runtime_api_info.inputs.len(),
         });
     }

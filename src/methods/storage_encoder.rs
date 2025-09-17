@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::storage_type_info::{StorageHasher, StorageTypeInfo, StorageInfo};
+use super::storage_type_info::{StorageHasher, StorageInfo, StorageTypeInfo};
 use crate::methods::storage_type_info::StorageInfoError;
 use crate::utils::{EncodableValues, IntoEncodableValues};
 use alloc::vec::Vec;

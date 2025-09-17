@@ -94,7 +94,9 @@ impl<K: scale_encode::EncodeAsType, const N: usize> IntoEncodableValues for [K; 
     }
 }
 
-impl<K: scale_encode::EncodeAsType, const N: usize> EncodableValues for core::array::IntoIter<K, N> {
+impl<K: scale_encode::EncodeAsType, const N: usize> EncodableValues
+    for core::array::IntoIter<K, N>
+{
     fn encode_next_value_to<Resolver>(
         &mut self,
         type_id: Resolver::TypeId,
