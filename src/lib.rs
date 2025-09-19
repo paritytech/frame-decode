@@ -64,7 +64,7 @@ pub mod storage {
         StorageKeyEncodeError,
     };
     pub use crate::methods::storage_type_info::{
-        StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
+        StorageEntry, StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
     };
     pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
