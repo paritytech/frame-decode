@@ -15,6 +15,8 @@
 
 use super::runtime_api_type_info::{RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiTypeInfo};
 use crate::utils::{EncodableValues, IntoEncodableValues};
+use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
 

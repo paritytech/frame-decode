@@ -16,6 +16,7 @@
 use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 /// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the

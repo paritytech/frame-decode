@@ -15,6 +15,7 @@
 
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 /// This can be implemented for anything capable of providing Runtime API type information.

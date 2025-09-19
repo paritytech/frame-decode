@@ -14,6 +14,8 @@
 // limitations under the License.
 
 use alloc::borrow::Cow;
+use alloc::borrow::ToOwned;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 /// This is implemented for anything capable of providing information about view functions
