@@ -140,7 +140,10 @@ pub mod helpers {
     //!   will use a tracing visitor (if the `error-tracing` feature is enabled) to provide more
     //!   information in the event that decoding fails.
 
-    pub use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
+    pub use crate::utils::{
+        decode_with_error_tracing, list_storage_entries_any, DecodeErrorTrace, EncodableValues,
+        IntoEncodableValues,
+    };
     #[cfg(feature = "legacy")]
     pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};
 
@@ -151,9 +154,6 @@ pub mod helpers {
 
     /// An alias to the underlying [`scale-decode`] crate.
     pub use scale_decode;
-
-    // These are exported in each module they are used in already, but here's a general location for them.
-    pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
 
 #[cfg(test)]
