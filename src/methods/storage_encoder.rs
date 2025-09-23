@@ -182,8 +182,12 @@ where
     Resolver: TypeResolver,
     <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
 {
-    // If wrong number of keys provided, bail early.
-    if storage_info.keys.len() != keys.num_encodable_values() {
+    let num_encodable_values = keys.num_encodable_values();
+
+    // If we provide more encodable values than there are keys, bail.
+    // If we provide less, that's ok and we just don't encode every part of the key
+    // (useful if eg iterating a bunch of entries under some prefix of a key).
+    if num_encodable_values > storage_info.keys.len() {
         return Err(StorageKeyEncodeError::TooManyKeysProvided {
             max_keys_expected: storage_info.keys.len(),
         });
@@ -196,7 +200,11 @@ where
     // Encode the keys:
     let mut keys = keys.into_encodable_values();
     let mut temp = Vec::with_capacity(32);
-    for key_info in &*storage_info.keys {
+    let iter = (0..num_encodable_values)
+        .zip(&*storage_info.keys)
+        .map(|(_, k)| k);
+
+    for key_info in iter {
         keys.encode_next_value_to(key_info.key_id.clone(), type_resolver, &mut temp)
             .map_err(StorageKeyEncodeError::EncodeError)?;
 

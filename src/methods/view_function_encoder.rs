@@ -29,10 +29,10 @@ pub enum ViewFunctionInputsEncodeError {
     CannotGetInfo(ViewFunctionInfoError<'static>),
     #[error("Failed to encode View Function info: {0}")]
     EncodeError(#[from] scale_encode::Error),
-    #[error("Too many input parameters provided: expected at most {max_inputs_expected}")]
-    TooManyInputsProvided {
-        /// The maximum number of input parameters that were expected.
-        max_inputs_expected: usize,
+    #[error("Wrong number of inputs provided; expected {num_inputs_expected}")]
+    WrongNumberOfInputsProvided {
+        /// The number of input parameters that were expected.
+        num_inputs_expected: usize,
     },
 }
 
@@ -105,10 +105,10 @@ where
     Resolver: TypeResolver,
     <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
 {
-    // If too many inputs provided, bail early.
-    if view_function_api_info.inputs.len() < inputs.num_encodable_values() {
-        return Err(ViewFunctionInputsEncodeError::TooManyInputsProvided {
-            max_inputs_expected: view_function_api_info.inputs.len(),
+    // If wrong number of inputs provided, bail early.
+    if view_function_api_info.inputs.len() != inputs.num_encodable_values() {
+        return Err(ViewFunctionInputsEncodeError::WrongNumberOfInputsProvided {
+            num_inputs_expected: view_function_api_info.inputs.len(),
         });
     }
 

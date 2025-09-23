@@ -29,10 +29,10 @@ pub enum RuntimeApiInputsEncodeError {
     CannotGetInfo(RuntimeApiInfoError<'static>),
     #[error("Failed to encode Runtime API info: {0}")]
     EncodeError(#[from] scale_encode::Error),
-    #[error("Too many input parameters provided: expected at most {max_inputs_expected}")]
-    TooManyInputsProvided {
-        /// The maximum number of input parameters that were expected.
-        max_inputs_expected: usize,
+    #[error("Wrong number of inputs provided: expected {num_inputs_expected}")]
+    WrongNumberOfInputsProvided {
+        /// The number of input parameters that were expected.
+        num_inputs_expected: usize,
     },
 }
 
@@ -98,10 +98,10 @@ where
     Resolver: TypeResolver,
     <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
 {
-    // If too many inputs provided, bail early.
+    // If wrong number of inputs provided, bail early.
     if runtime_api_info.inputs.len() != inputs.num_encodable_values() {
-        return Err(RuntimeApiInputsEncodeError::TooManyInputsProvided {
-            max_inputs_expected: runtime_api_info.inputs.len(),
+        return Err(RuntimeApiInputsEncodeError::WrongNumberOfInputsProvided {
+            num_inputs_expected: runtime_api_info.inputs.len(),
         });
     }
 
