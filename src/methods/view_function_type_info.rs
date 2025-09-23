@@ -16,15 +16,14 @@
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
-use alloc::vec::Vec;
 
 /// This is implemented for anything capable of providing information about view functions
 /// (primarily metadata V16 and onwards).
 pub trait ViewFunctionTypeInfo {
     /// The type of type IDs that we are using to obtain type information.
-    type TypeId;
+    type TypeId: Clone;
     /// Get the information needed to decode a specific View Function.
-    fn get_view_function_info(
+    fn view_function_info(
         &self,
         pallet_name: &str,
         function_name: &str,
@@ -36,7 +35,7 @@ pub trait ViewFunctionTypeInfo {
 /// An error returned trying to access View Function type information.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ViewFunctionInfoError<'info> {
     #[error("Pallet `{pallet_name}` not found")]
     PalletNotFound { pallet_name: String },
@@ -66,36 +65,75 @@ impl<'info> ViewFunctionInfoError<'info> {
 }
 
 /// Information about a View Function.
-pub struct ViewFunctionInfo<'a, TypeId> {
+#[derive(Debug, Clone)]
+pub struct ViewFunctionInfo<'info, TypeId: Clone> {
     /// The query Id to use to call the view function.
     pub query_id: [u8; 32],
     /// Inputs to the runtime API.
-    pub inputs: Vec<ViewFunctionInput<'a, TypeId>>,
+    pub inputs: Cow<'info, [ViewFunctionInput<'info, TypeId>]>,
     /// The output type returned from the runtime API.
     pub output_id: TypeId,
 }
 
+impl<'info, TypeId: Clone> ViewFunctionInfo<'info, TypeId> {
+    /// Take ownership of this info, turning any lifetimes to `'static`.
+    pub fn into_owned(self) -> ViewFunctionInfo<'static, TypeId> {
+        let inputs = self
+            .inputs
+            .into_iter()
+            .map(|input| input.clone().into_owned())
+            .collect();
+
+        ViewFunctionInfo {
+            query_id: self.query_id,
+            inputs,
+            output_id: self.output_id,
+        }
+    }
+}
+
 /// Information about a specific input value to a View Function.
-pub struct ViewFunctionInput<'a, TypeId> {
+#[derive(Debug, Clone)]
+pub struct ViewFunctionInput<'info, TypeId> {
     /// Name of the input.
-    pub name: Cow<'a, str>,
+    pub name: Cow<'info, str>,
     /// Type of the input.
     pub id: TypeId,
 }
 
+impl<'info, TypeId: Clone> ViewFunctionInput<'info, TypeId> {
+    /// Take ownership of this input, turning any lifetimes to `'static`.
+    pub fn into_owned(self) -> ViewFunctionInput<'static, TypeId> {
+        ViewFunctionInput {
+            name: Cow::Owned(self.name.into_owned()),
+            id: self.id,
+        }
+    }
+}
+
 /// The identifier for a single View Function.
 #[derive(Debug, Clone)]
-pub struct ViewFunction<'a> {
+pub struct ViewFunction<'info> {
     /// The pallet containing this View Function.
-    pub pallet_name: Cow<'a, str>,
+    pub pallet_name: Cow<'info, str>,
     /// The name of the View Function.
-    pub function_name: Cow<'a, str>,
+    pub function_name: Cow<'info, str>,
+}
+
+impl<'info> ViewFunction<'info> {
+    /// Take ownership of this identifier, turning any lifetimes to `'static`.
+    pub fn into_owned(self) -> ViewFunction<'static> {
+        ViewFunction {
+            pallet_name: Cow::Owned(self.pallet_name.into_owned()),
+            function_name: Cow::Owned(self.function_name.into_owned()),
+        }
+    }
 }
 
 impl ViewFunctionTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
     type TypeId = u32;
 
-    fn get_view_function_info(
+    fn view_function_info(
         &self,
         pallet_name: &str,
         function_name: &str,

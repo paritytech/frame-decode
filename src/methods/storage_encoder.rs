@@ -150,7 +150,7 @@ where
     Resolver: TypeResolver<TypeId = Info::TypeId>,
 {
     let storage_info = info
-        .get_storage_info(pallet_name, storage_entry)
+        .storage_info(pallet_name, storage_entry)
         .map_err(|e| StorageKeyEncodeError::CannotGetInfo(e.into_owned()))?;
 
     encode_storage_key_with_info_to(
@@ -182,8 +182,8 @@ where
     Resolver: TypeResolver,
     <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
 {
-    // If too many keys provided, bail early.
-    if storage_info.keys.len() < keys.num_encodable_values() {
+    // If wrong number of keys provided, bail early.
+    if storage_info.keys.len() != keys.num_encodable_values() {
         return Err(StorageKeyEncodeError::TooManyKeysProvided {
             max_keys_expected: storage_info.keys.len(),
         });
@@ -196,12 +196,9 @@ where
     // Encode the keys:
     let mut keys = keys.into_encodable_values();
     let mut temp = Vec::with_capacity(32);
-    for key_info in &storage_info.keys {
-        match keys.encode_next_value_to(key_info.key_id.clone(), type_resolver, &mut temp) {
-            None => break, // No more keys to encode.
-            Some(Err(e)) => return Err(StorageKeyEncodeError::EncodeError(e)),
-            Some(Ok(())) => { /* All ok */ }
-        };
+    for key_info in &*storage_info.keys {
+        keys.encode_next_value_to(key_info.key_id.clone(), type_resolver, &mut temp)
+            .map_err(StorageKeyEncodeError::EncodeError)?;
 
         match key_info.hasher {
             StorageHasher::Blake2_128 => {

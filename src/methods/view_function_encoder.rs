@@ -83,7 +83,7 @@ where
     Resolver: TypeResolver<TypeId = Info::TypeId>,
 {
     let view_function_api_info = info
-        .get_view_function_info(pallet_name, function_name)
+        .view_function_info(pallet_name, function_name)
         .map_err(|e| ViewFunctionInputsEncodeError::CannotGetInfo(e.into_owned()))?;
 
     encode_view_function_inputs_with_info_to(keys, &view_function_api_info, type_resolver, out)
@@ -117,12 +117,10 @@ where
 
     // Then encode each input next.
     let mut inputs = inputs.into_encodable_values();
-    for input in &view_function_api_info.inputs {
-        match inputs.encode_next_value_to(input.id.clone(), type_resolver, out) {
-            None => break, // No more inputs to encode
-            Some(Err(e)) => return Err(ViewFunctionInputsEncodeError::EncodeError(e)),
-            Some(Ok(())) => { /* All ok */ }
-        }
+    for input in &*view_function_api_info.inputs {
+        inputs
+            .encode_next_value_to(input.id.clone(), type_resolver, out)
+            .map_err(ViewFunctionInputsEncodeError::EncodeError)?;
     }
 
     Ok(())

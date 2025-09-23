@@ -13,16 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod decodable_values;
 mod decode_with_error_tracing;
 mod either;
 mod encodable_values;
 mod list_storage_entries_any;
 mod type_registry_from_metadata;
 
+pub use decodable_values::{DecodableValues, IntoDecodableValues};
 pub use encodable_values::{EncodableValues, IntoEncodableValues};
 pub use list_storage_entries_any::list_storage_entries_any;
 
-pub use decode_with_error_tracing::{decode_with_error_tracing, DecodeErrorTrace};
+pub use decode_with_error_tracing::{DecodeErrorTrace, decode_with_error_tracing};
 pub use either::Either;
 #[cfg(feature = "legacy")]
 pub use type_registry_from_metadata::{

@@ -16,15 +16,14 @@
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
-use alloc::vec::Vec;
 
 /// This can be implemented for anything capable of providing Runtime API type information.
 /// It is implemented for newer versions of frame-metadata (V15 and above).
 pub trait RuntimeApiTypeInfo {
     /// The type of type IDs that we are using to obtain type information.
-    type TypeId;
+    type TypeId: Clone;
     /// Get the information needed to encode/decode a specific Runtime API call
-    fn get_runtime_api_info(
+    fn runtime_api_info(
         &self,
         trait_name: &str,
         method_name: &str,
@@ -36,7 +35,7 @@ pub trait RuntimeApiTypeInfo {
 /// An error returned trying to access Runtime API type information.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RuntimeApiInfoError<'info> {
     #[error("Runtime API trait `{trait_name}` not found")]
     TraitNotFound { trait_name: String },
@@ -66,28 +65,56 @@ impl<'info> RuntimeApiInfoError<'info> {
 }
 
 /// Information about a Runtime API.
-pub struct RuntimeApiInfo<'a, TypeId> {
+#[derive(Debug, Clone)]
+pub struct RuntimeApiInfo<'info, TypeId: Clone> {
     /// Inputs to the runtime API.
-    pub inputs: Vec<RuntimeApiInput<'a, TypeId>>,
+    pub inputs: Cow<'info, [RuntimeApiInput<'info, TypeId>]>,
     /// The output type returned from the runtime API.
     pub output_id: TypeId,
 }
 
+impl<'info, TypeId: Clone + 'static> RuntimeApiInfo<'info, TypeId> {
+    /// Take ownership of this info, turning any lifetimes to `'static`.
+    pub fn into_owned(self) -> RuntimeApiInfo<'static, TypeId> {
+        let inputs = self
+            .inputs
+            .into_iter()
+            .map(|input| input.clone().into_owned())
+            .collect();
+
+        RuntimeApiInfo {
+            inputs: Cow::Owned(inputs),
+            output_id: self.output_id,
+        }
+    }
+}
+
 /// Information about a specific input value to a Runtime API.
-pub struct RuntimeApiInput<'a, TypeId> {
+#[derive(Debug, Clone)]
+pub struct RuntimeApiInput<'info, TypeId> {
     /// Name of the input.
-    pub name: Cow<'a, str>,
+    pub name: Cow<'info, str>,
     /// Type of the input.
     pub id: TypeId,
 }
 
+impl<'info, TypeId: Clone + 'static> RuntimeApiInput<'info, TypeId> {
+    /// Take ownership of this info, turning any lifetimes to `'static`.
+    fn into_owned(self) -> RuntimeApiInput<'static, TypeId> {
+        RuntimeApiInput {
+            name: Cow::Owned(self.name.into_owned()),
+            id: self.id,
+        }
+    }
+}
+
 /// The identifier for a single Runtime API.
 #[derive(Debug, Clone)]
-pub struct RuntimeApi<'a> {
+pub struct RuntimeApi<'info> {
     /// The trait containing this Runtime API.
-    pub trait_name: Cow<'a, str>,
+    pub trait_name: Cow<'info, str>,
     /// The method name for this Runtime API.
-    pub method_name: Cow<'a, str>,
+    pub method_name: Cow<'info, str>,
 }
 
 macro_rules! impl_runtime_api_info_for_v15_to_v16 {
@@ -97,7 +124,7 @@ macro_rules! impl_runtime_api_info_for_v15_to_v16 {
             impl RuntimeApiTypeInfo for path::$name {
                 type TypeId = u32;
 
-                fn get_runtime_api_info(
+                fn runtime_api_info(
                     &self,
                     trait_name: &str,
                     method_name: &str,
@@ -151,12 +178,12 @@ impl_runtime_api_info_for_v15_to_v16!(frame_metadata::v16, RuntimeMetadataV16);
 #[cfg(feature = "legacy")]
 mod legacy {
     use super::*;
-    use scale_info_legacy::{lookup_name, TypeRegistry, TypeRegistrySet};
+    use scale_info_legacy::{TypeRegistry, TypeRegistrySet, lookup_name};
 
     impl RuntimeApiTypeInfo for TypeRegistry {
         type TypeId = lookup_name::LookupName;
 
-        fn get_runtime_api_info(
+        fn runtime_api_info(
             &self,
             trait_name: &str,
             method_name: &str,
@@ -195,7 +222,7 @@ mod legacy {
     impl<'a> RuntimeApiTypeInfo for TypeRegistrySet<'a> {
         type TypeId = lookup_name::LookupName;
 
-        fn get_runtime_api_info(
+        fn runtime_api_info(
             &self,
             trait_name: &str,
             method_name: &str,

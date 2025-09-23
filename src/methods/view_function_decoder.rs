@@ -31,7 +31,7 @@
 use super::view_function_type_info::{
     ViewFunctionInfo, ViewFunctionInfoError, ViewFunctionTypeInfo,
 };
-use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
+use crate::utils::{DecodeErrorTrace, decode_with_error_tracing};
 use scale_type_resolver::TypeResolver;
 
 /// An error returned trying to decode a View Function responses.
@@ -63,7 +63,7 @@ where
     V::Error: core::fmt::Debug,
 {
     let view_function_info = info
-        .get_view_function_info(pallet_name, function_name)
+        .view_function_info(pallet_name, function_name)
         .map_err(|e| ViewFunctionDecodeError::CannotGetInfo(e.into_owned()))?;
 
     decode_view_function_response_with_info(cursor, &view_function_info, type_resolver, visitor)

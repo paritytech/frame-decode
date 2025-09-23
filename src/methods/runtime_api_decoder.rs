@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use super::runtime_api_type_info::{RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiTypeInfo};
-use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
+use crate::utils::{DecodeErrorTrace, decode_with_error_tracing};
 use scale_type_resolver::TypeResolver;
 
 /// An error returned trying to decode a Runtime API responses.
@@ -46,7 +46,7 @@ where
     V::Error: core::fmt::Debug,
 {
     let runtime_api_info = info
-        .get_runtime_api_info(trait_name, method_name)
+        .runtime_api_info(trait_name, method_name)
         .map_err(|e| RuntimeApiDecodeError::CannotGetInfo(e.into_owned()))?;
 
     decode_runtime_api_response_with_info(cursor, &runtime_api_info, type_resolver, visitor)

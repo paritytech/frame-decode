@@ -36,8 +36,8 @@ pub mod extrinsics {
     //! - See [`ExtrinsicTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::extrinsic_decoder::{
-        decode_extrinsic, Extrinsic, ExtrinsicDecodeError, ExtrinsicExtensions, ExtrinsicOwned,
-        ExtrinsicSignature, ExtrinsicType, NamedArg,
+        Extrinsic, ExtrinsicDecodeError, ExtrinsicExtensions, ExtrinsicOwned, ExtrinsicSignature,
+        ExtrinsicType, NamedArg, decode_extrinsic,
     };
     pub use crate::methods::extrinsic_type_info::{
         ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
@@ -55,18 +55,20 @@ pub mod storage {
     //! - See [`StorageTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::storage_decoder::{
-        decode_storage_key, decode_storage_key_with_info, decode_storage_value,
-        decode_storage_value_with_info, StorageKey, StorageKeyDecodeError, StorageKeyPart,
-        StorageKeyPartValue, StorageValueDecodeError,
+        StorageKey, StorageKeyDecodeError, StorageKeyPart, StorageKeyPartValue,
+        StorageValueDecodeError, decode_storage_key, decode_storage_key_values,
+        decode_storage_key_with_info, decode_storage_value, decode_storage_value_with_info,
     };
     pub use crate::methods::storage_encoder::{
-        encode_prefix, encode_storage_key, encode_storage_key_to, encode_storage_key_with_info_to,
-        StorageKeyEncodeError,
+        StorageKeyEncodeError, encode_prefix, encode_storage_key, encode_storage_key_to,
+        encode_storage_key_with_info_to,
     };
     pub use crate::methods::storage_type_info::{
         StorageEntry, StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
     };
-    pub use crate::utils::{EncodableValues, IntoEncodableValues};
+    pub use crate::utils::{
+        DecodableValues, EncodableValues, IntoDecodableValues, IntoEncodableValues,
+    };
 }
 
 pub mod runtime_apis {
@@ -78,12 +80,11 @@ pub mod runtime_apis {
     //! - See [`RuntimeApiTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::runtime_api_decoder::{
-        decode_runtime_api_response, decode_runtime_api_response_with_info, RuntimeApiDecodeError,
+        RuntimeApiDecodeError, decode_runtime_api_response, decode_runtime_api_response_with_info,
     };
     pub use crate::methods::runtime_api_encoder::{
-        encode_runtime_api_inputs, encode_runtime_api_inputs_to,
+        RuntimeApiInputsEncodeError, encode_runtime_api_inputs, encode_runtime_api_inputs_to,
         encode_runtime_api_inputs_with_info_to, encode_runtime_api_name,
-        RuntimeApiInputsEncodeError,
     };
     pub use crate::methods::runtime_api_type_info::{
         RuntimeApi, RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
@@ -100,12 +101,12 @@ pub mod view_functions {
     //! - See [`ViewFunctionTypeInfo`] for the underlying trait which extracts the relevant information.
 
     pub use crate::methods::view_function_decoder::{
-        decode_view_function_response, decode_view_function_response_with_info,
-        ViewFunctionDecodeError,
+        ViewFunctionDecodeError, decode_view_function_response,
+        decode_view_function_response_with_info,
     };
     pub use crate::methods::view_function_encoder::{
-        encode_view_function_inputs, encode_view_function_inputs_to,
-        encode_view_function_inputs_with_info_to, ViewFunctionInputsEncodeError, RUNTIME_API_NAME,
+        RUNTIME_API_NAME, ViewFunctionInputsEncodeError, encode_view_function_inputs,
+        encode_view_function_inputs_to, encode_view_function_inputs_with_info_to,
     };
     pub use crate::methods::view_function_type_info::{
         ViewFunction, ViewFunctionInfo, ViewFunctionInfoError, ViewFunctionInput,
@@ -141,8 +142,8 @@ pub mod helpers {
     //!   information in the event that decoding fails.
 
     pub use crate::utils::{
-        decode_with_error_tracing, list_storage_entries_any, DecodeErrorTrace, EncodableValues,
-        IntoEncodableValues,
+        DecodableValues, DecodeErrorTrace, EncodableValues, IntoDecodableValues,
+        IntoEncodableValues, decode_with_error_tracing, list_storage_entries_any,
     };
     #[cfg(feature = "legacy")]
     pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};

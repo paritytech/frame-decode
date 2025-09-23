@@ -76,7 +76,7 @@ where
     Resolver: TypeResolver<TypeId = Info::TypeId>,
 {
     let runtime_api_info = info
-        .get_runtime_api_info(trait_name, method_name)
+        .runtime_api_info(trait_name, method_name)
         .map_err(|e| RuntimeApiInputsEncodeError::CannotGetInfo(e.into_owned()))?;
 
     encode_runtime_api_inputs_with_info_to(keys, &runtime_api_info, type_resolver, out)
@@ -99,7 +99,7 @@ where
     <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
 {
     // If too many inputs provided, bail early.
-    if runtime_api_info.inputs.len() < inputs.num_encodable_values() {
+    if runtime_api_info.inputs.len() != inputs.num_encodable_values() {
         return Err(RuntimeApiInputsEncodeError::TooManyInputsProvided {
             max_inputs_expected: runtime_api_info.inputs.len(),
         });
@@ -107,12 +107,10 @@ where
 
     // Encode the inputs to our out bytes.
     let mut inputs = inputs.into_encodable_values();
-    for input in &runtime_api_info.inputs {
-        match inputs.encode_next_value_to(input.id.clone(), type_resolver, out) {
-            None => break, // No more inputs to encode
-            Some(Err(e)) => return Err(RuntimeApiInputsEncodeError::EncodeError(e)),
-            Some(Ok(())) => { /* All ok */ }
-        }
+    for input in &*runtime_api_info.inputs {
+        inputs
+            .encode_next_value_to(input.id.clone(), type_resolver, out)
+            .map_err(RuntimeApiInputsEncodeError::EncodeError)?;
     }
 
     Ok(())

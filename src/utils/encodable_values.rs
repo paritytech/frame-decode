@@ -16,45 +16,60 @@
 use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
 
-/// This can be implemented for anything that can be converted into something implementing [`StorageKeys`].
-/// It is implemented by default for tuples up to length 10, vectors and arrays (where the values all implement
-/// [`scale_encode::EncodeAsType`]).
+/// This can be implemented for anything that can be encoded in multiple steps into a set of values
+/// via [`scale_encode::EncodeAsType`]. The common use case is to encode a tuple of multiple types,
+/// step by step, into bytes. As well as tuples up to size 12, Implementations also exist for Vecs
+/// and arrays.
 pub trait IntoEncodableValues {
-    /// An implementation of [`StorageKeys`] that can be used to iterate through the keys.
+    /// An implementation of [`EncodableValues`] that can be used to iterate through the values.
     type Values: EncodableValues;
-    /// Return an implementation of [`StorageKeys`] for this type.
+    /// Return an implementation of [`EncodableValues`] for this type.
     fn into_encodable_values(self) -> Self::Values;
-    /// The number of storage keys this type represents.
+    /// The number of values that can be encoded from this type.
     fn num_encodable_values(&self) -> usize;
 }
 
-/// Since [`scale_encode::EncodeAsType`] is not dyn safe, this trait is used to iterate through and encode a set of keys.
+/// Since [`scale_encode::EncodeAsType`] is not dyn safe, this trait is used to iterate through and
+/// encode a set of values.
 pub trait EncodableValues {
-    /// Encode the next key, if there is one, into the provided output buffer.
+    /// Encode the next value, if there is one, into the provided output buffer. This method
+    /// must not be called more times than [`IntoEncodableValues::num_encodable_values`].
+    ///
+    /// # Panics
+    ///
+    /// This method may panic if we call it more than [`IntoEncodableValues::num_encodable_values`]
+    /// times (ie we try to encode more values than actually exist).
     fn encode_next_value_to<Resolver>(
         &mut self,
         type_id: Resolver::TypeId,
         types: &Resolver,
         out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
+    ) -> Result<(), scale_encode::Error>
     where
         Resolver: TypeResolver;
-    /// Encode the next key, if there is one, and return the encoded bytes
+
+    /// Encode the next value, if there is one, and return the encoded bytes. This method
+    /// must not be called more times than [`IntoEncodableValues::num_encodable_values`].
+    ///
+    /// # Panics
+    ///
+    /// This method may panic if we call it more than [`IntoEncodableValues::num_encodable_values`]
+    /// times (ie we try to encode more values than actually exist).
     fn encode_next_value<Resolver>(
         &mut self,
         type_id: Resolver::TypeId,
         types: &Resolver,
-    ) -> Option<Result<Vec<u8>, scale_encode::Error>>
+    ) -> Result<Vec<u8>, scale_encode::Error>
     where
         Resolver: TypeResolver,
     {
         let mut out = Vec::new();
         self.encode_next_value_to(type_id, types, &mut out)
-            .map(|res| res.map(|_| out))
+            .map(|_| out)
     }
 }
 
-// Vecs of keys implement IntoStorageKeys.
+// Vecs
 impl<K: scale_encode::EncodeAsType> IntoEncodableValues for Vec<K> {
     type Values = <Self as IntoIterator>::IntoIter;
     fn num_encodable_values(&self) -> usize {
@@ -71,19 +86,23 @@ impl<K: scale_encode::EncodeAsType> EncodableValues for alloc::vec::IntoIter<K> 
         type_id: Resolver::TypeId,
         types: &Resolver,
         out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
+    ) -> Result<(), scale_encode::Error>
     where
         Resolver: TypeResolver,
     {
-        let next_key = self.next()?;
+        let Some(next_key) = self.next() else {
+            return Err(scale_encode::Error::custom_str(
+                "encode_next_value_to called but no more values to encode",
+            ));
+        };
         if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
-            return Some(Err(e));
+            return Err(e);
         }
-        Some(Ok(()))
+        Ok(())
     }
 }
 
-// As do arrays of keys.
+// Arrays
 impl<K: scale_encode::EncodeAsType, const N: usize> IntoEncodableValues for [K; N] {
     type Values = <Self as IntoIterator>::IntoIter;
     fn num_encodable_values(&self) -> usize {
@@ -102,15 +121,19 @@ impl<K: scale_encode::EncodeAsType, const N: usize> EncodableValues
         type_id: Resolver::TypeId,
         types: &Resolver,
         out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
+    ) -> Result<(), scale_encode::Error>
     where
         Resolver: TypeResolver,
     {
-        let next_key = self.next()?;
+        let Some(next_key) = self.next() else {
+            return Err(scale_encode::Error::custom_str(
+                "encode_next_value_to called but no more values to encode",
+            ));
+        };
         if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
-            return Some(Err(e));
+            return Err(e);
         }
-        Some(Ok(()))
+        Ok(())
     }
 }
 
@@ -129,11 +152,13 @@ impl EncodableValues for () {
         _type_id: Resolver::TypeId,
         _types: &Resolver,
         _out: &mut Vec<u8>,
-    ) -> Option<Result<(), scale_encode::Error>>
+    ) -> Result<(), scale_encode::Error>
     where
         Resolver: TypeResolver,
     {
-        None
+        Err(scale_encode::Error::custom_str(
+            "encode_next_value_to called on an empty tuple",
+        ))
     }
 }
 
@@ -162,7 +187,7 @@ macro_rules! impl_tuple_encodable {
             }
 
             impl <$($ty: scale_encode::EncodeAsType),*> EncodableValues for TupleIter<$($ty),*> {
-                fn encode_next_value_to<Resolver>(&mut self, type_id: Resolver::TypeId, types: &Resolver, out: &mut Vec<u8>) -> Option<Result<(), scale_encode::Error>>
+                fn encode_next_value_to<Resolver>(&mut self, type_id: Resolver::TypeId, types: &Resolver, out: &mut Vec<u8>) -> Result<(), scale_encode::Error>
                 where
                     Resolver: TypeResolver,
                 {
@@ -170,13 +195,13 @@ macro_rules! impl_tuple_encodable {
                         if self.idx == $number {
                             let item = &self.items.$number;
                             if let Err(e) = item.encode_as_type_to(type_id, types, out) {
-                                return Some(Err(e));
+                                return Err(e);
                             }
                             self.idx += 1;
-                            return Some(Ok(()));
+                            return Ok(());
                         }
                     )*
-                    None
+                    Err(scale_encode::Error::custom_str("encode_next_value_to called but no more tuple entries to encode"))
                 }
             }
         };
@@ -193,16 +218,21 @@ impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
 impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);
 impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8);
 impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10);
+impl_tuple_encodable!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10, L 11);
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use parity_scale_codec::Encode;
+    use scale_info_legacy::LookupName;
+
+    fn ln(ty: &str) -> LookupName {
+        LookupName::parse(ty).unwrap()
+    }
 
     #[test]
     fn test_tuple_encodable_values() {
-        use parity_scale_codec::Encode;
-        use scale_info_legacy::LookupName;
-
         // We just need some basic types to test with.
         let types = crate::legacy_types::polkadot::relay_chain();
         let types = types.for_spec_version(0);
@@ -212,36 +242,35 @@ mod test {
         let mut encodable_values = keys.into_encodable_values();
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u64").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u64"), &types)
             .unwrap();
         assert_eq!(val, 123u64.encode());
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("bool").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("bool"), &types)
             .unwrap();
         assert_eq!(val, true.encode());
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("String").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("String"), &types)
             .unwrap();
         assert_eq!(val, "hello".encode());
 
-        assert!(encodable_values
-            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-        assert!(encodable_values
-            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
+        // These _could_ panic in theory but our impls don't.
+        assert!(
+            encodable_values
+                .encode_next_value(ln("foo"), &types)
+                .is_err()
+        );
+        assert!(
+            encodable_values
+                .encode_next_value(ln("foo"), &types)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_vec_encodable_values() {
-        use parity_scale_codec::Encode;
-        use scale_info_legacy::LookupName;
-
         // We just need some basic types to test with.
         let types = crate::legacy_types::polkadot::relay_chain();
         let types = types.for_spec_version(0);
@@ -251,36 +280,35 @@ mod test {
         let mut encodable_values = keys.into_encodable_values();
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u64").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u64"), &types)
             .unwrap();
         assert_eq!(val, 123u64.encode());
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u16").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u16"), &types)
             .unwrap();
         assert_eq!(val, 456u16.encode());
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u32").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u32"), &types)
             .unwrap();
         assert_eq!(val, 789u32.encode());
 
-        assert!(encodable_values
-            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-        assert!(encodable_values
-            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
+        // These _could_ panic in theory but our impls don't.
+        assert!(
+            encodable_values
+                .encode_next_value(ln("foo"), &types)
+                .is_err()
+        );
+        assert!(
+            encodable_values
+                .encode_next_value(ln("foo"), &types)
+                .is_err()
+        );
     }
 
     #[test]
     fn test_array_encodable_values() {
-        use parity_scale_codec::Encode;
-        use scale_info_legacy::LookupName;
-
         // We just need some basic types to test with.
         let types = crate::legacy_types::polkadot::relay_chain();
         let types = types.for_spec_version(0);
@@ -290,28 +318,30 @@ mod test {
         let mut encodable_values = keys.into_encodable_values();
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u64").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u64"), &types)
             .unwrap();
         assert_eq!(val, 123u64.encode());
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u16").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u16"), &types)
             .unwrap();
         assert_eq!(val, 456u16.encode());
 
         let val = encodable_values
-            .encode_next_value(LookupName::parse("u32").unwrap(), &types)
-            .unwrap()
+            .encode_next_value(ln("u32"), &types)
             .unwrap();
         assert_eq!(val, 789u32.encode());
 
-        assert!(encodable_values
-            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
-        assert!(encodable_values
-            .encode_next_value(LookupName::parse("foo").unwrap(), &types)
-            .is_none());
+        // These _could_ panic in theory but our impls don't.
+        assert!(
+            encodable_values
+                .encode_next_value(ln("foo"), &types)
+                .is_err()
+        );
+        assert!(
+            encodable_values
+                .encode_next_value(ln("foo"), &types)
+                .is_err()
+        );
     }
 }

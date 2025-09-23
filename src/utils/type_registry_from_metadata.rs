@@ -73,8 +73,8 @@ const _: () = {
     use alloc::format;
     use alloc::vec;
     use alloc::vec::Vec;
-    use scale_info_legacy::type_shape::{Field, TypeShape, Variant, VariantDesc};
     use scale_info_legacy::InsertName;
+    use scale_info_legacy::type_shape::{Field, TypeShape, Variant, VariantDesc};
     use scale_info_legacy::{LookupName, TypeRegistry};
 
     macro_rules! impl_for_v8_to_v13 {
