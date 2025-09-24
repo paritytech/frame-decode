@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::storage_encoder::encode_prefix;
+use super::storage_encoder::encode_storage_key_prefix;
 use super::storage_type_info::{StorageHasher, StorageInfo, StorageTypeInfo};
 use crate::methods::storage_type_info::StorageInfoError;
 use crate::utils::{
@@ -347,7 +347,7 @@ where
         .map_err(|e| StorageKeyDecodeError::CannotGetInfo(e.into_owned()))?;
 
     // Sanity check that the storage key prefix is what we expect:
-    let expected_prefix = encode_prefix(pallet_name, storage_entry);
+    let expected_prefix = encode_storage_key_prefix(pallet_name, storage_entry);
     if cursor[..32] != expected_prefix {
         return Err(StorageKeyDecodeError::PrefixMismatch);
     }

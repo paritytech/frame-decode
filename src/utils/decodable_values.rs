@@ -360,7 +360,7 @@ mod test {
             .decode_next_value(&mut &*1u32.encode(), ln("u32"), &types)
             .unwrap_err();
 
-        assert_eq!(decodable.decoded_target(), []);
+        assert_eq!(decodable.decoded_target(), [] as [u64; 0]);
     }
 
     #[test]

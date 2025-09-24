@@ -38,7 +38,7 @@ pub enum StorageKeyEncodeError {
 /// Encode a storage key prefix from a pallet name and storage entry name. This prefix
 /// is the first 32 bytes of any storage key which comes from a pallet, and is essentially
 /// `twox_128(pallet_name) + twox_128(storage_entry_name)`.
-pub fn encode_prefix(pallet_name: &str, storage_entry: &str) -> [u8; 32] {
+pub fn encode_storage_key_prefix(pallet_name: &str, storage_entry: &str) -> [u8; 32] {
     let mut prefix = [0u8; 32];
 
     let pallet_bytes = sp_crypto_hashing::twox_128(pallet_name.as_bytes());
@@ -74,7 +74,7 @@ pub fn encode_prefix(pallet_name: &str, storage_entry: &str) -> [u8; 32] {
 /// let encoded_key = encode_storage_key(
 ///     "System",
 ///     "Account",
-///     [account_id],
+///     &[account_id],
 ///     &metadata,
 ///     &metadata.types,
 /// ).unwrap();
@@ -129,7 +129,7 @@ where
 /// encode_storage_key_to(
 ///     "System",
 ///     "Account",
-///     [account_id],
+///     &[account_id],
 ///     &metadata,
 ///     &metadata.types,
 ///     &mut encoded_key,
@@ -194,8 +194,202 @@ where
     }
 
     // Encode the prefix:
-    let prefix = encode_prefix(pallet_name, storage_entry);
+    let prefix = encode_storage_key_prefix(pallet_name, storage_entry);
     out.extend_from_slice(&prefix);
+
+    // Encode the keys:
+    let mut keys = keys.into_encodable_values();
+    let mut temp = Vec::with_capacity(32);
+    let iter = (0..num_encodable_values)
+        .zip(&*storage_info.keys)
+        .map(|(_, k)| k);
+
+    for key_info in iter {
+        keys.encode_next_value_to(key_info.key_id.clone(), type_resolver, &mut temp)
+            .map_err(StorageKeyEncodeError::EncodeError)?;
+
+        match key_info.hasher {
+            StorageHasher::Blake2_128 => {
+                let hash = sp_crypto_hashing::blake2_128(&temp);
+                out.extend_from_slice(&hash);
+            }
+            StorageHasher::Blake2_256 => {
+                let hash = sp_crypto_hashing::blake2_256(&temp);
+                out.extend_from_slice(&hash);
+            }
+            StorageHasher::Blake2_128Concat => {
+                let hash = sp_crypto_hashing::blake2_128(&temp);
+                out.extend_from_slice(&hash);
+                out.extend_from_slice(&temp);
+            }
+            StorageHasher::Twox128 => {
+                let hash = sp_crypto_hashing::twox_128(&temp);
+                out.extend_from_slice(&hash);
+            }
+            StorageHasher::Twox256 => {
+                let hash = sp_crypto_hashing::twox_256(&temp);
+                out.extend_from_slice(&hash);
+            }
+            StorageHasher::Twox64Concat => {
+                let hash = sp_crypto_hashing::twox_64(&temp);
+                out.extend_from_slice(&hash);
+                out.extend_from_slice(&temp);
+            }
+            StorageHasher::Identity => {
+                out.extend_from_slice(&temp);
+            }
+        }
+
+        // Clear our temp space ready for the next key.
+        temp.clear();
+    }
+
+    Ok(())
+}
+
+/// Encode the end part of a storage key (ie everything except for the prefix that can be encoded
+/// via [`encode_storage_key_prefix`]) for a given pallet and storage entry and a set of keys that are each
+/// able to be encoded via [`scale_encode::EncodeAsType`].
+///
+/// This is the same as [`encode_storage_key_suffix_to`], but returns the encoded key as a `Vec<u8>`, rather
+/// than accepting a mutable output buffer.
+///
+/// Prefer [`encode_storage_key`] if you need to encode the entire storage key at once and not just the suffix.
+///
+/// # Example
+///
+/// ```rust
+/// use frame_decode::storage::{ encode_storage_key_prefix, encode_storage_key_suffix };
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let account_id = [0u8; 32];
+///
+/// // System.Account needs only one key to point at a specific value; the account ID.
+/// // We just fake an account ID for this example  by providing 32 0 bytes, but anything
+/// // which would `scale_encode::EncodeAsType` into 32 bytes would work.
+/// let encoded_key_suffix = encode_storage_key_suffix(
+///     "System",
+///     "Account",
+///     &[account_id],
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// ```
+pub fn encode_storage_key_suffix<Info, Resolver, Keys>(
+    pallet_name: &str,
+    storage_entry: &str,
+    keys: &Keys,
+    info: &Info,
+    type_resolver: &Resolver,
+) -> Result<Vec<u8>, StorageKeyEncodeError>
+where
+    Keys: IntoEncodableValues,
+    Info: StorageTypeInfo,
+    Info::TypeId: Clone + core::fmt::Debug,
+    Resolver: TypeResolver<TypeId = Info::TypeId>,
+{
+    // pre-allocate at least as many bytes as we need for the root/prefix.
+    let mut out = Vec::with_capacity(32);
+    encode_storage_key_suffix_to(
+        pallet_name,
+        storage_entry,
+        keys,
+        info,
+        type_resolver,
+        &mut out,
+    )?;
+    Ok(out)
+}
+
+/// Encode the end part of a storage key (ie everything except for the prefix that can be encoded
+/// via [`encode_storage_key_prefix`]) for a given pallet and storage entry and a set of keys that are each
+/// able to be encoded via [`scale_encode::EncodeAsType`].
+///
+/// This is the same as [`encode_storage_key_suffix`], but can be handed a `Vec` to encode the bytes to.
+///
+/// Prefer [`encode_storage_key_to`] if you need to encode the entire storage key at once and not just the suffix.
+///
+/// # Example
+///
+/// ```rust
+/// use frame_decode::storage::{ encode_storage_key_prefix, encode_storage_key_suffix_to };
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+///
+/// let account_id = [0u8; 32];
+///
+/// let mut key = Vec::new();
+///
+/// // Write the suffix to the provided vec:
+/// let encoded_key_suffix = encode_storage_key_suffix_to(
+///     "System",
+///     "Account",
+///     &[account_id],
+///     &metadata,
+///     &metadata.types,
+///     &mut key
+/// ).unwrap();
+/// ```
+pub fn encode_storage_key_suffix_to<Info, Resolver, Keys>(
+    pallet_name: &str,
+    storage_entry: &str,
+    keys: &Keys,
+    info: &Info,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), StorageKeyEncodeError>
+where
+    Keys: IntoEncodableValues,
+    Info: StorageTypeInfo,
+    Info::TypeId: Clone + core::fmt::Debug,
+    Resolver: TypeResolver<TypeId = Info::TypeId>,
+{
+    let storage_info = info
+        .storage_info(pallet_name, storage_entry)
+        .map_err(|e| StorageKeyEncodeError::CannotGetInfo(e.into_owned()))?;
+
+    encode_storage_key_suffix_with_info_to(keys, &storage_info, type_resolver, out)
+}
+
+/// Encode the end part of a storage key (ie everything except for the prefix that can be encoded
+/// via [`encode_storage_key_prefix`]) for a given pallet and storage entry and a set of keys that are each
+/// able to be encoded via [`scale_encode::EncodeAsType`].
+///
+/// This is the same as [`encode_storage_key_suffix_to`], but is instead handed storage info that has been
+/// pre-computed via [`StorageTypeInfo::storage_info`]. This avoids having to retrieve this information multiple
+/// times if you'd like to encode many key suffixes for the same storage entry.
+///
+/// Prefer [`encode_storage_key_with_info_to`] if you need to encode the entire storage key at once and not
+/// just the suffix.
+pub fn encode_storage_key_suffix_with_info_to<Resolver, Keys>(
+    keys: &Keys,
+    storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), StorageKeyEncodeError>
+where
+    Keys: IntoEncodableValues,
+    Resolver: TypeResolver,
+    <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
+{
+    let num_encodable_values = keys.num_encodable_values();
+
+    // If we provide more encodable values than there are keys, bail.
+    // If we provide less, that's ok and we just don't encode every part of the key
+    // (useful if eg iterating a bunch of entries under some prefix of a key).
+    if num_encodable_values > storage_info.keys.len() {
+        return Err(StorageKeyEncodeError::TooManyKeysProvided {
+            max_keys_expected: storage_info.keys.len(),
+        });
+    }
 
     // Encode the keys:
     let mut keys = keys.into_encodable_values();
@@ -289,7 +483,7 @@ mod test {
         // We provide no additional keys, so we should get the prefix only.
         let out = encode_storage_key("System", "Account", &(), &metadata, &metadata.types)
             .expect("Encoding should work");
-        assert_eq!(&out, &encode_prefix("System", "Account"));
+        assert_eq!(&out, &encode_storage_key_prefix("System", "Account"));
 
         // We provide too many additional keys so should get an error.
         let err = encode_storage_key(
