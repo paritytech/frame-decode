@@ -384,15 +384,20 @@ global:
     SetId: u64
 
     # ImOnline
+    OpaqueNetworkState:
+      peerId: Bytes
+      externalAddresses: Vec<Bytes>
+    AuthIndex: u32
+    SessionIndex: u32
+
     Heartbeat<BN>:
       blockNumber: BN
       networkState: OpaqueNetworkState
       sessionIndex: SessionIndex
       authorityIndex: AuthIndex
-      validatorsLen: u32
-    <T::AuthorityId as RuntimeAppPublic>::Signature: H512
+
+    <T::AuthorityId as RuntimeAppPublic>::Signature: Sr25519Signature
     T::AuthorityId: AccountId
-    ValidatorId<T>: AccountId
 
 
     # Democracy
@@ -535,30 +540,6 @@ global:
     ParaId: u32
     HeadData: Bytes
     ValidationCode: Bytes
-
-    # Storage proof used in parachain inherent [Newly Added for Kasuma]
-    StorageProof:
-      trieNodes: Vec<Bytes>
-    # Inbound message types
-    InboundDownwardMessage:
-      sentAt: BlockNumber
-      msg: Bytes
-    InboundHrmpMessage:
-      sentAt: BlockNumber
-      data: Bytes
-    InboundHrmpMessages: Vec<InboundHrmpMessage>
-    # Persisted validation data from relay chain
-    PersistedValidationData:
-      parentHead: HeadData
-      relayParentNumber: BlockNumber
-      relayParentStorageRoot: Hash
-      maxPovSize: u32
-    # Inherent data passed to parachains each block
-    ParachainInherentData:
-      validationData: PersistedValidationData
-      relayChainState: StorageProof
-      downwardMessages: Vec<InboundDownwardMessage>
-      horizontalMessages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>
 
     # Registrar
     ParaInfo:
