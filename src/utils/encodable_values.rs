@@ -22,9 +22,11 @@ use scale_type_resolver::TypeResolver;
 /// and arrays.
 pub trait IntoEncodableValues {
     /// An implementation of [`EncodableValues`] that can be used to iterate through the values.
-    type Values: EncodableValues;
+    type Values<'this>: EncodableValues
+    where
+        Self: 'this;
     /// Return an implementation of [`EncodableValues`] for this type.
-    fn into_encodable_values(self) -> Self::Values;
+    fn into_encodable_values(&self) -> Self::Values<'_>;
     /// The number of values that can be encoded from this type.
     fn num_encodable_values(&self) -> usize;
 }
@@ -71,16 +73,19 @@ pub trait EncodableValues {
 
 // Vecs
 impl<K: scale_encode::EncodeAsType> IntoEncodableValues for Vec<K> {
-    type Values = <Self as IntoIterator>::IntoIter;
+    type Values<'this>
+        = core::slice::Iter<'this, K>
+    where
+        K: 'this;
     fn num_encodable_values(&self) -> usize {
         self.len()
     }
-    fn into_encodable_values(self) -> Self::Values {
-        self.into_iter()
+    fn into_encodable_values(&self) -> Self::Values<'_> {
+        self.iter()
     }
 }
 
-impl<K: scale_encode::EncodeAsType> EncodableValues for alloc::vec::IntoIter<K> {
+impl<'a, K: scale_encode::EncodeAsType> EncodableValues for core::slice::Iter<'a, K> {
     fn encode_next_value_to<Resolver>(
         &mut self,
         type_id: Resolver::TypeId,
@@ -102,48 +107,27 @@ impl<K: scale_encode::EncodeAsType> EncodableValues for alloc::vec::IntoIter<K> 
     }
 }
 
-// Arrays
+// Arrays (uses the same iter as above)
 impl<K: scale_encode::EncodeAsType, const N: usize> IntoEncodableValues for [K; N] {
-    type Values = <Self as IntoIterator>::IntoIter;
+    type Values<'this>
+        = core::slice::Iter<'this, K>
+    where
+        K: 'this;
     fn num_encodable_values(&self) -> usize {
         N
     }
-    fn into_encodable_values(self) -> Self::Values {
-        self.into_iter()
-    }
-}
-
-impl<K: scale_encode::EncodeAsType, const N: usize> EncodableValues
-    for core::array::IntoIter<K, N>
-{
-    fn encode_next_value_to<Resolver>(
-        &mut self,
-        type_id: Resolver::TypeId,
-        types: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Result<(), scale_encode::Error>
-    where
-        Resolver: TypeResolver,
-    {
-        let Some(next_key) = self.next() else {
-            return Err(scale_encode::Error::custom_str(
-                "encode_next_value_to called but no more values to encode",
-            ));
-        };
-        if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
-            return Err(e);
-        }
-        Ok(())
+    fn into_encodable_values(&self) -> Self::Values<'_> {
+        self.iter()
     }
 }
 
 // Empty tuples can be used as a placeholder for no values.
 impl IntoEncodableValues for () {
-    type Values = ();
+    type Values<'this> = ();
     fn num_encodable_values(&self) -> usize {
         0
     }
-    fn into_encodable_values(self) -> Self::Values {}
+    fn into_encodable_values(&self) -> Self::Values<'_> {}
 }
 
 impl EncodableValues for () {
@@ -167,13 +151,14 @@ macro_rules! impl_tuple_encodable {
     ($($ty:ident $number:tt),*) => {
         const _: () = {
             const TUPLE_LEN: usize = 0 $(+ $number - $number + 1)*;
+            type TupleOf<$($ty),*> = ($($ty,)*);
 
-            impl <$($ty: scale_encode::EncodeAsType),*> IntoEncodableValues for ($($ty,)*) {
-                type Values = TupleIter<$($ty),*>;
+            impl <$($ty: scale_encode::EncodeAsType),*> IntoEncodableValues for TupleOf<$($ty),*> {
+                type Values<'this> = TupleIter<'this, TupleOf<$($ty),*>> where TupleOf<$($ty),*>: 'this;
                 fn num_encodable_values(&self) -> usize {
                     TUPLE_LEN
                 }
-                fn into_encodable_values(self) -> Self::Values {
+                fn into_encodable_values(&self) -> Self::Values<'_> {
                     TupleIter {
                         idx: 0,
                         items: self,
@@ -181,12 +166,12 @@ macro_rules! impl_tuple_encodable {
                 }
             }
 
-            pub struct TupleIter<$($ty),*> {
+            pub struct TupleIter<'this, TupleTy> {
                 idx: usize,
-                items: ($($ty,)*)
+                items: &'this TupleTy
             }
 
-            impl <$($ty: scale_encode::EncodeAsType),*> EncodableValues for TupleIter<$($ty),*> {
+            impl <'a, $($ty: scale_encode::EncodeAsType),*> EncodableValues for TupleIter<'a, TupleOf<$($ty),*>> {
                 fn encode_next_value_to<Resolver>(&mut self, type_id: Resolver::TypeId, types: &Resolver, out: &mut Vec<u8>) -> Result<(), scale_encode::Error>
                 where
                     Resolver: TypeResolver,

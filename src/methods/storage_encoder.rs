@@ -82,7 +82,7 @@ pub fn encode_prefix(pallet_name: &str, storage_entry: &str) -> [u8; 32] {
 pub fn encode_storage_key<Info, Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: Keys,
+    keys: &Keys,
     info: &Info,
     type_resolver: &Resolver,
 ) -> Result<Vec<u8>, StorageKeyEncodeError>
@@ -138,7 +138,7 @@ where
 pub fn encode_storage_key_to<Info, Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: Keys,
+    keys: &Keys,
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -172,7 +172,7 @@ where
 pub fn encode_storage_key_with_info_to<Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: Keys,
+    keys: &Keys,
     storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -272,7 +272,7 @@ mod test {
         encode_storage_key(
             "System",
             "Account",
-            [account_id],
+            &[account_id],
             &metadata,
             &metadata.types,
         )
@@ -280,14 +280,14 @@ mod test {
         encode_storage_key(
             "System",
             "Account",
-            (account_id,),
+            &(account_id,),
             &metadata,
             &metadata.types,
         )
         .expect("Encoding should work");
 
         // We provide no additional keys, so we should get the prefix only.
-        let out = encode_storage_key("System", "Account", (), &metadata, &metadata.types)
+        let out = encode_storage_key("System", "Account", &(), &metadata, &metadata.types)
             .expect("Encoding should work");
         assert_eq!(&out, &encode_prefix("System", "Account"));
 
@@ -295,7 +295,7 @@ mod test {
         let err = encode_storage_key(
             "System",
             "Account",
-            (account_id, 123u16),
+            &(account_id, 123u16),
             &metadata,
             &metadata.types,
         );

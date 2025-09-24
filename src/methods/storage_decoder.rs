@@ -534,7 +534,7 @@ where
 /// for (key, _val) in storage_keyval_hex {
 ///     let key_bytes = hex::decode(key.trim_start_matches("0x")).unwrap();
 ///
-///     // Decode the storage key, returning information about it:
+///     // First decode the storage key, returning information about it:
 ///     let storage_info = decode_storage_key(
 ///         "System",
 ///         "Account",
