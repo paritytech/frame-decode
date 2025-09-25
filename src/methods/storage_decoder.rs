@@ -711,7 +711,7 @@ where
 ///
 /// The resulting value may be tied to the lifetime of the [`StorageInfo`] being provided if the implementation decides to borrow
 /// from it. This is also why no `decode_default_storage_value` function exists; the [`StorageInfo`] must outlive this call.
-pub fn decode_default_storage_value_with_info<'info, 'resolver, Resolver, V>(
+pub fn decode_default_storage_value_with_info<'info, 'resolver, V>(
     storage_info: &'info StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
     type_resolver: &'resolver V::TypeResolver,
     visitor: V,
