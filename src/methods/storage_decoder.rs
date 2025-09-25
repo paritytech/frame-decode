@@ -725,12 +725,18 @@ where
 {
     let value_id = storage_info.value_id.clone();
 
-    let Some(default_bytes) = &storage_info.default_value else { return Ok(None) };
-    let value = decode_with_error_tracing(&mut &**default_bytes, value_id.clone(), type_resolver, visitor).map_err(|e| {
-        StorageValueDecodeError::CannotDecodeValue {
-            ty: value_id,
-            reason: e,
-        }
+    let Some(default_bytes) = &storage_info.default_value else {
+        return Ok(None);
+    };
+    let value = decode_with_error_tracing(
+        &mut &**default_bytes,
+        value_id.clone(),
+        type_resolver,
+        visitor,
+    )
+    .map_err(|e| StorageValueDecodeError::CannotDecodeValue {
+        ty: value_id,
+        reason: e,
     })?;
 
     Ok(Some(value))

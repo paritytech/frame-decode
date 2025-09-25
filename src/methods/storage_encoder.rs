@@ -82,7 +82,7 @@ pub fn encode_storage_key_prefix(pallet_name: &str, storage_entry: &str) -> [u8;
 pub fn encode_storage_key<Info, Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: &Keys,
+    keys: Keys,
     info: &Info,
     type_resolver: &Resolver,
 ) -> Result<Vec<u8>, StorageKeyEncodeError>
@@ -138,7 +138,7 @@ where
 pub fn encode_storage_key_to<Info, Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: &Keys,
+    keys: Keys,
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -172,7 +172,7 @@ where
 pub fn encode_storage_key_with_info_to<Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: &Keys,
+    keys: Keys,
     storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -282,7 +282,7 @@ where
 pub fn encode_storage_key_suffix<Info, Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: &Keys,
+    keys: Keys,
     info: &Info,
     type_resolver: &Resolver,
 ) -> Result<Vec<u8>, StorageKeyEncodeError>
@@ -341,7 +341,7 @@ where
 pub fn encode_storage_key_suffix_to<Info, Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
-    keys: &Keys,
+    keys: Keys,
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -370,7 +370,7 @@ where
 /// Prefer [`encode_storage_key_with_info_to`] if you need to encode the entire storage key at once and not
 /// just the suffix.
 pub fn encode_storage_key_suffix_with_info_to<Resolver, Keys>(
-    keys: &Keys,
+    keys: Keys,
     storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,

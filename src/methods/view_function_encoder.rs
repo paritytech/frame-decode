@@ -44,7 +44,7 @@ pub const RUNTIME_API_NAME: &'static str = "RuntimeViewFunction_execute_view_fun
 pub fn encode_view_function_inputs<Info, Resolver, Inputs>(
     pallet_name: &str,
     function_name: &str,
-    keys: &Inputs,
+    inputs: Inputs,
     info: &Info,
     type_resolver: &Resolver,
 ) -> Result<Vec<u8>, ViewFunctionInputsEncodeError>
@@ -59,7 +59,7 @@ where
     encode_view_function_inputs_to(
         pallet_name,
         function_name,
-        keys,
+        inputs,
         info,
         type_resolver,
         &mut out,
@@ -71,7 +71,7 @@ where
 pub fn encode_view_function_inputs_to<Info, Resolver, Inputs>(
     pallet_name: &str,
     function_name: &str,
-    keys: &Inputs,
+    inputs: Inputs,
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -86,7 +86,7 @@ where
         .view_function_info(pallet_name, function_name)
         .map_err(|e| ViewFunctionInputsEncodeError::CannotGetInfo(e.into_owned()))?;
 
-    encode_view_function_inputs_with_info_to(keys, &view_function_api_info, type_resolver, out)
+    encode_view_function_inputs_with_info_to(inputs, &view_function_api_info, type_resolver, out)
 }
 
 /// Encode to a provided output Vec the Runtime API input data necessary to call a View Function.
@@ -95,7 +95,7 @@ where
 /// this function takes the View Function info as an argument. This is useful if you already have the info available,
 /// for example if you are encoding multiple inputs for a given View Function.
 pub fn encode_view_function_inputs_with_info_to<Resolver, Inputs>(
-    inputs: &Inputs,
+    inputs: Inputs,
     view_function_api_info: &ViewFunctionInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,

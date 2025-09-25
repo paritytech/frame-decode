@@ -45,7 +45,7 @@ pub fn encode_runtime_api_name(trait_name: &str, method_name: &str) -> String {
 pub fn encode_runtime_api_inputs<Info, Resolver, Inputs>(
     trait_name: &str,
     method_name: &str,
-    keys: &Inputs,
+    keys: Inputs,
     info: &Info,
     type_resolver: &Resolver,
 ) -> Result<Vec<u8>, RuntimeApiInputsEncodeError>
@@ -64,7 +64,7 @@ where
 pub fn encode_runtime_api_inputs_to<Info, Resolver, Inputs>(
     trait_name: &str,
     method_name: &str,
-    keys: &Inputs,
+    keys: Inputs,
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
@@ -88,7 +88,7 @@ where
 /// this function takes the Runtime API info as an argument. This is useful if you already have the info available,
 /// for example if you are encoding multiple inputs for a given Runtime API.
 pub fn encode_runtime_api_inputs_with_info_to<Resolver, Inputs>(
-    inputs: &Inputs,
+    inputs: Inputs,
     runtime_api_info: &RuntimeApiInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,

@@ -72,8 +72,11 @@ pub trait EncodableValues {
 }
 
 // References are ok
-impl <'a, T: IntoEncodableValues> IntoEncodableValues for &'a T {
-    type Values<'this> = T::Values<'this> where 'a: 'this;
+impl<'a, T: IntoEncodableValues> IntoEncodableValues for &'a T {
+    type Values<'this>
+        = T::Values<'this>
+    where
+        'a: 'this;
 
     fn into_encodable_values(&self) -> Self::Values<'_> {
         (*self).into_encodable_values()
