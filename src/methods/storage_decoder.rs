@@ -707,6 +707,35 @@ where
     })
 }
 
+/// Decode the default storage value given some [`StorageInfo`].
+///
+/// The resulting value may be tied to the lifetime of the [`StorageInfo`] being provided if the implementation decides to borrow
+/// from it. This is also why no `decode_default_storage_value` function exists; the [`StorageInfo`] must outlive this call.
+pub fn decode_default_storage_value_with_info<'info, 'resolver, Info, Resolver, V>(
+    storage_info: &'info StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
+    type_resolver: &'resolver V::TypeResolver,
+    visitor: V,
+) -> Result<
+    Option<V::Value<'info, 'resolver>>,
+    StorageValueDecodeError<<V::TypeResolver as TypeResolver>::TypeId>,
+>
+where
+    V: scale_decode::Visitor,
+    V::Error: core::fmt::Debug,
+{
+    let value_id = storage_info.value_id.clone();
+
+    let Some(default_bytes) = &storage_info.default_value else { return Ok(None) };
+    let value = decode_with_error_tracing(&mut &**default_bytes, value_id.clone(), type_resolver, visitor).map_err(|e| {
+        StorageValueDecodeError::CannotDecodeValue {
+            ty: value_id,
+            reason: e,
+        }
+    })?;
+
+    Ok(Some(value))
+}
+
 fn strip_bytes<'a, T>(
     cursor: &mut &'a [u8],
     num: usize,

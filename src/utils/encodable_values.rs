@@ -71,6 +71,18 @@ pub trait EncodableValues {
     }
 }
 
+// References are ok
+impl <'a, T: IntoEncodableValues> IntoEncodableValues for &'a T {
+    type Values<'this> = T::Values<'this> where 'a: 'this;
+
+    fn into_encodable_values(&self) -> Self::Values<'_> {
+        (*self).into_encodable_values()
+    }
+    fn num_encodable_values(&self) -> usize {
+        (*self).num_encodable_values()
+    }
+}
+
 // Vecs
 impl<K: scale_encode::EncodeAsType> IntoEncodableValues for Vec<K> {
     type Values<'this>
