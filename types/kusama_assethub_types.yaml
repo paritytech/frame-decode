@@ -390,7 +390,7 @@ global:
       sessionIndex: SessionIndex
       authorityIndex: AuthIndex
       validatorsLen: u32
-    <T::AuthorityId as RuntimeAppPublic>::Signature: H512
+    <T::AuthorityId as RuntimeAppPublic>::Signature: Sr25519Signature
     T::AuthorityId: AccountId
     ValidatorId<T>: AccountId
 
@@ -536,7 +536,7 @@ global:
     HeadData: Bytes
     ValidationCode: Bytes
 
-    # Storage proof used in parachain inherent [Newly Added for Kasuma]
+    # Storage proof used in parachain inherent
     StorageProof:
       trieNodes: Vec<Bytes>
     # Inbound message types
@@ -559,6 +559,85 @@ global:
       relayChainState: StorageProof
       downwardMessages: Vec<InboundDownwardMessage>
       horizontalMessages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>
+
+    # XCM v0 types (Statemine early runtime)
+    NetworkId:
+      _enum:
+        Any: []
+        Named: Bytes
+        Polkadot: []
+        Kusama: []
+    BodyId:
+      _enum: ['Unit', 'Named', 'Index', 'Executive', 'Technical', 'Legislative', 'Judicial', 'Defense', 'Administration', 'Treasury']
+    BodyPart:
+      _enum:
+        Voice: []
+        Members: u32
+        Fraction: (u32, u32)
+        AtLeastProportion: (u32, u32)
+        MoreThanProportion: (u32, u32)
+    # XCM v0 types for early AssetHub
+    # Note: early teleport_assets has fee_asset_item: u32 parameter
+    Junction:
+      _enum:
+        Parent: []
+        Parachain: Compact<u32>
+        AccountId32: { network: NetworkId, id: AccountId32 }
+        AccountIndex64: { network: NetworkId, index: u64 }
+        AccountKey20: { network: NetworkId, key: H160 }
+        PalletInstance: u8
+        GeneralIndex: Compact<u128>
+        GeneralKey: Bytes
+        OnlyChild: []
+        Plurality: { id: BodyId, part: BodyPart }
+    MultiLocation:
+      _enum:
+        Null: []
+        X1: Junction
+        X2: (Junction, Junction)
+        X3: (Junction, Junction, Junction)
+        X4: (Junction, Junction, Junction, Junction)
+        X5: (Junction, Junction, Junction, Junction, Junction)
+        X6: (Junction, Junction, Junction, Junction, Junction, Junction)
+        X7: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)
+        X8: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)
+    AssetInstance:
+      _enum:
+        Undefined: []
+        Index: u128
+        Array4: '[u8; 4]'
+        Array8: '[u8; 8]'
+        Array16: '[u8; 16]'
+        Array32: '[u8; 32]'
+        Blob: Bytes
+        Instance: Compact<u128>
+    Fungibility:
+      _enum:
+        Fungible: u128
+        NonFungible: AssetInstance
+    MultiAsset:
+      _enum:
+        None: []
+        All: []
+        AllFungible: []
+        AllNonFungible: []
+        AllAbstractFungible: Bytes
+        AllAbstractNonFungible: Bytes
+        AllConcreteFungible: MultiLocation
+        AllConcreteNonFungible: MultiLocation
+        AbstractFungible:
+          id: Bytes, 
+          instance: Compact<u128>
+        AbstractNonFungible:
+          class: Bytes, 
+          instance: AssetInstance
+        ConcreteFungible: 
+          id: MultiLocation 
+          amount: Compact<u128>
+        ConcreteNonFungible: 
+          class: MultiLocation
+          instance: AssetInstance
+    MultiAssets: Vec<MultiAsset>
 
     # Registrar
     ParaInfo:
@@ -784,6 +863,8 @@ global:
     Balance: u128
     BalanceOf<T>: Balance
     BalanceOf<T, I>: Balance
+    AssetId: u32
+    T::AssetId: AssetId
 
     Index: u32
     AccountId32: "[u8; 32]"
@@ -824,8 +905,9 @@ global:
         Ecdsa: EcdsaSignature
 
     # Hardcoded types for old metadatas that don't know about them.
-    hardcoded::ExtrinsicAddress: AccountId32
     hardcoded::ExtrinsicSignature: MultiSignature
+    hardcoded::ExtrinsicAddress: MultiAddress<AccountId32,u32>
+    <T::Lookup as StaticLookup>::Source: MultiAddress<AccountId32,u32>
 
     # signed exts
     ChargeAssetTxPayment:
@@ -854,51 +936,3 @@ global:
     RestrictFunctionality: []
     ValidateDoubleVoteReports: []
     DisallowSigned: []
-
-forSpec:
-  - range: [23, null]
-    types:
-      CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
-      CompactAssignments:
-        votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
-        votes2: Vec<(Compact<NominatorIndex>, CompactScoreCompact, Compact<ValidatorIndex>)>
-        votes3: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 2], Compact<ValidatorIndex>)>
-        votes4: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 3], Compact<ValidatorIndex>)>
-        votes5: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 4], Compact<ValidatorIndex>)>
-        votes6: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 5], Compact<ValidatorIndex>)>
-        votes7: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 6], Compact<ValidatorIndex>)>
-        votes8: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 7], Compact<ValidatorIndex>)>
-        votes9: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 8], Compact<ValidatorIndex>)>
-        votes10: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 9], Compact<ValidatorIndex>)>
-        votes11: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 10], Compact<ValidatorIndex>)>
-        votes12: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 11], Compact<ValidatorIndex>)>
-        votes13: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 12], Compact<ValidatorIndex>)>
-        votes14: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 13], Compact<ValidatorIndex>)>
-        votes15: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 14], Compact<ValidatorIndex>)>
-        votes16: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 15], Compact<ValidatorIndex>)>
-  - range: [25, null]
-    types:
-      RefCount: u32
-  - range: [28, null]
-    types:
-      hardcoded::ExtrinsicAddress: MultiAddress<AccountId32,u32>
-      <T::Lookup as StaticLookup>::Source: MultiAddress<AccountId32,u32>
-      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
-      ValidatorPrefs:
-        commission: Compact<Perbill>
-        blocked: bool
-  - range: [28, 29]
-    types:
-      AccountInfo<Index, AccountData>:
-        nonce: Index
-        consumers: RefCount
-        providers: RefCount
-        data: AccountData
-  - range: [30, null]
-    types:
-      AccountInfo<Index, AccountData>:
-        nonce: Index
-        consumers: RefCount
-        providers: RefCount
-        sufficients: RefCount
-        data: AccountData
