@@ -56,9 +56,9 @@ pub mod storage {
 
     pub use crate::methods::storage_decoder::{
         StorageKey, StorageKeyDecodeError, StorageKeyPart, StorageKeyPartValue,
-        StorageValueDecodeError, decode_default_storage_value_with_info, decode_storage_key,
-        decode_storage_key_values, decode_storage_key_with_info, decode_storage_value,
-        decode_storage_value_with_info,
+        StorageKeyValueDecodeError, StorageValueDecodeError,
+        decode_default_storage_value_with_info, decode_storage_key, decode_storage_key_values,
+        decode_storage_key_with_info, decode_storage_value, decode_storage_value_with_info,
     };
     pub use crate::methods::storage_encoder::{
         StorageKeyEncodeError, encode_storage_key, encode_storage_key_prefix,
