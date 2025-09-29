@@ -169,6 +169,36 @@ where
 /// Unlike [`encode_storage_key`], which obtains the storage info internally given the pallet and storage entry names,
 /// this function takes the storage info as an argument. This is useful if you already have the storage info available,
 /// for example if you are encoding multiple keys for the same storage entry.
+pub fn encode_storage_key_with_info<Resolver, Keys>(
+    pallet_name: &str,
+    storage_entry: &str,
+    keys: Keys,
+    storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
+    type_resolver: &Resolver,
+) -> Result<Vec<u8>, StorageKeyEncodeError>
+where
+    Keys: IntoEncodableValues,
+    Resolver: TypeResolver,
+    <Resolver as TypeResolver>::TypeId: Clone + core::fmt::Debug,
+{
+    let mut out = Vec::with_capacity(32);
+    encode_storage_key_with_info_to(
+        pallet_name,
+        storage_entry,
+        keys,
+        storage_info,
+        type_resolver,
+        &mut out,
+    )?;
+    Ok(out)
+}
+
+/// Encode a complete storage key for a given pallet and storage entry and a set of keys that
+/// are each able to be encoded via [`scale_encode::EncodeAsType`]. Write the response to the provided `Vec`.
+///
+/// Unlike [`encode_storage_key`], which obtains the storage info internally given the pallet and storage entry names,
+/// this function takes the storage info as an argument. This is useful if you already have the storage info available,
+/// for example if you are encoding multiple keys for the same storage entry.
 pub fn encode_storage_key_with_info_to<Resolver, Keys>(
     pallet_name: &str,
     storage_entry: &str,
