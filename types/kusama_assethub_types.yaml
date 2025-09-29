@@ -866,6 +866,18 @@ global:
     AssetId: u32
     T::AssetId: AssetId
 
+    # Uniques
+    ClassId: u32
+    InstanceId: u32
+    T::ClassId: ClassId
+    T::InstanceId: InstanceId
+
+    # Assets pallet (witness for destroy)
+    DestroyWitness:
+      accounts: Compact<u32>
+      sufficients: Compact<u32>
+      approvals: Compact<u32>
+
     Index: u32
     AccountId32: "[u8; 32]"
     AccountId: AccountId32
