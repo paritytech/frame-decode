@@ -687,7 +687,6 @@ mod legacy {
             }
         }
         fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
-            use crate::utils::as_decoded;
             as_decoded(&self.modules).iter().flat_map(|module| {
                 let Some(storage) = &module.storage else {
                     return Either::Left(core::iter::empty());

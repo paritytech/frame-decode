@@ -74,6 +74,21 @@ pub mod storage {
     };
 }
 
+pub mod constants {
+    //! This module contains types and functions for working with constants.
+    //!
+    //! - See [`decode_constant`] and [`decode_constant_with_info`] to decode constants
+    //! - See [`ConstantTypeInfo`] for the underlying trait which extracts constant
+    //!   information from metadata.
+
+    pub use crate::methods::constant_decoder::{
+        ConstantDecodeError, decode_constant, decode_constant_with_info,
+    };
+    pub use crate::methods::constant_type_info::{
+        Constant, ConstantInfo, ConstantInfoError, ConstantTypeInfo,
+    };
+}
+
 pub mod runtime_apis {
     //! This module contains types and functions for working with Runtime APIs.
     //!

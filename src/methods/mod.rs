@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod constant_decoder;
+pub mod constant_type_info;
 pub mod extrinsic_decoder;
 pub mod extrinsic_type_info;
 pub mod runtime_api_decoder;
