@@ -37,9 +37,11 @@ use scale_type_resolver::TypeResolver;
 /// An error returned trying to decode a View Function responses.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum ViewFunctionDecodeError<TypeId> {
+    #[error("Cannot get View Function info: {0}")]
     CannotGetInfo(ViewFunctionInfoError<'static>),
+    #[error("Cannot decode View Function response: {reason}")]
     CannotDecodeValue {
         ty: TypeId,
         reason: DecodeErrorTrace,

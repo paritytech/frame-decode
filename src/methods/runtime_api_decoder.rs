@@ -20,9 +20,11 @@ use scale_type_resolver::TypeResolver;
 /// An error returned trying to decode a Runtime API responses.
 #[non_exhaustive]
 #[allow(missing_docs)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum RuntimeApiDecodeError<TypeId> {
+    #[error("Cannot get Runtime API info: {0}")]
     CannotGetInfo(RuntimeApiInfoError<'static>),
+    #[error("Cannot decode Runtime API response: {reason}")]
     CannotDecodeValue {
         ty: TypeId,
         reason: DecodeErrorTrace,
