@@ -778,6 +778,71 @@ global:
         - ExpectationNotMet
         - BadOriginKind
 
+    # XCM v1-style location and assets (used by Versioned* V1/V2)
+    JunctionV1:
+      _enum:
+        Parent: []
+        Parachain: Compact<u32>
+        AccountId32: { network: NetworkId, id: AccountId32 }
+        AccountIndex64: { network: NetworkId, index: u64 }
+        AccountKey20: { network: NetworkId, key: H160 }
+        PalletInstance: u8
+        GeneralIndex: Compact<u128>
+        GeneralKey: Bytes
+        OnlyChild: []
+        Plurality: { id: BodyId, part: BodyPart }
+    JunctionsV1:
+      _enum:
+        Here: []
+        X1: JunctionV1
+        X2: (JunctionV1, JunctionV1)
+        X3: (JunctionV1, JunctionV1, JunctionV1)
+        X4: (JunctionV1, JunctionV1, JunctionV1, JunctionV1)
+        X5: (JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1)
+        X6: (JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1)
+        X7: (JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1)
+        X8: (JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1, JunctionV1)
+    MultiLocationV1:
+      parents: u8
+      interior: JunctionsV1
+
+    AssetIdV1:
+      _enum:
+        Concrete: MultiLocationV1
+        Abstract: Bytes
+    FungibilityV1:
+      _enum:
+        Fungible: u128
+        NonFungible: AssetInstance
+    MultiAssetV1:
+      id: AssetIdV1
+      fun: FungibilityV1
+    MultiAssetsV1: Vec<MultiAssetV1>
+
+    # Versioned wrappers used by PolkadotXcm calls (send/teleport_assets/reserve_transfer_assets/execute)
+    VersionedMultiLocation:
+      _enum:
+        V0: MultiLocation
+        V1: MultiLocationV1
+        V2: MultiLocationV1
+    VersionedMultiAssets:
+      _enum:
+        V0: MultiAssets
+        V1: MultiAssetsV1
+        V2: MultiAssetsV1
+    VersionedXcm<Call>:
+      _enum:
+        V0: Xcm<Call>
+        V1: Xcm<Call>
+        V2: Xcm<Call>
+
+    # Box<> aliases commonly used in metadata
+    Box<VersionedMultiLocation>: VersionedMultiLocation
+    Box<VersionedMultiAssets>: VersionedMultiAssets
+    Box<VersionedXcm<()>>: VersionedXcm<()>
+    Box<VersionedXcm<T::Call>>: VersionedXcm<T::Call>
+    Box<<T as Config>::Call>: <T as Config>::Call
+
     # Registrar
     ParaInfo:
       manager: AccountId
