@@ -15,6 +15,8 @@
 
 pub mod constant_decoder;
 pub mod constant_type_info;
+pub mod custom_value_decoder;
+pub mod custom_value_type_info;
 pub mod extrinsic_decoder;
 pub mod extrinsic_type_info;
 pub mod runtime_api_decoder;

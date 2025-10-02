@@ -133,6 +133,21 @@ pub mod view_functions {
     pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
 
+pub mod custom_values {
+    //! This module contains types and functions for working with custom values.
+    //!
+    //! - See [`decode_custom_value`] and [`decode_custom_value_with_info`] to decode custom values
+    //! - See [`CustomValueTypeInfo`] for the underlying trait which extracts custom value
+    //!   information from metadata.
+
+    pub use crate::methods::custom_value_decoder::{
+        CustomValueDecodeError, decode_custom_value, decode_custom_value_with_info,
+    };
+    pub use crate::methods::custom_value_type_info::{
+        CustomValue, CustomValueInfo, CustomValueInfoError, CustomValueTypeInfo,
+    };
+}
+
 #[cfg(feature = "legacy-types")]
 pub mod legacy_types {
     //! This module contains legacy types that can be used to decode pre-V14 blocks and storage.
