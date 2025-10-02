@@ -639,6 +639,145 @@ global:
           instance: AssetInstance
     MultiAssets: Vec<MultiAsset>
 
+    # XCM v0 message and error enums needed to decode polkadotXcm.execute and events
+    OriginKind:
+      _enum: ['Native', 'SovereignAccount', 'Superuser', 'Xcm']
+
+    # xcm::v0::Xcm (include variants in correct order so indices match v0)
+    Xcm<Call>:
+      _enum:
+        WithdrawAsset:
+          assets: MultiAssets
+          effects: Vec<Order<Call>>
+        ReserveAssetDeposited:
+          assets: MultiAssets
+          effects: Vec<Order<Call>>
+        ReceiveTeleportedAsset:
+          assets: MultiAssets
+          effects: Vec<Order<Call>>
+        QueryResponse:
+          queryId: u64
+          response: Bytes
+          maxWeight: u64
+        TransferAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+        TransferReserveAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+          effects: Vec<Order<Call>>
+        Transact:
+          originType: OriginKind
+          requireWeightAtMost: u64
+          call: OpaqueCall
+
+    # xcm::v0::Order (full order to ensure indices match v0)
+    Order<Call>:
+      _enum:
+        Null: []
+        DepositAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+        DepositReserveAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+        ExchangeAsset:
+          give: MultiAssets
+          want: MultiAssets
+          maximal: bool
+        InitiateReserveWithdraw:
+          assets: MultiAssets
+          reserve: MultiLocation
+          effects: Vec<Order<Call>>
+        InitiateTeleport:
+          assets: MultiAssets
+          dest: MultiLocation
+          effects: Vec<Order<Call>>
+        QueryHolding:
+          queryId: u64
+          dest: MultiLocation
+          assets: MultiAssets
+        BuyExecution:
+          fees: MultiAsset
+          weight: u64
+          debt: u64
+          haltOnError: bool
+          xcm: Vec<Xcm<Call>>
+        RefundSurplus: []
+        SetErrorHandler:
+          xcm: Vec<Xcm<Call>>
+        SetAppendix:
+          xcm: Vec<Xcm<Call>>
+        ClearError: []
+        DescendOrigin:
+          interior: MultiLocation
+        ReportError:
+          dest: MultiLocation
+          queryId: u64
+        ClearOrigin: []
+
+    # xcm::v0::Outcome used by events (e.g., PolkadotXcm, XcmpQueue, DmpQueue)
+    Outcome:
+      _enum:
+        Complete: u64
+        Incomplete: (u64, XcmError)
+        Error: XcmError
+
+    # xcm::v0::XcmError in v0 ordering
+    XcmError:
+      _enum:
+        - Undefined
+        - Unimplemented
+        - UntrustedReserveLocation
+        - UntrustedTeleportLocation
+        - MultiLocationFull
+        - MultiLocationNotInvertible
+        - BadOrigin
+        - InvalidLocation
+        - BadXcmOrigin
+        - NoPermission
+        - UnhandledXcmVersion
+        - UnhandledXcmMessage
+        - UnhandledEffect
+        - EscalationOfPrivilege
+        - UntrustedReserve
+        - DestinationNotInvertible
+        - Transport
+        - Unroutable
+        - UnknownClaim
+        - FailedToDecode
+        - FailedToTransactAsset
+        - NotWithdrawable
+        - LocationCannotHold
+        - ExceedsMaxMessageSize
+        - DestinationUnsupported
+        - RecursionLimitReached
+        - SubscriptionsUnsupported
+        - TooExpensive
+        - Trap
+        - ExpectationFalse
+        - PalletNotFound
+        - NameMismatch
+        - VersionIncompatible
+        - HoldingWouldOverflow
+        - ExportError
+        - ReanchorFailed
+        - NoHoldingBody
+        - NotDepositable
+        - Unbalanced
+        - NameInvalid
+        - ParamsInvalid
+        - Overweight
+        - NotExported
+        - LockError
+        - AccountNotFound
+        - AccountIdConversionFailed
+        - SovereignAccountNotFound
+        - ModuleNotFound
+        - ModuleError
+        - ExpectationNotMet
+        - BadOriginKind
+
     # Registrar
     ParaInfo:
       manager: AccountId
