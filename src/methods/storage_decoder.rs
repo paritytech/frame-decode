@@ -22,7 +22,6 @@ use crate::utils::{
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::Range;
-use core::usize;
 use scale_type_resolver::TypeResolver;
 
 /// An error returned trying to decode storage bytes.

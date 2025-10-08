@@ -78,7 +78,7 @@ impl<'info, TypeId: Clone + 'static> RuntimeApiInfo<'info, TypeId> {
     pub fn into_owned(self) -> RuntimeApiInfo<'static, TypeId> {
         let inputs = self
             .inputs
-            .into_iter()
+            .iter()
             .map(|input| input.clone().into_owned())
             .collect();
 

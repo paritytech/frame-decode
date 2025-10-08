@@ -26,6 +26,10 @@ pub trait IntoEncodableValues {
     where
         Self: 'this;
     /// Return an implementation of [`EncodableValues`] for this type.
+    // Dev note: for naming consistency with IntoDecodableValues we call this method
+    // into_encodable_values, but it doesn't need to take ownership of self, which
+    // clippy doesn't like, hence the allow.
+    #[allow(clippy::wrong_self_convention)]
     fn into_encodable_values(&self) -> Self::Values<'_>;
     /// The number of values that can be encoded from this type.
     fn num_encodable_values(&self) -> usize;
@@ -115,10 +119,7 @@ impl<'a, K: scale_encode::EncodeAsType> EncodableValues for core::slice::Iter<'a
                 "encode_next_value_to called but no more values to encode",
             ));
         };
-        if let Err(e) = next_key.encode_as_type_to(type_id, types, out) {
-            return Err(e);
-        }
-        Ok(())
+        next_key.encode_as_type_to(type_id, types, out)
     }
 }
 
@@ -194,9 +195,7 @@ macro_rules! impl_tuple_encodable {
                     $(
                         if self.idx == $number {
                             let item = &self.items.$number;
-                            if let Err(e) = item.encode_as_type_to(type_id, types, out) {
-                                return Err(e);
-                            }
+                            item.encode_as_type_to(type_id, types, out)?;
                             self.idx += 1;
                             return Ok(());
                         }

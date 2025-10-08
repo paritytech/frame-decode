@@ -143,10 +143,7 @@ impl<const N: usize, T: DecodeAsType> DecodableValues for DecodeArrayAsTypes<N, 
             return Err(scale_decode::Error::custom_string(e));
         }
 
-        let item = match T::decode_as_type(input, type_id, types) {
-            Ok(item) => item,
-            Err(e) => return Err(e),
-        };
+        let item = T::decode_as_type(input, type_id, types)?;
 
         self.items[self.next_idx] = Some(item);
         self.next_idx += 1;
@@ -174,9 +171,7 @@ impl<const N: usize, T: DecodeAsType> DecodableValues for DecodeArrayAsTypes<N, 
 // Empty Tuples
 impl IntoDecodableValues for () {
     type Values = ();
-    fn into_decodable_values() -> Self::Values {
-        ()
-    }
+    fn into_decodable_values() -> Self::Values {}
     fn num_decodable_values() -> Option<usize> {
         Some(0)
     }
@@ -199,9 +194,7 @@ impl DecodableValues for () {
         ))
     }
 
-    fn decoded_target(self) -> Self::Target {
-        ()
-    }
+    fn decoded_target(self) -> Self::Target {}
 }
 
 // Non-empty tuples

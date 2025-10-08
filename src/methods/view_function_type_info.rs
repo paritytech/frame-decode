@@ -80,7 +80,7 @@ impl<'info, TypeId: Clone> ViewFunctionInfo<'info, TypeId> {
     pub fn into_owned(self) -> ViewFunctionInfo<'static, TypeId> {
         let inputs = self
             .inputs
-            .into_iter()
+            .iter()
             .map(|input| input.clone().into_owned())
             .collect();
 

@@ -38,7 +38,7 @@ pub enum ViewFunctionInputsEncodeError {
 
 /// The default name of the Runtime API that you must call to query a View Function, where
 /// the arguments to this Runtime API can be encoded using [`encode_view_function_inputs`].
-pub const RUNTIME_API_NAME: &'static str = "RuntimeViewFunction_execute_view_function";
+pub const RUNTIME_API_NAME: &str = "RuntimeViewFunction_execute_view_function";
 
 /// Encode the Runtime API input data necessary to call a View Function.
 pub fn encode_view_function_inputs<Info, Resolver, Inputs>(
