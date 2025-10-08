@@ -30,12 +30,12 @@ pub trait CustomValueTypeInfo {
 }
 
 /// An error returned trying to access Custom Value information.
-#[non_exhaustive]
 #[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
-pub enum CustomValueInfoError {
-    #[error("Custom Value `{name}` not found.")]
-    CustomValueNotFound { name: String },
+#[error("Custom Value `{not_found}` not found.")]
+pub struct CustomValueInfoError {
+    /// The custom value that was not found:
+    pub not_found: String,
 }
 
 /// Information about a Custom Value.
@@ -70,7 +70,7 @@ macro_rules! impl_custom_value_type_info_for_v15_to_v16 {
                     name: &str,
                 ) -> Result<CustomValueInfo<'_, Self::TypeId>, CustomValueInfoError> {
                     let custom_value = self.custom.map.get(name).ok_or_else(move || {
-                        CustomValueInfoError::CustomValueNotFound { name: name.into() }
+                        CustomValueInfoError { not_found: name.into() }
                     })?;
 
                     Ok(CustomValueInfo {
