@@ -182,7 +182,7 @@ mod legacy {
 
                         let constant = constants
                             .iter()
-                            .find(|c| as_decoded(&c.name) == constant_name)
+                            .find(|c| as_decoded(&c.name).as_ref() as &str == constant_name)
                             .ok_or_else(|| ConstantInfoError::ConstantNotFound {
                                 pallet_name: Cow::Borrowed(pallet_name),
                                 constant_name: constant_name.into(),
