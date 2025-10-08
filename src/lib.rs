@@ -50,7 +50,7 @@ pub mod storage {
     //!
     //! - See [`decode_storage_key`] and [`decode_storage_value`] to decode storage keys or values
     //!   from modern or historic runtimes.
-    //! - See [`encode_prefix`] to encode storage prefixes, and [`encode_storage_key`] to encode
+    //! - See [`encode_storage_key_prefix`] to encode storage prefixes, and [`encode_storage_key`] to encode
     //!   storage keys.
     //! - See [`StorageTypeInfo`] for the underlying trait which extracts the relevant information.
 
@@ -182,8 +182,8 @@ pub mod helpers {
     pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};
 
     /// An alias to [`scale_decode::visitor::decode_with_visitor`]. This can be used to decode the byte ranges
-    /// given back from functions like [`crate::extrinsics::decode_extrinsic_current`] or
-    /// [`crate::storage::decode_storage_key_current`].
+    /// given back from functions like [`crate::extrinsics::decode_extrinsic`] or
+    /// [`crate::storage::decode_storage_key`].
     pub use scale_decode::visitor::decode_with_visitor;
 
     /// An alias to the underlying [`scale-decode`] crate.

@@ -295,6 +295,9 @@ mod test {
         let n = <()>::num_decodable_values();
         assert_eq!(n, Some(0));
 
+        // We could swap this with `()` but in theory we could change what was returned from
+        // `into_decodable_values` and want to check that this would continue working.
+        #[allow(clippy::let_unit_value)]
         let mut decodable = <()>::into_decodable_values();
 
         // Will error out immediately (the trait allows a panic here but our impls error)
@@ -302,7 +305,8 @@ mod test {
             .decode_next_value(&mut &*true.encode(), ln("bool"), &types)
             .unwrap_err();
 
-        assert_eq!(decodable.decoded_target(), ());
+        // This basically checks that the type of `.decoded_target()` is `()`:
+        let () = decodable.decoded_target();
     }
 
     #[test]
