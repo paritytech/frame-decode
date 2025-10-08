@@ -69,9 +69,13 @@ macro_rules! impl_custom_value_type_info_for_v15_to_v16 {
                     &self,
                     name: &str,
                 ) -> Result<CustomValueInfo<'_, Self::TypeId>, CustomValueInfoError> {
-                    let custom_value = self.custom.map.get(name).ok_or_else(move || {
-                        CustomValueInfoError { not_found: name.into() }
-                    })?;
+                    let custom_value =
+                        self.custom
+                            .map
+                            .get(name)
+                            .ok_or_else(move || CustomValueInfoError {
+                                not_found: name.into(),
+                            })?;
 
                     Ok(CustomValueInfo {
                         bytes: &custom_value.value,
