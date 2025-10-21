@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub mod constant_decoder;
+pub mod constant_type_info;
+pub mod custom_value_decoder;
+pub mod custom_value_type_info;
 pub mod extrinsic_decoder;
 pub mod extrinsic_type_info;
+pub mod runtime_api_decoder;
+pub mod runtime_api_encoder;
+pub mod runtime_api_type_info;
 pub mod storage_decoder;
 pub mod storage_encoder;
 pub mod storage_type_info;
+pub mod view_function_decoder;
+pub mod view_function_encoder;
+pub mod view_function_type_info;

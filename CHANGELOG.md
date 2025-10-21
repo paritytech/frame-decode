@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.11.0 (2025-10-08)
+
+This release adds encode/decode logic for Runtime APIs, Constants and Custom Values, and removes some unused bits and pieces. Additionally we merge the trait functions for getting lists of entries into the main `*TypeInfo` traits, and do a little renaming for consistency. See [#46](https://github.com/paritytech/frame-decode/pull/46) for more information.
+
 ## 0.10.0 (2025-08-29)
 
 - Provide information about the default value in `StorageInfo`, if one exists. This may be borrowed, and so adds a lifetime to the `StorageInfo` type (which `.into_owned()` can handle if necessary).

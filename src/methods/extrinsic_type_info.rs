@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,24 +27,24 @@ pub trait ExtrinsicTypeInfo {
     /// The type of type IDs that we are using to obtain type information.
     type TypeId;
     /// Get the information about the call data of a given extrinsic.
-    fn get_call_info(
+    fn extrinsic_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
     /// Get the information needed to decode the extrinsic signature bytes.
-    fn get_signature_info(
+    fn extrinsic_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>>;
     /// Get the information needed to decode the transaction extensions.
-    fn get_extension_info(
+    fn extrinsic_extension_info(
         &self,
         extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
 }
 
 /// An error returned trying to access extrinsic type information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 #[allow(missing_docs)]
 pub enum ExtrinsicInfoError<'a> {
@@ -97,7 +97,10 @@ impl core::fmt::Display for ExtrinsicInfoError<'_> {
                 pallet_index,
                 pallet_name,
             } => {
-                write!(f, "Call with index {index} not found in pallet '{pallet_name}' (pallet index {pallet_index}).")
+                write!(
+                    f,
+                    "Call with index {index} not found in pallet '{pallet_name}' (pallet index {pallet_index})."
+                )
             }
             #[cfg(feature = "legacy")]
             ExtrinsicInfoError::CannotParseTypeName { name, reason } => {
@@ -108,14 +111,20 @@ impl core::fmt::Display for ExtrinsicInfoError<'_> {
                 pallet_index,
                 pallet_name,
             } => {
-                write!(f, "Cannot find calls type with id {id} in pallet '{pallet_name}' (pallet index {pallet_index}).")
+                write!(
+                    f,
+                    "Cannot find calls type with id {id} in pallet '{pallet_name}' (pallet index {pallet_index})."
+                )
             }
             ExtrinsicInfoError::CallsTypeShouldBeVariant {
                 id,
                 pallet_index,
                 pallet_name,
             } => {
-                write!(f, "Calls type with id {id} should be a variant in pallet '{pallet_name}' (pallet index {pallet_index}).")
+                write!(
+                    f,
+                    "Calls type with id {id} should be a variant in pallet '{pallet_name}' (pallet index {pallet_index})."
+                )
             }
             ExtrinsicInfoError::ExtrinsicTypeNotFound { id } => {
                 write!(f, "Could not find the extrinsic type with id {id}.")
@@ -130,10 +139,16 @@ impl core::fmt::Display for ExtrinsicInfoError<'_> {
                 // Dev note: If we see a V5 General extrinsic, it will contain a byte for the version of the transaction extensions.
                 // In V15 or below metadata, we don't know which version of the transaction extensions we're being told about. Thus,
                 // We can't be sure that we can decode a given extrinsic with V15 or below metadata.
-                write!(f, "The extrinsic contains an extension version (here, version {extension_version}), but in metadata <=V15 it's not obvious how to decode this.")
+                write!(
+                    f,
+                    "The extrinsic contains an extension version (here, version {extension_version}), but in metadata <=V15 it's not obvious how to decode this."
+                )
             }
             ExtrinsicInfoError::ExtrinsicExtensionVersionNotFound { extension_version } => {
-                write!(f, "Could not find information about extensions with version {extension_version} in the metadata. Note: Metadata <=V15 only supports version 0.")
+                write!(
+                    f,
+                    "Could not find information about extensions with version {extension_version} in the metadata. Note: Metadata <=V15 only supports version 0."
+                )
             }
         }
     }
@@ -275,7 +290,7 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
                     id: calls_id,
                     pallet_index: $pallet_index,
                     pallet_name: Cow::Borrowed(pallet_name),
-                })
+                });
             }
         };
 
@@ -313,14 +328,14 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
     type TypeId = u32;
-    fn get_call_info(
+    fn extrinsic_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
-    fn get_signature_info(
+    fn extrinsic_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
         let extrinsic_parts = get_v14_extrinsic_parts(self)?;
@@ -330,7 +345,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
             signature_id: extrinsic_parts.signature,
         })
     }
-    fn get_extension_info(
+    fn extrinsic_extension_info(
         &self,
         extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
@@ -352,14 +367,14 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
     type TypeId = u32;
-    fn get_call_info(
+    fn extrinsic_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
-    fn get_signature_info(
+    fn extrinsic_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
         Ok(ExtrinsicSignatureInfo {
@@ -367,7 +382,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
             signature_id: self.extrinsic.signature_ty.id,
         })
     }
-    fn get_extension_info(
+    fn extrinsic_extension_info(
         &self,
         extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
@@ -389,14 +404,14 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
     type TypeId = u32;
-    fn get_call_info(
+    fn extrinsic_call_info(
         &self,
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
-    fn get_signature_info(
+    fn extrinsic_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
         Ok(ExtrinsicSignatureInfo {
@@ -404,7 +419,7 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
             signature_id: self.extrinsic.signature_ty.id,
         })
     }
-    fn get_extension_info(
+    fn extrinsic_extension_info(
         &self,
         extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
@@ -576,14 +591,14 @@ const _: () = {
         ($path:path) => {
             impl ExtrinsicTypeInfo for $path {
                 type TypeId = LookupName;
-                fn get_call_info(
+                fn extrinsic_call_info(
                     &self,
                     pallet_index: u8,
                     call_index: u8,
                 ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
                     impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
                 }
-                fn get_signature_info(
+                fn extrinsic_signature_info(
                     &self,
                 ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
                     Ok(ExtrinsicSignatureInfo {
@@ -591,7 +606,7 @@ const _: () = {
                         signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
                     })
                 }
-                fn get_extension_info(
+                fn extrinsic_extension_info(
                     &self,
                     extension_version: Option<u8>,
                 ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
@@ -614,14 +629,14 @@ const _: () = {
 
     impl ExtrinsicTypeInfo for frame_metadata::v11::RuntimeMetadataV11 {
         type TypeId = LookupName;
-        fn get_call_info(
+        fn extrinsic_call_info(
             &self,
             pallet_index: u8,
             call_index: u8,
         ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
             impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
         }
-        fn get_signature_info(
+        fn extrinsic_signature_info(
             &self,
         ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
             Ok(ExtrinsicSignatureInfo {
@@ -629,7 +644,7 @@ const _: () = {
                 signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
             })
         }
-        fn get_extension_info(
+        fn extrinsic_extension_info(
             &self,
             extension_version: Option<u8>,
         ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
@@ -660,7 +675,7 @@ const _: () = {
         ($path:path) => {
             impl ExtrinsicTypeInfo for $path {
                 type TypeId = LookupName;
-                fn get_call_info(
+                fn extrinsic_call_info(
                     &self,
                     pallet_index: u8,
                     call_index: u8,
@@ -720,7 +735,7 @@ const _: () = {
                         args,
                     })
                 }
-                fn get_signature_info(
+                fn extrinsic_signature_info(
                     &self,
                 ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>> {
                     Ok(ExtrinsicSignatureInfo {
@@ -728,7 +743,7 @@ const _: () = {
                         signature_id: parse_lookup_name("hardcoded::ExtrinsicSignature")?,
                     })
                 }
-                fn get_extension_info(
+                fn extrinsic_extension_info(
                     &self,
                     extension_version: Option<u8>,
                 ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
