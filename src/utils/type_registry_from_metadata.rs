@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,8 +73,8 @@ const _: () = {
     use alloc::format;
     use alloc::vec;
     use alloc::vec::Vec;
-    use scale_info_legacy::type_shape::{Field, TypeShape, Variant, VariantDesc};
     use scale_info_legacy::InsertName;
+    use scale_info_legacy::type_shape::{Field, TypeShape, Variant, VariantDesc};
     use scale_info_legacy::{LookupName, TypeRegistry};
 
     macro_rules! impl_for_v8_to_v13 {

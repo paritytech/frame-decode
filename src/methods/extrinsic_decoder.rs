@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 
 use crate::methods::extrinsic_type_info::ExtrinsicInfoError;
 use crate::methods::extrinsic_type_info::ExtrinsicTypeInfo;
-use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
+use crate::utils::{DecodeErrorTrace, decode_with_error_tracing};
 use alloc::borrow::Cow;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -42,7 +42,9 @@ pub enum ExtrinsicDecodeError {
     NotEnoughBytes,
     #[error("This extrinsic version ({0}) is not supported.")]
     VersionNotSupported(u8),
-    #[error("The extrinsic type 0b{extrinsic_type:02b} is not supported (given extrinsic version {version}).")]
+    #[error(
+        "The extrinsic type 0b{extrinsic_type:02b} is not supported (given extrinsic version {version})."
+    )]
     ExtrinsicTypeNotSupported { version: u8, extrinsic_type: u8 },
     #[error("Cannot get extrinsic info:\n\n{0}")]
     CannotGetInfo(ExtrinsicInfoError<'static>),
@@ -54,7 +56,9 @@ pub enum ExtrinsicDecodeError {
     CannotDecodeCallIndex(parity_scale_codec::Error),
     #[error("Cannot decode transaction extensions version byte:\n\n{0}")]
     CannotDecodeExtensionsVersion(parity_scale_codec::Error),
-    #[error("Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}")]
+    #[error(
+        "Cannot decode call data for argument {argument_name} in {pallet_name}.{call_name}:\n\n{reason}"
+    )]
     CannotDecodeCallData {
         pallet_name: String,
         call_name: String,
@@ -525,7 +529,7 @@ where
             return Err(ExtrinsicDecodeError::ExtrinsicTypeNotSupported {
                 version,
                 extrinsic_type: version_type,
-            })
+            });
         }
     };
 
@@ -535,7 +539,7 @@ where
     let signature = (version_ty == ExtrinsicType::Signed)
         .then(|| {
             let signature_info = info
-                .get_signature_info()
+                .extrinsic_signature_info()
                 .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
 
             let address_start_idx = curr_idx(cursor);
@@ -576,7 +580,7 @@ where
     let extensions = (version_ty == ExtrinsicType::General || version_ty == ExtrinsicType::Signed)
         .then(|| {
             let extension_info = info
-                .get_extension_info(extension_version)
+                .extrinsic_extension_info(extension_version)
                 .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
 
             let mut transaction_extensions = vec![];
@@ -615,7 +619,7 @@ where
     let call_index: u8 =
         Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeCallIndex)?;
     let call_info = info
-        .get_call_info(pallet_index, call_index)
+        .extrinsic_call_info(pallet_index, call_index)
         .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
 
     let mut call_data = vec![];

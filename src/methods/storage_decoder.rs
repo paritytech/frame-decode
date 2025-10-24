@@ -1,5 +1,5 @@
-// Copyright (C) 2022-2023 Parity Technologies (UK) Ltd. (admin@parity.io)
-// This file is a part of the scale-value crate.
+// Copyright (C) 2022-2025 Parity Technologies (UK) Ltd. (admin@parity.io)
+// This file is a part of the frame-decode crate.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,10 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::storage_encoder::encode_prefix;
-use super::storage_type_info::{StorageHasher, StorageTypeInfo};
+use super::storage_encoder::encode_storage_key_prefix;
+use super::storage_type_info::{StorageHasher, StorageInfo, StorageTypeInfo};
 use crate::methods::storage_type_info::StorageInfoError;
-use crate::utils::{decode_with_error_tracing, DecodeErrorTrace};
+use crate::utils::{
+    DecodableValues, DecodeErrorTrace, IntoDecodableValues, decode_with_error_tracing,
+};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ops::Range;
@@ -29,7 +31,9 @@ use scale_type_resolver::TypeResolver;
 pub enum StorageKeyDecodeError<TypeId> {
     #[error("Cannot get storage info: {0}")]
     CannotGetInfo(StorageInfoError<'static>),
-    #[error("The hashed storage prefix given does not match the pallet and storage name asked to decode.")]
+    #[error(
+        "The hashed storage prefix given does not match the pallet and storage name asked to decode."
+    )]
     PrefixMismatch,
     #[error("Not enough bytes left: we need at least {needed} bytes but have {have} bytes")]
     NotEnoughBytes { needed: usize, have: usize },
@@ -66,6 +70,28 @@ impl<TypeId> StorageKeyDecodeError<TypeId> {
             },
         }
     }
+}
+
+/// An error returned trying to decode the values in storage keys
+#[non_exhaustive]
+#[allow(missing_docs)]
+#[derive(Debug, thiserror::Error)]
+pub enum StorageKeyValueDecodeError {
+    #[error("Cannot decode storage value at index {index}: {error}")]
+    DecodeError {
+        index: usize,
+        error: scale_decode::Error,
+    },
+    #[error("Cannot decode storage key values; need {need} values but have {have}")]
+    WrongNumberOfValues { have: usize, need: usize },
+    #[error(
+        "There were leftover bytes after decoding a value, indicating that decoding was not successful"
+    )]
+    LeftoverBytes { bytes: Vec<u8> },
+    #[error(
+        "An invalid byte range was asked for from the key bytes, implying that the key bytes are not those that the information is about"
+    )]
+    InvalidRange,
 }
 
 /// An error returned trying to decode storage bytes.
@@ -316,11 +342,11 @@ where
     Resolver: TypeResolver<TypeId = Info::TypeId>,
 {
     let storage_info = info
-        .get_storage_info(pallet_name, storage_entry)
+        .storage_info(pallet_name, storage_entry)
         .map_err(|e| StorageKeyDecodeError::CannotGetInfo(e.into_owned()))?;
 
     // Sanity check that the storage key prefix is what we expect:
-    let expected_prefix = encode_prefix(pallet_name, storage_entry);
+    let expected_prefix = encode_storage_key_prefix(pallet_name, storage_entry);
     if cursor[..32] != expected_prefix {
         return Err(StorageKeyDecodeError::PrefixMismatch);
     }
@@ -340,7 +366,7 @@ where
 /// storage information lines up with the bytes is the caller's responsibility.
 pub fn decode_storage_key_with_info<Resolver>(
     cursor: &mut &[u8],
-    storage_info: &crate::storage::StorageInfo<<Resolver as TypeResolver>::TypeId>,
+    storage_info: &StorageInfo<<Resolver as TypeResolver>::TypeId>,
     type_resolver: &Resolver,
 ) -> Result<
     StorageKey<<Resolver as TypeResolver>::TypeId>,
@@ -356,7 +382,7 @@ where
     let _prefix = strip_bytes(cursor, 32)?;
 
     let mut parts = vec![];
-    for key in &storage_info.keys {
+    for key in &*storage_info.keys {
         let hasher = key.hasher;
         let start_idx = curr_idx(cursor);
         let part = match &hasher {
@@ -480,6 +506,123 @@ where
     Ok(StorageKey { parts })
 }
 
+/// Attempt to decode the values attached to parts of a storage key into the provided output type.
+/// [`decode_storage_key`] and related functions take a storage key and return information (in the
+/// form of [`StorageKey`]) which describes each of the parts of the key.
+///
+/// This function takes that information and returns a user-defined generic type which implements
+/// [`IntoDecodableValues`], and attempts to decode some or all of the values from it (in order).
+///
+/// # Example
+///
+/// Here, we decode some storage keys from a block.
+///
+/// ```rust
+/// use frame_decode::storage::{ decode_storage_key, decode_storage_key_values };
+/// use frame_decode::helpers::decode_with_visitor;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+/// use scale_value::scale::ValueVisitor;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let storage_keyval_bytes = std::fs::read("artifacts/storage_10000000_9180_system_account.json").unwrap();
+/// let storage_keyval_hex: Vec<(String, String)> = serde_json::from_slice(&storage_keyval_bytes).unwrap();
+///
+/// for (key, _val) in storage_keyval_hex {
+///     let key_bytes = hex::decode(key.trim_start_matches("0x")).unwrap();
+///
+///     // First decode the storage key, returning information about it:
+///     let storage_info = decode_storage_key(
+///         "System",
+///         "Account",
+///         &mut &*key_bytes,
+///         &metadata,
+///         &metadata.types
+///     ).unwrap();
+///
+///     // Use this information to decode any values within the key. Here
+///     // we ask for the first (and here only) value present, which we know to
+///     // be decodable into a [u8; 32] because it's an AccountId32.
+///     let values: ([u8;32],) = decode_storage_key_values(
+///         &key_bytes,
+///         &storage_info,
+///         &metadata.types
+///     ).unwrap();
+///
+///     println!("Account ID Hex: {}", hex::encode(&values.0));
+///
+///     // If we don't know what we are decoding, we can target a Vec<scale_value::Value>
+///     // which allows arbitrary items to be decoded into it.
+///     let values: Vec<scale_value::Value> = decode_storage_key_values(
+///         &key_bytes,
+///         &storage_info,
+///         &metadata.types
+///     ).unwrap();
+///
+///     println!("All values extracted from key:");
+///     for value in values {
+///         println!("  {value}");
+///     }
+/// }
+/// ```
+pub fn decode_storage_key_values<Values, Resolver>(
+    key_bytes: &[u8],
+    decoded_key: &StorageKey<Resolver::TypeId>,
+    types: &Resolver,
+) -> Result<Values, StorageKeyValueDecodeError>
+where
+    Values: IntoDecodableValues,
+    Resolver: TypeResolver,
+{
+    let num_values = decoded_key
+        .parts()
+        .filter(|part| part.value.is_some())
+        .count();
+
+    let needed_values = Values::num_decodable_values();
+
+    // If a specific number of values are needed, ensure that we have enough available.
+    if let Some(needed_values) = needed_values
+        && num_values < needed_values
+    {
+        return Err(StorageKeyValueDecodeError::WrongNumberOfValues {
+            have: num_values,
+            need: needed_values,
+        });
+    }
+
+    let mut decode_target = Values::into_decodable_values();
+
+    // Iterate over **at most** needed_values, or all of the available values if no limit.
+    let value_info_iter =
+        (0..needed_values.unwrap_or(usize::MAX)).zip(decoded_key.parts().filter_map(|p| p.value()));
+
+    for (idx, value_info) in value_info_iter {
+        // This will panic if the key bytes provided don't line up with the information.
+        let value_bytes = &mut key_bytes
+            .get(value_info.range())
+            .ok_or(StorageKeyValueDecodeError::InvalidRange)?;
+        let value_ty = value_info.ty().clone();
+
+        decode_target
+            .decode_next_value(value_bytes, value_ty, types)
+            .map_err(|e| StorageKeyValueDecodeError::DecodeError {
+                index: idx,
+                error: e,
+            })?;
+
+        if !value_bytes.is_empty() {
+            return Err(StorageKeyValueDecodeError::LeftoverBytes {
+                bytes: value_bytes.to_vec(),
+            });
+        }
+    }
+
+    Ok(decode_target.decoded_target())
+}
+
 /// Decode a storage value.
 ///
 /// # Example
@@ -529,7 +672,7 @@ where
     V::Error: core::fmt::Debug,
 {
     let storage_info = info
-        .get_storage_info(pallet_name, storage_entry)
+        .storage_info(pallet_name, storage_entry)
         .map_err(|e| StorageValueDecodeError::CannotGetInfo(e.into_owned()))?;
 
     decode_storage_value_with_info(cursor, &storage_info, type_resolver, visitor)
@@ -542,7 +685,7 @@ where
 /// for example if you are decoding multiple keys for the same storage entry.
 pub fn decode_storage_value_with_info<'scale, 'resolver, V>(
     cursor: &mut &'scale [u8],
-    storage_info: &crate::storage::StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
+    storage_info: &StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
     type_resolver: &'resolver V::TypeResolver,
     visitor: V,
 ) -> Result<
@@ -561,6 +704,41 @@ where
             reason: e,
         }
     })
+}
+
+/// Decode the default storage value given some [`StorageInfo`].
+///
+/// The resulting value may be tied to the lifetime of the [`StorageInfo`] being provided if the implementation decides to borrow
+/// from it. This is also why no `decode_default_storage_value` function exists; the [`StorageInfo`] must outlive this call.
+pub fn decode_default_storage_value_with_info<'info, 'resolver, V>(
+    storage_info: &'info StorageInfo<<V::TypeResolver as TypeResolver>::TypeId>,
+    type_resolver: &'resolver V::TypeResolver,
+    visitor: V,
+) -> Result<
+    Option<V::Value<'info, 'resolver>>,
+    StorageValueDecodeError<<V::TypeResolver as TypeResolver>::TypeId>,
+>
+where
+    V: scale_decode::Visitor,
+    V::Error: core::fmt::Debug,
+{
+    let value_id = storage_info.value_id.clone();
+
+    let Some(default_bytes) = &storage_info.default_value else {
+        return Ok(None);
+    };
+    let value = decode_with_error_tracing(
+        &mut &**default_bytes,
+        value_id.clone(),
+        type_resolver,
+        visitor,
+    )
+    .map_err(|e| StorageValueDecodeError::CannotDecodeValue {
+        ty: value_id,
+        reason: e,
+    })?;
+
+    Ok(Some(value))
 }
 
 fn strip_bytes<'a, T>(
