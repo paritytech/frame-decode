@@ -819,6 +819,79 @@ global:
       fun: FungibilityV1
     MultiAssetsV1: Vec<MultiAssetV1>
 
+    MultiAssetFilterV1:
+      _enum:
+        Definite: MultiAssetsV1
+        Wild: WildMultiAssetV1
+
+    # XCM v1 error enum
+    XcmErrorV1:
+      _enum:
+        Undefined: []
+        Overflow: []
+        Unimplemented: []
+        UnhandledXcmVersion: []
+        UnhandledXcmMessage: []
+        UnhandledEffect: []
+        EscalationOfPrivilege: []
+        UntrustedReserveLocation: []
+        UntrustedTeleportLocation: []
+        DestinationBufferOverflow: []
+        SendFailed: []
+        CannotReachDestination: (MultiLocationV1, XcmV1<Call>)
+        MultiLocationFull: []
+        FailedToDecode: []
+        BadOrigin: []
+        ExceedsMaxMessageSize: []
+        FailedToTransactAsset: []
+        WeightLimitReached: Weight
+        Wildcard: []
+        TooMuchWeightRequired: []
+        NotHoldingFees: []
+        WeightNotComputable: []
+        Barrier: []
+        NotWithdrawable: []
+        LocationCannotHold: []
+        TooExpensive: []
+        AssetNotFound: []
+        DestinationUnsupported: []
+        RecursionLimitReached: []
+
+    # XCM v1 order list (legacy order-style structure used by some chains)
+    XcmOrderV1:
+      _enum:
+        Noop: []
+        DepositAsset:
+          assets: MultiAssetFilterV1
+          maxAssets: u32
+          beneficiary: MultiLocationV1
+        DepositReserveAsset:
+          assets: MultiAssetFilterV1
+          maxAssets: u32
+          dest: MultiLocationV1
+          effects: Vec<XcmOrderV1>
+        ExchangeAsset:
+          give: MultiAssetFilterV1
+          receive: MultiAssetsV1
+        InitiateReserveWithdraw:
+          assets: MultiAssetFilterV1
+          reserve: MultiLocationV1
+          effects: Vec<XcmOrderV1>
+        InitiateTeleport:
+          assets: MultiAssetFilterV1
+          dest: MultiLocationV1
+          effects: Vec<XcmOrderV1>
+        QueryHolding:
+          queryId: Compact<u64>
+          dest: MultiLocationV1
+          assets: MultiAssetFilterV1
+        BuyExecution:
+          fees: MultiAssetV1
+          weight: u64
+          debt: u64
+          haltOnError: bool
+          instructions: Vec<XcmV1<Call>>
+
     # Versioned wrappers used by PolkadotXcm calls (send/teleport_assets/reserve_transfer_assets/execute)
     VersionedMultiLocation:
       _enum:
@@ -833,8 +906,78 @@ global:
     VersionedXcm<Call>:
       _enum:
         V0: Xcm<Call>
-        V1: Xcm<Call>
+        V1: XcmV1<Call>
         V2: Xcm<Call>
+
+    # XCM v1 helpers
+    DoubleEncoded<Call>:
+      encoded: Bytes
+
+    ResponseV1:
+      _enum:
+        Null: []
+        Assets: MultiAssetsV1
+        ExecutionResult: u64
+        Version: u32
+        PalletVersion: u32
+        DispatchResult: Bytes
+        Error: u32
+        SubscribeResult: u64
+
+    WeightLimit:
+      _enum: ['Unlimited', 'Limited']
+
+    # Aliases for v1
+    XcmOriginKind: OriginKind
+
+    WildFungibilityV1:
+      _enum: ['Fungible', 'NonFungible']
+    WildMultiAssetV1:
+      _enum:
+        All: []
+        AllOf:
+          id: AssetIdV1
+          fun: WildFungibilityV1
+
+    # XCM v1 (message/instruction) using order-style effects per your spec
+    XcmV1<Call>:
+      _enum:
+        WithdrawAsset:
+          assets: MultiAssetsV1
+          effects: Vec<XcmOrderV1>
+        ReserveAssetDeposit:
+          assets: MultiAssetsV1
+          effects: Vec<XcmOrderV1>
+        ReceiveTeleportedAsset:
+          assets: MultiAssetsV1
+          effects: Vec<XcmOrderV1>
+        QueryResponse:
+          queryId: Compact<u64>
+          response: ResponseV1
+        TransferAsset:
+          assets: MultiAssetsV1
+          dest: MultiLocationV1
+        TransferReserveAsset:
+          assets: MultiAssetsV1
+          dest: MultiLocationV1
+          effects: Vec<XcmOrderV1>
+        Transact:
+          originType: XcmOriginKind
+          requireWeightAtMost: u64
+          call: DoubleEncoded<Call>
+        HrmpNewChannelOpenRequest:
+          sender: Compact<u32>
+          maxMessageSize: Compact<u32>
+          maxCapacity: Compact<u32>
+        HrmpChannelAccepted:
+          recipient: Compact<u32>
+        HrmpChannelClosing:
+          initiator: Compact<u32>
+          sender: Compact<u32>
+          recipient: Compact<u32>
+        RelayedFrom:
+          who: MultiLocationV1
+          message: XcmV1<Call>
 
     # Box<> aliases commonly used in metadata
     Box<VersionedMultiLocation>: VersionedMultiLocation
