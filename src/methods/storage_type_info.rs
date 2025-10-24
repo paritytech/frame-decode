@@ -240,23 +240,20 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                             }
                         })?;
 
-                        if let scale_info::TypeDef::Tuple(tuple) = &key_ty.type_def {
-                            if hashers.len() == 1 {
-                                // Multiple keys but one hasher; use same hasher for every key
-                                let hasher = $to_storage_hasher(&hashers[0]);
-                                Ok(StorageInfo {
-                                    keys: tuple
-                                        .fields
-                                        .iter()
-                                        .map(|f| StorageKeyInfo {
-                                            hasher,
-                                            key_id: f.id,
-                                        })
-                                        .collect(),
-                                    value_id,
-                                    default_value,
-                                })
-                            } else if hashers.len() == tuple.fields.len() {
+                        if hashers.len() == 1 {
+                            // One hasher, so hash the single key we have with it.
+                            Ok(StorageInfo {
+                                keys: Cow::Owned(Vec::from_iter([StorageKeyInfo {
+                                    hasher: $to_storage_hasher(&hashers[0]),
+                                    key_id,
+                                }])),
+                                value_id,
+                                default_value,
+                            })
+                        } else if let scale_info::TypeDef::Tuple(tuple) = &key_ty.type_def {
+                            // Else, if the key is a tuple, we expect a matching number of hashers
+                            // and will hash each field of the tuple with a different hasher.
+                            if hashers.len() == tuple.fields.len() {
                                 // One hasher per key
                                 let keys = tuple
                                     .fields
@@ -281,16 +278,6 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                     num_keys: tuple.fields.len(),
                                 })
                             }
-                        } else if hashers.len() == 1 {
-                            // One key, one hasher.
-                            Ok(StorageInfo {
-                                keys: Cow::Owned(Vec::from_iter([StorageKeyInfo {
-                                    hasher: $to_storage_hasher(&hashers[0]),
-                                    key_id,
-                                }])),
-                                value_id,
-                                default_value,
-                            })
                         } else {
                             // Multiple hashers but only one key; error.
                             Err(StorageInfoError::HasherKeyMismatch {
@@ -649,18 +636,9 @@ mod legacy {
                     let hashers = as_decoded(hashers);
                     let value_id = decode_lookup_name_or_err(value, pallet_name)?;
 
-                    // If one hasher and lots of keys then hash each key the same.
-                    // If one hasher per key then unique hasher per key.
-                    // Else, there's some error.
-                    let keys: Result<Vec<_>, StorageInfoError<'_>> = if hashers.len() == 1 {
-                        let hasher = to_storage_hasher_v13(&hashers[0]);
-                        keys.iter()
-                            .map(|key| {
-                                let key_id = lookup_name_or_err(key, pallet_name)?;
-                                Ok(StorageKeyInfo { hasher, key_id })
-                            })
-                            .collect()
-                    } else if hashers.len() == keys.len() {
+                    let keys: Result<Vec<_>, StorageInfoError<'_>> = if hashers.len() == keys.len()
+                    {
+                        // Same number of hashers as keys? Hash each key with the hasher.
                         keys.iter()
                             .zip(hashers)
                             .map(|(key, hasher)| {
@@ -669,7 +647,14 @@ mod legacy {
                                 Ok(StorageKeyInfo { hasher, key_id })
                             })
                             .collect()
+                    } else if hashers.len() == 1 {
+                        // One hasher but many keys? Construct tuple of keys to be hashed together.
+                        let hasher = to_storage_hasher_v13(&hashers[0]);
+                        let key_string = alloc::format!("({})", keys.join(","));
+                        let key_id = lookup_name_or_err(&key_string, pallet_name)?;
+                        Ok(Vec::from_iter([StorageKeyInfo { hasher, key_id }]))
                     } else {
+                        // Else we have a mismatch and error.
                         Err(StorageInfoError::HasherKeyMismatch {
                             pallet_name: Cow::Borrowed(pallet_name),
                             entry_name: Cow::Borrowed(storage_name),
