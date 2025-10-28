@@ -781,16 +781,23 @@ global:
     # XCM v1-style location and assets (used by Versioned* V1/V2)
     JunctionV1:
       _enum:
-        Parent: []
         Parachain: Compact<u32>
-        AccountId32: { network: NetworkId, id: AccountId32 }
-        AccountIndex64: { network: NetworkId, index: u64 }
-        AccountKey20: { network: NetworkId, key: H160 }
+        AccountId32:
+          network: NetworkId
+          id: AccountId
+        AccountIndex64:
+          network: NetworkId
+          index: Compact<u64>
+        AccountKey20:
+          network: NetworkId
+          key: '[u8; 20]'
         PalletInstance: u8
         GeneralIndex: Compact<u128>
-        GeneralKey: Bytes
-        OnlyChild: []
-        Plurality: { id: BodyId, part: BodyPart }
+        GeneralKey: Vec<u8>
+        OnlyChild: Null
+        Plurality:
+          id: BodyId
+          part: BodyPart
     JunctionsV1:
       _enum:
         Here: []
@@ -812,11 +819,11 @@ global:
         Abstract: Bytes
     FungibilityV1:
       _enum:
-        Fungible: u128
+        Fungible: Compact<u128>
         NonFungible: AssetInstance
     MultiAssetV1:
       id: AssetIdV1
-      fun: FungibilityV1
+      fungibility: FungibilityV1
     MultiAssetsV1: Vec<MultiAssetV1>
 
     MultiAssetFilterV1:
