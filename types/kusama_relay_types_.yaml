@@ -43,6 +43,7 @@ global:
       specVersion: Compact<u32>
       specName: Text
     Text: String
+    Box<T>: T
     ExtrinsicsWeight:
       normal: Weight
       operational: Weight
@@ -117,6 +118,9 @@ global:
     schedule::Priority: u8
     <T as Trait>::Call: builtin::Call
     <T as Config>::Call: builtin::Call
+    T::Call: builtin::Call
+    T::Proposal: builtin::Call
+    Call: builtin::Call
     Scheduled<Call, BlockNumber>:
       maybeId: Option<Bytes>
       priority: schedule::Priority
@@ -149,7 +153,7 @@ global:
     AccountIndex: u32
 
     # Balances
-    <T::Lookup as StaticLookup>::Source: AccountId
+    <T::Lookup as StaticLookup>::Source: Address
     T::Balance: Balance
     Releases: 
       _enum: ['V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10']
@@ -484,14 +488,14 @@ global:
     <T as Trait<I>>::Proposal: builtin::Call
     <T as Config<I>>::Proposal: builtin::Call
     ProposalIndex: u32
-    Weight: u64 # v1 = u32? but we seem to need u64 on block 29231. v2 = u64, v3 = { refTime: Compact<u64>, proofSize: Compact<u64> }
+    Weight: u32 # Early Kusama used Weight V1 (u32)
 
     # ElectionsPhragmen
     DefunctVoter<Source>:
       who: Source,
       voteCount: Compact<u32>
       candidateCount: Compact<u32>
-    <T::Lookup as StaticLookup>::Source: AccountId
+    <T::Lookup as StaticLookup>::Source: Address
     Renouncing:
       _enum:
         Member: []
@@ -806,7 +810,10 @@ global:
 
     # Hardcoded types for old metadatas that don't know about them.
     hardcoded::ExtrinsicAddress: AccountId32
-    hardcoded::ExtrinsicSignature: MultiSignature
+    hardcoded::ExtrinsicSignature: Sr25519Signature
+    hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment, CheckBlockGasLimit)'
+
+    # Hardcoded types for old metadatas that don't know about them.
 
     # signed exts
     ChargeAssetTxPayment:
@@ -826,6 +833,8 @@ global:
     CheckTxVersion: []
     CheckVersion: []
     CheckWeight: []
+    TakeFees:
+      tip: Compact<Balance>
     LockStakingStatus: []
     ValidateEquivocationReport: []
     TransactionCallFilter: []
@@ -836,49 +845,71 @@ global:
     ValidateDoubleVoteReports: []
     DisallowSigned: []
 
-  - range: [23, null]
+    Box<Proposal>: Call
+forSpec:
+  - range: [1028, 1028]
     types:
-      CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
-      CompactAssignments:
-        votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
-        votes2: Vec<(Compact<NominatorIndex>, CompactScoreCompact, Compact<ValidatorIndex>)>
-        votes3: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 2], Compact<ValidatorIndex>)>
-        votes4: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 3], Compact<ValidatorIndex>)>
-        votes5: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 4], Compact<ValidatorIndex>)>
-        votes6: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 5], Compact<ValidatorIndex>)>
-        votes7: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 6], Compact<ValidatorIndex>)>
-        votes8: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 7], Compact<ValidatorIndex>)>
-        votes9: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 8], Compact<ValidatorIndex>)>
-        votes10: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 9], Compact<ValidatorIndex>)>
-        votes11: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 10], Compact<ValidatorIndex>)>
-        votes12: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 11], Compact<ValidatorIndex>)>
-        votes13: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 12], Compact<ValidatorIndex>)>
-        votes14: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 13], Compact<ValidatorIndex>)>
-        votes15: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 14], Compact<ValidatorIndex>)>
-        votes16: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 15], Compact<ValidatorIndex>)>
-  - range: [25, null]
+      # Spec 1028: legacy Address for dest and signer
+      LookupSource: MultiAddress<AccountId, AccountIndex>
+      hardcoded::ExtrinsicAddress: LookupSource
+      hardcoded::ExtrinsicSignature: MultiSignature
+      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment)'
+      CheckVersion: []
+      CheckGenesis: []
+  - range: [1019, 1027]
     types:
-      RefCount: u32
-  - range: [28, null]
+      LookupSource:
+        _enum:
+          - name: AccountId32
+            index: 255
+            fields: AccountId32
+      Address: MultiAddress<AccountId, AccountIndex>
+  - range: [1027, 1027]
     types:
-      hardcoded::ExtrinsicAddress: MultiAddress<AccountId32,u32>
-      <T::Lookup as StaticLookup>::Source: MultiAddress<AccountId32,u32>
-      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
-      ValidatorPrefs:
-        commission: Compact<Perbill>
-        blocked: bool
-  - range: [28, 29]
+      hardcoded::ExtrinsicAddress: LookupSource
+      hardcoded::ExtrinsicSignature: MultiSignature
+      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
+      CheckVersion: []
+      CheckGenesis: []
+  - range: [1029, 1029]
     types:
-      AccountInfo<Index, AccountData>:
-        nonce: Index
-        consumers: RefCount
-        providers: RefCount
-        data: AccountData
-  - range: [30, null]
+      LookupSource:
+        _enum:
+          - name: AccountIndex16
+            index: 252
+            fields: u16
+          - name: AccountIndex32
+            index: 253
+            fields: u32
+          - name: AccountIndex64
+            index: 254
+            fields: u64
+          - name: AccountId32
+            index: 255
+            fields: AccountId32
+      Address: LookupSource
+      MultiAddress<AccountId, AccountIndex>:
+        _enum:
+          Index: Compact<AccountIndex>
+          Id: AccountId
+          Raw: Bytes
+          Address32: H256
+          Address20: H160
+      <T::Lookup as StaticLookup>::Source: Address
+      hardcoded::ExtrinsicAddress: LookupSource
+      hardcoded::ExtrinsicSignature: Sr25519Signature
+      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment)'
+      CheckVersion: []
+      CheckGenesis: []
+  - range: [1030, 1045]
     types:
-      AccountInfo<Index, AccountData>:
-        nonce: Index
-        consumers: RefCount
-        providers: RefCount
-        sufficients: RefCount
-        data: AccountData
+      LookupSource:
+        _enum:
+          - name: AccountId32
+            index: 255
+            fields: AccountId32
+      Address: LookupSource
+  - range: [1046, null]
+    types:
+      Address: AccountId32
+      LookupSource: AccountId32
