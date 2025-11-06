@@ -867,7 +867,7 @@ forSpec:
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
-  - range: [1029, 1029]
+  - range: [1029, 1030]
     types:
       MultiAddress<AccountId, AccountIndex>:
         _enum:
@@ -878,10 +878,21 @@ forSpec:
           Address20: H160
       <T::Lookup as StaticLookup>::Source: Address
       hardcoded::ExtrinsicAddress: LookupSource
-      hardcoded::ExtrinsicSignature: Sr25519Signature
-      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment)'
+      hardcoded::ExtrinsicSignature: MultiSignature
+      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
+      # Early Identity pallet (spec 1029-1030) did not include the `twitter` field
+      IdentityInfo:
+        additional: Vec<IdentityInfoAdditional>
+        display: Data
+        legal: Data
+        web: Data
+        riot: Data
+        email: Data
+        pgpFingerprint: Option<H160>
+        image: Data
+      IdentityFields: u64
   - range: [1046, null]
     types:
       Address: AccountId32
