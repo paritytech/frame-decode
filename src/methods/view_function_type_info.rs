@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::Entry;
+use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
@@ -29,7 +31,11 @@ pub trait ViewFunctionTypeInfo {
         function_name: &str,
     ) -> Result<ViewFunctionInfo<'_, Self::TypeId>, ViewFunctionInfoError<'_>>;
     /// Iterate over all of the available View Functions.
-    fn view_functions(&self) -> impl Iterator<Item = ViewFunction<'_>>;
+    fn view_functions(&self) -> impl Iterator<Item = Entry<'_>>;
+    /// Iterate over all of the available View Functions in a given pallet.
+    fn view_functions_in_pallet(&self, pallet: &str) -> impl Iterator<Item = Cow<'_, str>> {
+        Entry::entries_in(self.view_functions(), pallet)
+    }
 }
 
 /// An error returned trying to access View Function type information.
@@ -111,25 +117,6 @@ impl<'info, TypeId: Clone> ViewFunctionInput<'info, TypeId> {
     }
 }
 
-/// The identifier for a single View Function.
-#[derive(Debug, Clone)]
-pub struct ViewFunction<'info> {
-    /// The pallet containing this View Function.
-    pub pallet_name: Cow<'info, str>,
-    /// The name of the View Function.
-    pub function_name: Cow<'info, str>,
-}
-
-impl<'info> ViewFunction<'info> {
-    /// Take ownership of this identifier, turning any lifetimes to `'static`.
-    pub fn into_owned(self) -> ViewFunction<'static> {
-        ViewFunction {
-            pallet_name: Cow::Owned(self.pallet_name.into_owned()),
-            function_name: Cow::Owned(self.function_name.into_owned()),
-        }
-    }
-}
-
 impl ViewFunctionTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
     type TypeId = u32;
 
@@ -171,12 +158,29 @@ impl ViewFunctionTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
         })
     }
 
-    fn view_functions(&self) -> impl Iterator<Item = ViewFunction<'_>> {
+    fn view_functions(&self) -> impl Iterator<Item = Entry<'_>> {
         self.pallets.iter().flat_map(|pallet| {
-            pallet.view_functions.iter().map(|vf| ViewFunction {
-                pallet_name: Cow::Borrowed(&pallet.name),
-                function_name: Cow::Borrowed(&vf.name),
-            })
+            core::iter::once(Entry::In(Cow::Borrowed(&pallet.name))).chain(
+                pallet
+                    .view_functions
+                    .iter()
+                    .map(|vf| Entry::Name(Cow::Borrowed(&vf.name))),
+            )
         })
+    }
+
+    fn view_functions_in_pallet(&self, pallet_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
+        let pallet = self.pallets.iter().find(|p| p.name == pallet_name);
+
+        let Some(pallet) = pallet else {
+            return Either::Left(core::iter::empty());
+        };
+
+        let pallet_vfs = pallet
+            .view_functions
+            .iter()
+            .map(|v| Cow::Borrowed(&*v.name));
+
+        Either::Right(pallet_vfs)
     }
 }
