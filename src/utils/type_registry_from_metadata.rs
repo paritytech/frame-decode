@@ -97,6 +97,9 @@ const _: () = {
                         // In older metadatas, calls and event enums can have different indexes
                         // in a given pallet. Pallets without calls or events don't increment
                         // the respective index for them.
+                        //
+                        // We assume since errors are non optional, that the pallet index _always_
+                        // increments for errors (no `None`s to skip).
                         let (calls_index, events_index, errors_index) = {
                             let out = (calls_index, events_index, errors_index);
                             if module.calls.is_some() {
@@ -201,7 +204,9 @@ const _: () = {
                             });
                         }
 
-                        //// 3. Add errors to the type registry. Each error is a variant without any data:
+                        //// 3. Add errors to the type registry. Each error is historically a variant without any data
+                        //// (this changed sometime after V14 metadata). We assume that variant indexes start from 0 and
+                        //// increment. I'm not sure how to test this at the time of writing.
                         {
                             let error_variants = as_decoded(&module.errors).iter().enumerate().map(|(e_idx, error)| {
                                 let event_name: &String = as_decoded(&error.name);
