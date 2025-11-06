@@ -1,7 +1,7 @@
 [package]
 name = "frame-decode"
-version = "0.10.0"
-edition = "2021"
+version = "0.11.1"
+edition = "2024"
 description = "Decode extrinsics and storage from Substrate based chains"
 license = "Apache-2.0"
 repository = "https://github.com/paritytech/frame-decode"
@@ -16,7 +16,6 @@ std = [
     "frame-metadata/std",
     "parity-scale-codec/std",
     "scale-info/std",
-    "scale-info-legacy?/std",
     "sp-crypto-hashing/std"
 ]
 
@@ -44,7 +43,7 @@ parity-scale-codec = { version = "3.6.12", default-features = false }
 scale-decode = { version = "0.16.0", default-features = false }
 scale-encode = { version = "0.10.0", default-features = false }
 scale-info = { version = "2.11.4", default-features = false }
-scale-info-legacy = { version = "0.2.2", default-features = false, optional = true }
+scale-info-legacy = { version = "0.2.4", default-features = false, optional = true }
 scale-type-resolver = "0.2.0"
 scale-value = { version = "0.18.0", default-features = false, optional = true }
 sp-crypto-hashing = { version = "0.1.0", default-features = false }

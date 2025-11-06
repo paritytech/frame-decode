@@ -128,7 +128,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.87",
- "unicode-xid",
 ]
 
 [[package]]
@@ -162,7 +161,7 @@ checksum = "f81ec6369c545a7d40e4589b5597581fa1c441fe1cce96dd1de43159910a36a2"
 
 [[package]]
 name = "frame-decode"
-version = "0.10.0"
+version = "0.11.1"
 dependencies = [
  "frame-metadata",
  "hex",
@@ -460,16 +459,16 @@ dependencies = [
 
 [[package]]
 name = "scale-info-legacy"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe4c781c622e7c19fa3dd5442cad73da9946a370facc07d9d30743ac7fecd110"
+checksum = "bd183213b6831b6bc08fda67a310bf9299889d669e264a2a2168679079a0c522"
 dependencies = [
- "derive_more",
  "hashbrown 0.15.0",
  "scale-type-resolver",
  "serde",
  "smallstr",
  "smallvec",
+ "thiserror",
  "yap",
 ]
 
@@ -697,12 +696,6 @@ name = "unicode-ident"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
-
-[[package]]
-name = "unicode-xid"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "unsafe-libyaml"
