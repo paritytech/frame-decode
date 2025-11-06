@@ -87,23 +87,29 @@ const _: () = {
 
                     let mut call_module_variants: Vec<Variant> = vec![];
                     let mut event_module_variants: Vec<Variant> = vec![];
+                    let mut error_module_variants: Vec<Variant> = vec![];
 
                     let mut calls_index = 0u8;
                     let mut events_index = 0u8;
+                    let mut errors_index = 0u8;
 
                     for module in modules {
-
                         // In older metadatas, calls and event enums can have different indexes
                         // in a given pallet. Pallets without calls or events don't increment
                         // the respective index for them.
-                        let (calls_index, events_index) = {
-                            let out = (calls_index, events_index);
+                        //
+                        // We assume since errors are non optional, that the pallet index _always_
+                        // increments for errors (no `None`s to skip).
+                        let (calls_index, events_index, errors_index) = {
+                            let out = (calls_index, events_index, errors_index);
                             if module.calls.is_some() {
                                 calls_index += 1;
                             }
                             if module.event.is_some() {
                                 events_index += 1;
                             }
+                            errors_index += 1;
+
                             out
                         };
 
@@ -112,10 +118,10 @@ const _: () = {
                         // using this builtin index instead.
                         $(
                             let $builtin_index = true;
-                            let (calls_index, events_index) = if $builtin_index {
-                                (module.index, module.index)
+                            let (calls_index, events_index, errors_index) = if $builtin_index {
+                                (module.index, module.index, module.index)
                             } else {
-                                (calls_index, events_index)
+                                (calls_index, events_index, errors_index)
                             };
                         )?
 
@@ -197,6 +203,33 @@ const _: () = {
                                 fields: VariantDesc::TupleOf(vec![event_enum_lookup_name])
                             });
                         }
+
+                        //// 3. Add errors to the type registry. Each error is historically a variant without any data
+                        //// (this changed sometime after V14 metadata). We assume that variant indexes start from 0 and
+                        //// increment. I'm not sure how to test this at the time of writing.
+                        {
+                            let error_variants = as_decoded(&module.errors).iter().enumerate().map(|(e_idx, error)| {
+                                let event_name: &str = as_decoded(&error.name).as_ref();
+                                Variant {
+                                    index: e_idx as u8,
+                                    name: event_name.to_owned(),
+                                    fields: VariantDesc::TupleOf(Vec::new())
+                                }
+                            }).collect();
+
+                            // Store error variants in the types:
+                            let error_enum_name_str = format!("builtin::module::error::{module_name}");
+                            let error_enum_insert_name = InsertName::parse(&error_enum_name_str).unwrap();
+                            new_types.insert(error_enum_insert_name, TypeShape::EnumOf(error_variants));
+
+                            // Reference it in the modules enum we're building:
+                            let error_enum_lookup_name = LookupName::parse(&error_enum_name_str).unwrap();
+                            error_module_variants.push(Variant {
+                                index: errors_index,
+                                name: module_name.to_owned(),
+                                fields: VariantDesc::TupleOf(vec![error_enum_lookup_name])
+                            });
+                        }
                     }
 
                     // Store the module call variants in the types:
@@ -208,6 +241,11 @@ const _: () = {
                     let events_enum_name_str = "builtin::Event";
                     let events_enum_insert_name = InsertName::parse(&events_enum_name_str).unwrap();
                     new_types.insert(events_enum_insert_name, TypeShape::EnumOf(event_module_variants));
+
+                    // Store the module error variants in the types:
+                    let errors_enum_name_str = "builtin::Error";
+                    let errors_enum_insert_name = InsertName::parse(&errors_enum_name_str).unwrap();
+                    new_types.insert(errors_enum_insert_name, TypeShape::EnumOf(error_module_variants));
 
                     Ok(new_types)
                 }
