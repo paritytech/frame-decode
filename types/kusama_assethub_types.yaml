@@ -1,5 +1,5 @@
-# This file provides all the type information necessary to decode historic block entries on the 
-# Polkadot Asset HUB chain. See https://docs.rs/scale-info-legacy/0.2.0/scale_info_legacy/chain_types/struct.ChainTypeRegistry.html
+# This file provides the type information necessary to decode historic blocks on the 
+# Kusama Asset Hub chain. See https://docs.rs/scale-info-legacy/0.2.0/scale_info_legacy/chain_types/struct.ChainTypeRegistry.html
 # for more information, or check out the documentation for this crate to see example usage.
 global:
   types:
