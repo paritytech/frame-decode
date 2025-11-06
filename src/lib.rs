@@ -186,7 +186,7 @@ pub mod helpers {
     /// [`crate::storage::decode_storage_key`].
     pub use scale_decode::visitor::decode_with_visitor;
 
-    /// An alias to the underlying [`scale-decode`] crate.
+    /// An alias to the underlying [`scale_decode`] crate.
     pub use scale_decode;
 }
 
