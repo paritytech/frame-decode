@@ -209,10 +209,10 @@ const _: () = {
                         //// increment. I'm not sure how to test this at the time of writing.
                         {
                             let error_variants = as_decoded(&module.errors).iter().enumerate().map(|(e_idx, error)| {
-                                let event_name: &String = as_decoded(&error.name);
+                                let event_name: &str = as_decoded(&error.name).as_ref();
                                 Variant {
                                     index: e_idx as u8,
-                                    name: event_name.clone(),
+                                    name: event_name.to_owned(),
                                     fields: VariantDesc::TupleOf(Vec::new())
                                 }
                             }).collect();
