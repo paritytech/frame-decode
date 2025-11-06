@@ -867,7 +867,7 @@ forSpec:
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
-  - range: [1029, 1030]
+  - range: [1029, 1031]
     types:
       MultiAddress<AccountId, AccountIndex>:
         _enum:
