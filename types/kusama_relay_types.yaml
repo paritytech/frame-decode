@@ -918,7 +918,43 @@ forSpec:
       hardcoded::ExtrinsicSignature: MultiSignature
       hardcoded::ExtrinsicSignedExtensions: '(RestrictFunctionality, CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment, LimitParathreadCommits, ValidateDoubleVoteReports)'
       <T::AuthorityId as RuntimeAppPublic>::Signature: '[u8; 68]'
+  - range: [2023, null]
+    types:
+      CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
+      CompactAssignments:
+        votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
+        votes2: Vec<(Compact<NominatorIndex>, CompactScoreCompact, Compact<ValidatorIndex>)>
+        votes3: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 2], Compact<ValidatorIndex>)>
+        votes4: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 3], Compact<ValidatorIndex>)>
+        votes5: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 4], Compact<ValidatorIndex>)>
+        votes6: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 5], Compact<ValidatorIndex>)>
+        votes7: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 6], Compact<ValidatorIndex>)>
+        votes8: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 7], Compact<ValidatorIndex>)>
+        votes9: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 8], Compact<ValidatorIndex>)>
+        votes10: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 9], Compact<ValidatorIndex>)>
+        votes11: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 10], Compact<ValidatorIndex>)>
+        votes12: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 11], Compact<ValidatorIndex>)>
+        votes13: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 12], Compact<ValidatorIndex>)>
+        votes14: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 13], Compact<ValidatorIndex>)>
+        votes15: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 14], Compact<ValidatorIndex>)>
+        votes16: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 15], Compact<ValidatorIndex>)>
+  - range: [2029, null]
+    types:
+      # Society pallet's Judgement for this specific runtime version
+      Judgement: u8
+  - range: [2008, null]
+    types:
+      # Council.close uses Compact<Weight> for proposal_weight_bound; by this spec Weight is u64.
+      Weight: u64
   - range: [1046, null]
     types:
       Address: AccountId32
       LookupSource: AccountId32
+  - range: [2028, null]
+    types:
+      Address: MultiAddress<AccountId32, u32>
+      LookupSource: MultiAddress<AccountId32, u32>
+      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
+      ValidatorPrefs:
+        commission: Compact<Perbill>
+        blocked: bool
