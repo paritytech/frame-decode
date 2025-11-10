@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::Entry;
+use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
@@ -29,7 +31,11 @@ pub trait RuntimeApiTypeInfo {
         method_name: &str,
     ) -> Result<RuntimeApiInfo<'_, Self::TypeId>, RuntimeApiInfoError<'_>>;
     /// Iterate over all of the available Runtime APIs.
-    fn runtime_apis(&self) -> impl Iterator<Item = RuntimeApi<'_>>;
+    fn runtime_apis(&self) -> impl Iterator<Item = Entry<'_>>;
+    /// Iterate over all of the available Runtime APIs in a given trait.
+    fn runtime_apis_in_trait(&self, trait_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
+        Entry::entries_in(self.runtime_apis(), trait_name)
+    }
 }
 
 /// An error returned trying to access Runtime API type information.
@@ -108,15 +114,6 @@ impl<'info, TypeId: Clone + 'static> RuntimeApiInput<'info, TypeId> {
     }
 }
 
-/// The identifier for a single Runtime API.
-#[derive(Debug, Clone)]
-pub struct RuntimeApi<'info> {
-    /// The trait containing this Runtime API.
-    pub trait_name: Cow<'info, str>,
-    /// The method name for this Runtime API.
-    pub method_name: Cow<'info, str>,
-}
-
 macro_rules! impl_runtime_api_info_for_v15_to_v16 {
     ($path:path, $name:ident) => {
         const _: () = {
@@ -159,13 +156,31 @@ macro_rules! impl_runtime_api_info_for_v15_to_v16 {
                     })
                 }
 
-                fn runtime_apis(&self) -> impl Iterator<Item = RuntimeApi<'_>> {
+                fn runtime_apis(&self) -> impl Iterator<Item = Entry<'_>> {
                     self.apis.iter().flat_map(|api| {
-                        api.methods.iter().map(|method| RuntimeApi {
-                            trait_name: Cow::Borrowed(&api.name),
-                            method_name: Cow::Borrowed(&method.name),
-                        })
+                        core::iter::once(Entry::In(Cow::Borrowed(&api.name))).chain(
+                            api.methods
+                                .iter()
+                                .map(|m| Entry::Name(Cow::Borrowed(&m.name))),
+                        )
                     })
+                }
+
+                fn runtime_apis_in_trait(
+                    &self,
+                    trait_name: &str,
+                ) -> impl Iterator<Item = Cow<'_, str>> {
+                    let api = self.apis.iter().find(|api| api.name == trait_name);
+
+                    let Some(api) = api else {
+                        return Either::Left(core::iter::empty());
+                    };
+
+                    let method_names = api
+                        .methods
+                        .iter()
+                        .map(|method| Cow::Borrowed(&*method.name));
+                    Either::Right(method_names)
                 }
             }
         };
@@ -178,6 +193,7 @@ impl_runtime_api_info_for_v15_to_v16!(frame_metadata::v16, RuntimeMetadataV16);
 #[cfg(feature = "legacy")]
 mod legacy {
     use super::*;
+    use scale_info_legacy::type_registry::RuntimeApiName;
     use scale_info_legacy::{TypeRegistry, TypeRegistrySet, lookup_name};
 
     impl RuntimeApiTypeInfo for TypeRegistry {
@@ -210,12 +226,15 @@ mod legacy {
             })
         }
 
-        fn runtime_apis(&self) -> impl Iterator<Item = RuntimeApi<'_>> {
-            self.runtime_apis()
-                .map(|(trait_name, method_name)| RuntimeApi {
-                    trait_name: Cow::Borrowed(trait_name),
-                    method_name: Cow::Borrowed(method_name),
-                })
+        fn runtime_apis(&self) -> impl Iterator<Item = Entry<'_>> {
+            self.runtime_apis().map(|api| match api {
+                RuntimeApiName::Trait(name) => Entry::In(Cow::Borrowed(name)),
+                RuntimeApiName::Method(name) => Entry::Name(Cow::Borrowed(name)),
+            })
+        }
+
+        fn runtime_apis_in_trait(&self, trait_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
+            TypeRegistry::runtime_apis_in_trait(self, trait_name).map(Cow::Borrowed)
         }
     }
 
@@ -249,12 +268,15 @@ mod legacy {
             })
         }
 
-        fn runtime_apis(&self) -> impl Iterator<Item = RuntimeApi<'_>> {
-            self.runtime_apis()
-                .map(|(trait_name, method_name)| RuntimeApi {
-                    trait_name: Cow::Borrowed(trait_name),
-                    method_name: Cow::Borrowed(method_name),
-                })
+        fn runtime_apis(&self) -> impl Iterator<Item = Entry<'_>> {
+            self.runtime_apis().map(|api| match api {
+                RuntimeApiName::Trait(name) => Entry::In(Cow::Borrowed(name)),
+                RuntimeApiName::Method(name) => Entry::Name(Cow::Borrowed(name)),
+            })
+        }
+
+        fn runtime_apis_in_trait(&self, trait_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
+            TypeRegistrySet::runtime_apis_in_trait(self, trait_name).map(Cow::Borrowed)
         }
     }
 }

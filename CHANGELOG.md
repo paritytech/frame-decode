@@ -4,6 +4,11 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.12.0 (2025-11-10)
+
+- Bump to scale-info-legacy 0.3.0.
+- It's now easier to iterate over items handed back in `*Info` traits, and to do so in only one pallet/trait where that is applicable. 
+
 ## 0.11.1 (2025-10-24)
 
 Fix storage info logic in the case of one hasher and a tuple of keys.

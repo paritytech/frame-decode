@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::Entry;
+use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::string::String;
 
@@ -27,7 +29,11 @@ pub trait ConstantTypeInfo {
         constant_name: &str,
     ) -> Result<ConstantInfo<'_, Self::TypeId>, ConstantInfoError<'_>>;
     /// Iterate over all of the available Constants.
-    fn constants(&self) -> impl Iterator<Item = Constant<'_>>;
+    fn constants(&self) -> impl Iterator<Item = Entry<'_>>;
+    /// Iterate over all of the available constants in a given pallet.
+    fn constants_in_pallet(&self, pallet: &str) -> impl Iterator<Item = Cow<'_, str>> {
+        Entry::entries_in(self.constants(), pallet)
+    }
 }
 
 /// An error returned trying to access Constant information.
@@ -86,15 +92,6 @@ pub struct ConstantInfo<'info, TypeId: Clone> {
     pub type_id: TypeId,
 }
 
-/// The identifier for a single Constant.
-#[derive(Debug, Clone)]
-pub struct Constant<'info> {
-    /// The trait containing this Constant.
-    pub pallet_name: Cow<'info, str>,
-    /// The method name for this Constant.
-    pub constant_name: Cow<'info, str>,
-}
-
 macro_rules! impl_constant_type_info_for_v14_to_v16 {
     ($path:path, $name:ident) => {
         const _: () = {
@@ -132,13 +129,29 @@ macro_rules! impl_constant_type_info_for_v14_to_v16 {
                     })
                 }
 
-                fn constants(&self) -> impl Iterator<Item = Constant<'_>> {
+                fn constants(&self) -> impl Iterator<Item = Entry<'_>> {
                     self.pallets.iter().flat_map(|p| {
-                        p.constants.iter().map(|c| Constant {
-                            pallet_name: Cow::Borrowed(&p.name),
-                            constant_name: Cow::Borrowed(&c.name),
-                        })
+                        core::iter::once(Entry::In(Cow::Borrowed(&p.name))).chain(
+                            p.constants
+                                .iter()
+                                .map(|c| Entry::Name(Cow::Borrowed(&c.name))),
+                        )
                     })
+                }
+
+                fn constants_in_pallet(
+                    &self,
+                    pallet_name: &str,
+                ) -> impl Iterator<Item = Cow<'_, str>> {
+                    let pallet = self.pallets.iter().find(|p| p.name == pallet_name);
+
+                    let Some(pallet) = pallet else {
+                        return Either::Left(core::iter::empty());
+                    };
+
+                    let pallet_constants = pallet.constants.iter().map(|c| Cow::Borrowed(&*c.name));
+
+                    Either::Right(pallet_constants)
                 }
             }
         };
@@ -197,19 +210,38 @@ mod legacy {
                         })
                     }
 
-                    fn constants(&self) -> impl Iterator<Item = Constant<'_>> {
+                    fn constants(&self) -> impl Iterator<Item = Entry<'_>> {
                         as_decoded(&self.modules).iter().flat_map(|module| {
                             let pallet_name = as_decoded(&module.name);
                             let constants = as_decoded(&module.constants);
 
-                            constants.iter().map(|constant| {
-                                let constant_name = as_decoded(&constant.name);
-                                Constant {
-                                    pallet_name: Cow::Borrowed(pallet_name),
-                                    constant_name: Cow::Borrowed(constant_name),
-                                }
-                            })
+                            core::iter::once(Entry::In(Cow::Borrowed(pallet_name))).chain(
+                                constants.iter().map(|c| {
+                                    let constant_name = as_decoded(&c.name);
+                                    Entry::Name(Cow::Borrowed(constant_name))
+                                }),
+                            )
                         })
+                    }
+
+                    fn constants_in_pallet(
+                        &self,
+                        pallet_name: &str,
+                    ) -> impl Iterator<Item = Cow<'_, str>> {
+                        let module = as_decoded(&self.modules)
+                            .iter()
+                            .find(|p| as_decoded(&p.name) == &pallet_name);
+
+                        let Some(module) = module else {
+                            return Either::Left(core::iter::empty());
+                        };
+
+                        let module_constants = as_decoded(&module.constants).iter().map(|c| {
+                            let constant_name = as_decoded(&c.name);
+                            Cow::Borrowed(&**constant_name)
+                        });
+
+                        Either::Right(module_constants)
                     }
                 }
             };
