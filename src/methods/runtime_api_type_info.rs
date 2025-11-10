@@ -170,7 +170,7 @@ macro_rules! impl_runtime_api_info_for_v15_to_v16 {
                     &self,
                     trait_name: &str,
                 ) -> impl Iterator<Item = Cow<'_, str>> {
-                    let api = self.apis.iter().find(|api| &api.name == trait_name);
+                    let api = self.apis.iter().find(|api| api.name == trait_name);
 
                     let Some(api) = api else {
                         return Either::Left(core::iter::empty());
@@ -234,7 +234,7 @@ mod legacy {
         }
 
         fn runtime_apis_in_trait(&self, trait_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
-            TypeRegistry::runtime_apis_in_trait(self, trait_name).map(|m| Cow::Borrowed(m))
+            TypeRegistry::runtime_apis_in_trait(self, trait_name).map(Cow::Borrowed)
         }
     }
 
@@ -276,7 +276,7 @@ mod legacy {
         }
 
         fn runtime_apis_in_trait(&self, trait_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
-            TypeRegistrySet::runtime_apis_in_trait(self, trait_name).map(|m| Cow::Borrowed(m))
+            TypeRegistrySet::runtime_apis_in_trait(self, trait_name).map(Cow::Borrowed)
         }
     }
 }
