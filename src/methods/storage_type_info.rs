@@ -740,7 +740,7 @@ mod legacy {
         ) -> impl Iterator<Item = Cow<'_, str>> {
             let module = as_decoded(&self.modules)
                 .iter()
-                .find(|p| as_decoded(&p.name) == pallet_name);
+                .find(|p| as_decoded(&p.name).as_ref() as &str == pallet_name);
 
             let Some(module) = module else {
                 return Either::Left(core::iter::empty());
