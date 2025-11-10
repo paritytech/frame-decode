@@ -920,6 +920,7 @@ forSpec:
       <T::AuthorityId as RuntimeAppPublic>::Signature: '[u8; 68]'
   - range: [2023, null]
     types:
+      # Compact representation carries (validatorIndex, accuracy) per-vote entry
       CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
       CompactAssignments:
         votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
@@ -984,3 +985,11 @@ forSpec:
       ValidatorPrefs:
         commission: Compact<Perbill>
         blocked: bool
+  - range: [9010, null]
+    types:
+      # Some runtimes append opaque trailing bytes to the witness to aid offchain workers.
+      # Consume them to avoid leftover decoding errors in submit_unsigned.
+      SolutionOrSnapshotSize:
+        voters: Compact<u32>
+        targets: Compact<u32>
+        _opaque: '[u8; 6]'
