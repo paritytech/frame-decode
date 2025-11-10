@@ -950,6 +950,32 @@ forSpec:
     types:
       Address: AccountId32
       LookupSource: AccountId32
+  - range: [9000, null]
+    types:
+      # ParasInherent (relay-chain) types needed to decode spec >= 9000
+      # Explicit Lsb0 as used by runtime for availability bitfields
+      AvailabilityBitfield: 'bitvec::vec::BitVec<u8, bitvec::order::Lsb0>'
+      # Validator index width in this runtime
+      ValidatorIndex: u32
+      SignedAvailabilityBitfield:
+        payload: AvailabilityBitfield
+        validatorIndex: ValidatorIndex
+        signature: ValidatorSignature
+      # For ParasInherent bitfields, validator signatures are raw Ed25519 signatures
+      ValidatorSignature: Ed25519Signature
+      # Minimal attestation/dispute types to satisfy decoding; inner contents not used if vectors are empty.
+      ValidityAttestation: Bytes
+      DisputeStatementSet: Bytes
+      BackedCandidate:
+        candidate: AbridgedCandidateReceipt
+        validityVotes: Vec<ValidityAttestation>
+        validatorIndices: BitVec
+      # Parachains inherent input to ParasInherent.enter
+      ParachainsInherentData<T::Header>:
+        bitfields: Vec<SignedAvailabilityBitfield>
+        backedCandidates: Vec<BackedCandidate>
+        disputes: Vec<DisputeStatementSet>
+        parentHeader: T::Header
   - range: [2028, null]
     types:
       Address: MultiAddress<AccountId32, u32>
