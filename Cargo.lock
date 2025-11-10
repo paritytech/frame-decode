@@ -459,9 +459,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-legacy"
-version = "0.2.4"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd183213b6831b6bc08fda67a310bf9299889d669e264a2a2168679079a0c522"
+checksum = "e766daee1f264b0bb0d7f6b08ab0a08b4849f3ed8f31f33d7c430b8552e187f2"
 dependencies = [
  "hashbrown 0.15.0",
  "scale-type-resolver",
