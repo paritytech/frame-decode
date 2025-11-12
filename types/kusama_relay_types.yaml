@@ -985,11 +985,54 @@ forSpec:
       ValidatorPrefs:
         commission: Compact<Perbill>
         blocked: bool
-  - range: [9010, null]
+  - range: [9010, 9010]
     types:
-      # Some runtimes append opaque trailing bytes to the witness to aid offchain workers.
-      # Consume them to avoid leftover decoding errors in submit_unsigned.
       SolutionOrSnapshotSize:
         voters: Compact<u32>
         targets: Compact<u32>
-        _opaque: '[u8; 6]'
+      # Per Polkadot.js for Kusama 9010, use With24 variants:
+      # - RawSolutionWith24
+      # - CompactAssignmentsWith24
+      # See: packages/types-known/src/spec/kusama.ts (minmax [9010, 9099])
+      # RawSolution mapping (matches PJS RawSolutionWith24)
+      RawSolution:
+        compact: CompactAssignments
+        score: ElectionScore
+        round: u32
+      # CompactAssignments (matches PJS CompactAssignmentsWith24 tuple shapes)
+      NominatorIndexCompact: Compact<NominatorIndex>
+      # Elections uses 16-bit validator indices locally; keep global ValidatorIndex unchanged
+      EPMValidatorIndex: u16
+      EPMValidatorIndexCompact: Compact<EPMValidatorIndex>
+      CompactScore: (EPMValidatorIndex, OffchainAccuracy)
+      OffchainAccuracyCompact: Compact<OffchainAccuracy>
+      CompactScoreCompact: (OffchainAccuracyCompact, EPMValidatorIndexCompact)
+      CompactAssignments:
+        votes1: 'Vec<(NominatorIndexCompact, EPMValidatorIndexCompact)>'
+        votes2: 'Vec<(NominatorIndexCompact, CompactScoreCompact, EPMValidatorIndexCompact)>'
+        votes3: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes4: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes5: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes6: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes7: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes8: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes9: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes10: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes11: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes12: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes13: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes14: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes15: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes16: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes17: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes18: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes19: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes20: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes21: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes22: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes23: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes24: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+      RawSolution<CompactOf<T>>:
+        compact: CompactAssignments
+        score: ElectionScore
+        round: u32
