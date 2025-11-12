@@ -17,7 +17,8 @@ use super::Entry;
 use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
-use alloc::string::String;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 /// This can be implemented for anything capable of providing Runtime API type information.
 /// It is implemented for newer versions of frame-metadata (V15 and above).
@@ -92,6 +93,42 @@ impl<'info, TypeId: Clone + 'static> RuntimeApiInfo<'info, TypeId> {
             inputs: Cow::Owned(inputs),
             output_id: self.output_id,
         }
+    }
+
+    /// Map the type IDs in this [`RuntimeApiInfo`], returning a new one or bailing early with an error if something goes wrong.
+    /// This also takes ownership of the [`RuntimeApiInfo`], turning the lifetime to static.
+    pub fn map_ids<NewTypeId: Clone, E, F: FnMut(TypeId) -> Result<NewTypeId, E>>(
+        self,
+        mut f: F,
+    ) -> Result<RuntimeApiInfo<'static, NewTypeId>, E> {
+        let new_output_id = f(self.output_id)?;
+        let mut new_inputs = Vec::with_capacity(self.inputs.len());
+
+        match self.inputs {
+            Cow::Borrowed(inputs) => {
+                for input in inputs {
+                    new_inputs.push(RuntimeApiInput {
+                        // We always have to allocate if inputs is borrowed:
+                        name: Cow::Owned(input.name.to_string()),
+                        id: f(input.id.clone())?,
+                    });
+                }
+            }
+            Cow::Owned(inputs) => {
+                for input in inputs {
+                    new_inputs.push(RuntimeApiInput {
+                        // If inputs is owned, we only allocate if name is borrowed:
+                        name: Cow::Owned(input.name.into_owned()),
+                        id: f(input.id.clone())?,
+                    });
+                }
+            }
+        }
+
+        Ok(RuntimeApiInfo {
+            inputs: Cow::Owned(new_inputs),
+            output_id: new_output_id,
+        })
     }
 }
 

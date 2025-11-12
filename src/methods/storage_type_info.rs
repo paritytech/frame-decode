@@ -131,7 +131,7 @@ pub struct StorageInfo<'info, TypeId: Clone> {
     pub default_value: Option<Cow<'info, [u8]>>,
 }
 
-impl<'info, TypeId: Clone> StorageInfo<'info, TypeId> {
+impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
     /// Take ownership of this [`StorageInfo`], turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfo<'static, TypeId> {
         StorageInfo {
@@ -139,6 +139,29 @@ impl<'info, TypeId: Clone> StorageInfo<'info, TypeId> {
             value_id: self.value_id,
             default_value: self.default_value.map(|v| Cow::Owned(v.into_owned())),
         }
+    }
+
+    /// Map the type IDs in this [`StorageInfo`], returning a new one or bailing early with an error if something goes wrong.
+    /// This also takes ownership of the [`StorageInfo`], turning the lifetime to static.
+    pub fn map_ids<NewTypeId: Clone, E, F: FnMut(TypeId) -> Result<NewTypeId, E>>(
+        self,
+        mut f: F,
+    ) -> Result<StorageInfo<'static, NewTypeId>, E> {
+        let new_value_id = f(self.value_id)?;
+        let mut new_keys = Vec::with_capacity(self.keys.len());
+
+        for k in self.keys.iter() {
+            new_keys.push(StorageKeyInfo {
+                hasher: k.hasher,
+                key_id: f(k.key_id.clone())?,
+            });
+        }
+
+        Ok(StorageInfo {
+            keys: Cow::Owned(new_keys),
+            value_id: new_value_id,
+            default_value: self.default_value.map(|d| Cow::Owned(d.into_owned())),
+        })
     }
 }
 
