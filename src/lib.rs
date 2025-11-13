@@ -54,6 +54,7 @@ pub mod storage {
     //!   storage keys.
     //! - See [`StorageTypeInfo`] for the underlying trait which extracts the relevant information.
 
+    pub use crate::methods::Entry;
     pub use crate::methods::storage_decoder::{
         StorageKey, StorageKeyDecodeError, StorageKeyPart, StorageKeyPartValue,
         StorageKeyValueDecodeError, StorageValueDecodeError,
@@ -67,7 +68,7 @@ pub mod storage {
         encode_storage_key_with_info, encode_storage_key_with_info_to,
     };
     pub use crate::methods::storage_type_info::{
-        StorageEntry, StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
+        StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
     };
     pub use crate::utils::{
         DecodableValues, EncodableValues, IntoDecodableValues, IntoEncodableValues,
@@ -81,11 +82,12 @@ pub mod constants {
     //! - See [`ConstantTypeInfo`] for the underlying trait which extracts constant
     //!   information from metadata.
 
+    pub use crate::methods::Entry;
     pub use crate::methods::constant_decoder::{
         ConstantDecodeError, decode_constant, decode_constant_with_info,
     };
     pub use crate::methods::constant_type_info::{
-        Constant, ConstantInfo, ConstantInfoError, ConstantTypeInfo,
+        ConstantInfo, ConstantInfoError, ConstantTypeInfo,
     };
 }
 
@@ -97,6 +99,7 @@ pub mod runtime_apis {
     //! - See [`decode_runtime_api_response`] to decode Runtime API responses.
     //! - See [`RuntimeApiTypeInfo`] for the underlying trait which extracts the relevant information.
 
+    pub use crate::methods::Entry;
     pub use crate::methods::runtime_api_decoder::{
         RuntimeApiDecodeError, decode_runtime_api_response, decode_runtime_api_response_with_info,
     };
@@ -105,7 +108,7 @@ pub mod runtime_apis {
         encode_runtime_api_inputs_with_info_to, encode_runtime_api_name,
     };
     pub use crate::methods::runtime_api_type_info::{
-        RuntimeApi, RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
+        RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
     };
     pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
@@ -118,6 +121,7 @@ pub mod view_functions {
     //! - See [`decode_view_function_response`] to decode View Function responses.
     //! - See [`ViewFunctionTypeInfo`] for the underlying trait which extracts the relevant information.
 
+    pub use crate::methods::Entry;
     pub use crate::methods::view_function_decoder::{
         ViewFunctionDecodeError, decode_view_function_response,
         decode_view_function_response_with_info,
@@ -127,8 +131,7 @@ pub mod view_functions {
         encode_view_function_inputs_to, encode_view_function_inputs_with_info_to,
     };
     pub use crate::methods::view_function_type_info::{
-        ViewFunction, ViewFunctionInfo, ViewFunctionInfoError, ViewFunctionInput,
-        ViewFunctionTypeInfo,
+        ViewFunctionInfo, ViewFunctionInfoError, ViewFunctionInput, ViewFunctionTypeInfo,
     };
     pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }

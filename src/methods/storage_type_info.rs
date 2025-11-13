@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::Entry;
 use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
@@ -33,7 +34,11 @@ pub trait StorageTypeInfo {
     ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>>;
 
     /// Iterate over all of the available storage entries.
-    fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>>;
+    fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>>;
+    /// Iterate over all of the available storage entries in a given pallet.
+    fn storage_entries_in_pallet(&self, pallet_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
+        Entry::entries_in(self.storage_entries(), pallet_name)
+    }
 }
 
 /// An error returned trying to access storage type information.
@@ -126,7 +131,7 @@ pub struct StorageInfo<'info, TypeId: Clone> {
     pub default_value: Option<Cow<'info, [u8]>>,
 }
 
-impl<'info, TypeId: Clone> StorageInfo<'info, TypeId> {
+impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
     /// Take ownership of this [`StorageInfo`], turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfo<'static, TypeId> {
         StorageInfo {
@@ -134,6 +139,29 @@ impl<'info, TypeId: Clone> StorageInfo<'info, TypeId> {
             value_id: self.value_id,
             default_value: self.default_value.map(|v| Cow::Owned(v.into_owned())),
         }
+    }
+
+    /// Map the type IDs in this [`StorageInfo`], returning a new one or bailing early with an error if something goes wrong.
+    /// This also takes ownership of the [`StorageInfo`], turning the lifetime to static.
+    pub fn map_ids<NewTypeId: Clone, E, F: FnMut(TypeId) -> Result<NewTypeId, E>>(
+        self,
+        mut f: F,
+    ) -> Result<StorageInfo<'static, NewTypeId>, E> {
+        let new_value_id = f(self.value_id)?;
+        let mut new_keys = Vec::with_capacity(self.keys.len());
+
+        for k in self.keys.iter() {
+            new_keys.push(StorageKeyInfo {
+                hasher: k.hasher,
+                key_id: f(k.key_id.clone())?,
+            });
+        }
+
+        Ok(StorageInfo {
+            keys: Cow::Owned(new_keys),
+            value_id: new_value_id,
+            default_value: self.default_value.map(|d| Cow::Owned(d.into_owned())),
+        })
     }
 }
 
@@ -192,15 +220,6 @@ impl StorageHasher {
             StorageHasher::Blake2_128Concat | StorageHasher::Twox64Concat | StorageHasher::Identity
         )
     }
-}
-
-/// The identifier for a single storage entry.
-#[derive(Debug, Clone)]
-pub struct StorageEntry<'a> {
-    /// The pallet containing the storage entry.
-    pub pallet_name: Cow<'a, str>,
-    /// The name of the storage entry.
-    pub storage_entry: Cow<'a, str>,
 }
 
 macro_rules! impl_storage_type_info_for_v14_to_v16 {
@@ -324,20 +343,43 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
 
                     storage_entry_type_to_storage_info(&pallet.name, &storage, &self.types)
                 }
-                fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
-                    self.pallets.iter().flat_map(|pallet| {
-                        let Some(storage) = &pallet.storage else {
+                fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>> {
+                    self.pallets.iter().flat_map(|p| {
+                        // Not strictly necessary, but we may as well filter out
+                        // returning palelt names that have no entries in them.
+                        let Some(storage) = &p.storage else {
                             return Either::Left(core::iter::empty());
                         };
 
-                        Either::Right(storage.entries.iter().map(|entry_meta| {
-                            let entry = &entry_meta.name;
-                            StorageEntry {
-                                pallet_name: Cow::Borrowed(pallet.name.as_ref()),
-                                storage_entry: Cow::Borrowed(entry.as_ref()),
-                            }
-                        }))
+                        Either::Right(
+                            core::iter::once(Entry::In(Cow::Borrowed(&p.name))).chain(
+                                storage
+                                    .entries
+                                    .iter()
+                                    .map(|e| Entry::Name(Cow::Borrowed(&e.name))),
+                            ),
+                        )
                     })
+                }
+                fn storage_entries_in_pallet(
+                    &self,
+                    pallet_name: &str,
+                ) -> impl Iterator<Item = Cow<'_, str>> {
+                    let pallet = self
+                        .pallets
+                        .iter()
+                        .find(|p| p.name.as_ref() as &str == pallet_name);
+
+                    let Some(pallet) = pallet else {
+                        return Either::Left(core::iter::empty());
+                    };
+                    let Some(storage) = &pallet.storage else {
+                        return Either::Left(core::iter::empty());
+                    };
+
+                    let pallet_storage = storage.entries.iter().map(|s| Cow::Borrowed(&*s.name));
+
+                    Either::Right(pallet_storage)
                 }
             }
         };
@@ -486,7 +528,7 @@ mod legacy {
                             }
                         }
                     }
-                    fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
+                    fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>> {
                         use crate::utils::as_decoded;
                         as_decoded(&self.modules).iter().flat_map(|module| {
                             let Some(storage) = &module.storage else {
@@ -496,14 +538,38 @@ mod legacy {
                             let storage = as_decoded(storage);
                             let entries = as_decoded(&storage.entries);
 
-                            Either::Right(entries.iter().map(|entry_meta| {
-                                let entry = as_decoded(&entry_meta.name);
-                                StorageEntry {
-                                    pallet_name: Cow::Borrowed(pallet.as_ref()),
-                                    storage_entry: Cow::Borrowed(entry.as_ref()),
-                                }
-                            }))
+                            Either::Right(core::iter::once(Entry::In(Cow::Borrowed(pallet))).chain(
+                                entries.iter().map(|e| {
+                                    let entry = as_decoded(&e.name);
+                                    Entry::Name(Cow::Borrowed(entry.as_ref()))
+                                }),
+                            ))
                         })
+                    }
+                    fn storage_entries_in_pallet(
+                        &self,
+                        pallet_name: &str,
+                    ) -> impl Iterator<Item = Cow<'_, str>> {
+                        let module = as_decoded(&self.modules)
+                            .iter()
+                            .find(|p| as_decoded(&p.name) == &pallet_name);
+
+                        let Some(module) = module else {
+                            return Either::Left(core::iter::empty());
+                        };
+                        let Some(storage) = &module.storage else {
+                            return Either::Left(core::iter::empty());
+                        };
+
+                        let storage = as_decoded(storage);
+                        let entries = as_decoded(&storage.entries);
+
+                        let module_constants = entries.iter().map(|s| {
+                            let entry_name = as_decoded(&s.name);
+                            Cow::Borrowed(&**entry_name)
+                        });
+
+                        Either::Right(module_constants)
                     }
                 }
             };
@@ -671,7 +737,9 @@ mod legacy {
                 }
             }
         }
-        fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
+
+        fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>> {
+            use crate::utils::as_decoded;
             as_decoded(&self.modules).iter().flat_map(|module| {
                 let Some(storage) = &module.storage else {
                     return Either::Left(core::iter::empty());
@@ -680,14 +748,39 @@ mod legacy {
                 let storage = as_decoded(storage);
                 let entries = as_decoded(&storage.entries);
 
-                Either::Right(entries.iter().map(|entry_meta| {
-                    let entry = as_decoded(&entry_meta.name);
-                    StorageEntry {
-                        pallet_name: Cow::Borrowed(pallet.as_ref()),
-                        storage_entry: Cow::Borrowed(entry.as_ref()),
-                    }
-                }))
+                Either::Right(core::iter::once(Entry::In(Cow::Borrowed(pallet))).chain(
+                    entries.iter().map(|e| {
+                        let entry = as_decoded(&e.name);
+                        Entry::Name(Cow::Borrowed(entry.as_ref()))
+                    }),
+                ))
             })
+        }
+
+        fn storage_entries_in_pallet(
+            &self,
+            pallet_name: &str,
+        ) -> impl Iterator<Item = Cow<'_, str>> {
+            let module = as_decoded(&self.modules)
+                .iter()
+                .find(|p| as_decoded(&p.name).as_ref() as &str == pallet_name);
+
+            let Some(module) = module else {
+                return Either::Left(core::iter::empty());
+            };
+            let Some(storage) = &module.storage else {
+                return Either::Left(core::iter::empty());
+            };
+
+            let storage = as_decoded(storage);
+            let entries = as_decoded(&storage.entries);
+
+            let module_constants = entries.iter().map(|s| {
+                let entry_name = as_decoded(&s.name);
+                Cow::Borrowed(&**entry_name)
+            });
+
+            Either::Right(module_constants)
         }
     }
 

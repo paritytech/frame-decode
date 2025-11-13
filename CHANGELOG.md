@@ -4,6 +4,16 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.12.1 (2025-11-12)
+
+- Add `map_ids()` functions to `RuntimeApiInfo`, `StorageInfo` and `ViewFunctionInfo` to make translating the `TypeId` parameter simpler.
+  This adds a `'static` bound to `StorageInfo` type IDs, but it is not expected that this will break anything as this is already the case for `u32` and `LookupName` IDs (and is required in many other places).
+
+## 0.12.0 (2025-11-10)
+
+- Bump to scale-info-legacy 0.3.0.
+- It's now easier to iterate over items handed back in `*Info` traits, and to do so in only one pallet/trait where that is applicable. 
+
 ## 0.11.1 (2025-10-24)
 
 Fix storage info logic in the case of one hasher and a tuple of keys.
