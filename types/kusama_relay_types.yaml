@@ -1183,6 +1183,39 @@ forSpec:
         candidateHash: Hash
         session: SessionIndex
         statements: 'Vec<(DisputeStatement, ParaValidatorIndex, ValidatorSignature)>'
+      # XCM Versioned wrappers required by xcmPallet.teleportAssets at spec >= 9080
+      # Provide V0 mappings used by this block; alias MultiLocationV0/MultiAssetsV0 to existing v0 shapes
+      MultiLocationV0: MultiLocation
+      MultiLocationV1: MultiLocationV0
+      MultiLocationV2: MultiLocationV0
+      MultiLocationV3: MultiLocationV0
+      MultiLocationV4: MultiLocationV0
+      MultiLocationV5: MultiLocationV0
+      MultiAssetsV0: MultiAssets
+      MultiAssetsV1: MultiAssetsV0
+      MultiAssetsV2: MultiAssetsV0
+      MultiAssetsV3: MultiAssetsV0
+      MultiAssetsV4: MultiAssetsV0
+      MultiAssetsV5: MultiAssetsV0
+      VersionedMultiLocation:
+        _enum:
+          V0: MultiLocationV0
+          V1: MultiLocationV1
+          V2: MultiLocationV2
+          V3: MultiLocationV3
+          V4: MultiLocationV4
+          V5: MultiLocationV5
+          v5: MultiLocationV5
+      VersionedMultiAssets:
+        _enum:
+          V0: MultiAssetsV0
+          V1: MultiAssetsV1
+          V2: MultiAssetsV2
+          V3: MultiAssetsV3
+          V4: MultiAssetsV4
+          V5: MultiAssetsV5
+      'Box<VersionedMultiLocation>': VersionedMultiLocation
+      'Box<VersionedMultiAssets>': VersionedMultiAssets
   - range: [2028, null]
     types:
       Address: MultiAddress<AccountId32, u32>
