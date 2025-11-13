@@ -13,18 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::methods::storage_type_info::{StorageEntry, StorageTypeInfo};
+use crate::methods::storage_type_info::StorageTypeInfo;
 use alloc::boxed::Box;
 use frame_metadata::RuntimeMetadata;
+
+pub use crate::methods::Entry;
 
 /// Returns an iterator listing the available storage entries in some metadata.
 ///
 /// This basically calls [`StorageTypeInfo::storage_entries()`] for each metadata version,
 /// returning an empty iterator where applicable (ie when passing legacy metadata and the
 /// `legacy` features flag is not enabled).
-pub fn list_storage_entries_any(
-    metadata: &RuntimeMetadata,
-) -> impl Iterator<Item = StorageEntry<'_>> {
+pub fn list_storage_entries_any(metadata: &RuntimeMetadata) -> impl Iterator<Item = Entry<'_>> {
     match metadata {
         RuntimeMetadata::V0(_deprecated_metadata)
         | RuntimeMetadata::V1(_deprecated_metadata)
@@ -34,7 +34,7 @@ pub fn list_storage_entries_any(
         | RuntimeMetadata::V5(_deprecated_metadata)
         | RuntimeMetadata::V6(_deprecated_metadata)
         | RuntimeMetadata::V7(_deprecated_metadata) => {
-            Box::new(core::iter::empty()) as Box<dyn Iterator<Item = StorageEntry<'_>>>
+            Box::new(core::iter::empty()) as Box<dyn Iterator<Item = Entry<'_>>>
         }
         #[cfg(feature = "legacy")]
         RuntimeMetadata::V8(m) => Box::new(m.storage_entries()),
