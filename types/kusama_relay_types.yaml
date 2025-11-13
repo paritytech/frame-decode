@@ -807,6 +807,142 @@ global:
         Ed25519: Ed25519Signature
         Sr25519: Sr25519Signature
         Ecdsa: EcdsaSignature
+    MultiSigner:
+      _enum:
+        Ed25519: '[u8; 32]'
+        Sr25519: '[u8; 32]'
+        Ecdsa: '[u8; 33]'
+
+    # XCM v0 base types needed for early Kusama relay-chain XCM calls (e.g. teleport_assets)
+    NetworkId:
+      _enum:
+        Any: []
+        Named: Bytes
+        Polkadot: []
+        Kusama: []
+    BodyId:
+      _enum: ['Unit', 'Named', 'Index', 'Executive', 'Technical', 'Legislative', 'Judicial', 'Defense', 'Administration', 'Treasury']
+    BodyPart:
+      _enum:
+        Voice: []
+        Members: u32
+        Fraction: (u32, u32)
+        AtLeastProportion: (u32, u32)
+        MoreThanProportion: (u32, u32)
+    Junction:
+      _enum:
+        Parent: []
+        Parachain: Compact<u32>
+        AccountId32: { network: NetworkId, id: AccountId32 }
+        AccountIndex64: { network: NetworkId, index: u64 }
+        AccountKey20: { network: NetworkId, key: H160 }
+        PalletInstance: u8
+        GeneralIndex: Compact<u128>
+        GeneralKey: Bytes
+        OnlyChild: []
+        Plurality: { id: BodyId, part: BodyPart }
+    MultiLocation:
+      _enum:
+        Null: []
+        X1: Junction
+        X2: (Junction, Junction)
+        X3: (Junction, Junction, Junction)
+        X4: (Junction, Junction, Junction, Junction)
+        X5: (Junction, Junction, Junction, Junction, Junction)
+        X6: (Junction, Junction, Junction, Junction, Junction, Junction)
+        X7: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)
+        X8: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)
+    AssetInstance:
+      _enum:
+        Undefined: []
+        Index: u128
+        Array4: '[u8; 4]'
+        Array8: '[u8; 8]'
+        Array16: '[u8; 16]'
+        Array32: '[u8; 32]'
+        Blob: Bytes
+        Instance: Compact<u128>
+    Fungibility:
+      _enum:
+        Fungible: u128
+        NonFungible: AssetInstance
+    MultiAsset:
+      _enum:
+        None: []
+        All: []
+        AllFungible: []
+        AllNonFungible: []
+        AllAbstractFungible: Bytes
+        AllAbstractNonFungible: Bytes
+        AllConcreteFungible: MultiLocation
+        AllConcreteNonFungible: MultiLocation
+        AbstractFungible:
+          id: Bytes
+          instance: Compact<u128>
+        AbstractNonFungible:
+          class: Bytes
+          instance: AssetInstance
+        ConcreteFungible:
+          id: MultiLocation
+          amount: Compact<u128>
+        ConcreteNonFungible:
+          class: MultiLocation
+          instance: AssetInstance
+    MultiAssets: Vec<MultiAsset>
+    OriginKind:
+      _enum: ['Native', 'SovereignAccount', 'Superuser', 'Xcm']
+    # Minimal XCM v0 message/order enums used by polkadotXcm.execute
+    Xcm<Call>:
+      _enum:
+        WithdrawAsset:
+          assets: MultiAssets
+          effects: Vec<Order<Call>>
+        ReserveAssetDeposited:
+          assets: MultiAssets
+          effects: Vec<Order<Call>>
+        ReceiveTeleportedAsset:
+          assets: MultiAssets
+          effects: Vec<Order<Call>>
+        QueryResponse:
+          queryId: u64
+          response: Bytes
+          maxWeight: u64
+        TransferAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+        TransferReserveAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+          effects: Vec<Order<Call>>
+        Transact:
+          originType: OriginKind
+          requireWeightAtMost: u64
+          call: OpaqueCall
+    Order<Call>:
+      _enum:
+        Null: []
+        DepositAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+        DepositReserveAsset:
+          assets: MultiAssets
+          dest: MultiLocation
+        ExchangeAsset:
+          give: MultiAssets
+          want: MultiAssets
+          maximal: bool
+        InitiateReserveWithdraw:
+          assets: MultiAssets
+          reserve: MultiLocation
+          effects: Vec<Order<Call>>
+        InitiateTeleport:
+          assets: MultiAssets
+          dest: MultiLocation
+          effects: Vec<Order<Call>>
+        QueryHolding:
+          queryId: u64
+          dest: MultiLocation
+          assets: MultiAssets
 
     # Hardcoded types for old metadatas that don't know about them.
     hardcoded::ExtrinsicAddress: AccountId32
@@ -964,14 +1100,59 @@ forSpec:
         signature: ValidatorSignature
       # For ParasInherent bitfields, validator signatures are raw Ed25519 signatures
       ValidatorSignature: Ed25519Signature
-      # Minimal attestation/dispute types to satisfy decoding; inner contents not used if vectors are empty.
-      ValidityAttestation: Bytes
-      DisputeStatementSet: Bytes
+      # Collator signatures attached to candidate descriptors are Sr25519
+      CollatorSignature: Sr25519Signature
+      # Candidate descriptor included in abridged receipts
+      CandidateDescriptor:
+        paraId: ParaId
+        relayParent: Hash
+        collatorId: CollatorId
+        persistedValidationDataHash: Hash
+        povHash: Hash
+        erasureRoot: Hash
+        signature: CollatorSignature
+        paraHead: Hash
+        validationCodeHash: ValidationCodeHash
+      ValidationCodeHash: Hash
+      # Validity attestation as used by validators on candidates
+      ValidityAttestation:
+        _enum:
+          Never: []
+          Implicit: ValidatorSignature
+          Explicit: ValidatorSignature
+      # Dispute statements are carried as sets per candidate/session with validator attestations
+      DisputeStatementWithIndexAndSig:
+        statement: Statement
+        validatorIndex: Compact<ValidatorIndex>
+        signature: ValidatorSignature
+      DisputeStatementSet:
+        candidateHash: Hash
+        session: SessionIndex
+        statements: Vec<DisputeStatementWithIndexAndSig>
+      # Abridged candidate receipt as carried in backed candidates (commitments are hashed)
+      AbridgedCandidateReceipt:
+        descriptor: CandidateDescriptor
+        commitmentsHash: Hash
+      # Full candidate commitments and committed receipt used in BackedCandidate
+      CandidateCommitments:
+        upwardMessages: Vec<UpwardMessage>
+        horizontalMessages: Vec<OutboundHrmpMessage>
+        newValidationCode: Option<ValidationCode>
+        headData: HeadData
+        processedDownwardMessages: u32
+        hrmpWatermark: BlockNumber
+      OutboundHrmpMessage:
+        recipient: u32
+        data: Bytes
+      UpwardMessage: Bytes
+      CommittedCandidateReceipt:
+        descriptor: CandidateDescriptor
+        commitments: CandidateCommitments
       BackedCandidate:
-        candidate: AbridgedCandidateReceipt
+        candidate: CommittedCandidateReceipt
         validityVotes: Vec<ValidityAttestation>
         validatorIndices: BitVec
-      # Parachains inherent input to ParasInherent.enter
+      # Parachains inherent input to ParasInherent.enter; decode top-level fields len-delimited
       ParachainsInherentData<T::Header>:
         bitfields: Vec<SignedAvailabilityBitfield>
         backedCandidates: Vec<BackedCandidate>
@@ -985,8 +1166,9 @@ forSpec:
       ValidatorPrefs:
         commission: Compact<Perbill>
         blocked: bool
-  - range: [9010, 9010]
+  - range: [9010, null]
     types:
+      # Witness as defined in metadata (two Compact<u32> fields)
       SolutionOrSnapshotSize:
         voters: Compact<u32>
         targets: Compact<u32>
@@ -1010,28 +1192,28 @@ forSpec:
       CompactAssignments:
         votes1: 'Vec<(NominatorIndexCompact, EPMValidatorIndexCompact)>'
         votes2: 'Vec<(NominatorIndexCompact, CompactScoreCompact, EPMValidatorIndexCompact)>'
-        votes3: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes4: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes5: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes6: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes7: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes8: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes9: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes10: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes11: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes12: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes13: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes14: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes15: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes16: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes17: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes18: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes19: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes20: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes21: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes22: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes23: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
-        votes24: 'Vec<(NominatorIndexCompact, Vec<CompactScoreCompact>, EPMValidatorIndexCompact)>'
+        votes3: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 2], EPMValidatorIndexCompact)>'
+        votes4: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 3], EPMValidatorIndexCompact)>'
+        votes5: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 4], EPMValidatorIndexCompact)>'
+        votes6: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 5], EPMValidatorIndexCompact)>'
+        votes7: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 6], EPMValidatorIndexCompact)>'
+        votes8: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 7], EPMValidatorIndexCompact)>'
+        votes9: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 8], EPMValidatorIndexCompact)>'
+        votes10: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 9], EPMValidatorIndexCompact)>'
+        votes11: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 10], EPMValidatorIndexCompact)>'
+        votes12: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 11], EPMValidatorIndexCompact)>'
+        votes13: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 12], EPMValidatorIndexCompact)>'
+        votes14: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 13], EPMValidatorIndexCompact)>'
+        votes15: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 14], EPMValidatorIndexCompact)>'
+        votes16: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 15], EPMValidatorIndexCompact)>'
+        votes17: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 16], EPMValidatorIndexCompact)>'
+        votes18: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 17], EPMValidatorIndexCompact)>'
+        votes19: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 18], EPMValidatorIndexCompact)>'
+        votes20: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 19], EPMValidatorIndexCompact)>'
+        votes21: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 20], EPMValidatorIndexCompact)>'
+        votes22: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 21], EPMValidatorIndexCompact)>'
+        votes23: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 22], EPMValidatorIndexCompact)>'
+        votes24: 'Vec<(NominatorIndexCompact, [CompactScoreCompact; 23], EPMValidatorIndexCompact)>'
       RawSolution<CompactOf<T>>:
         compact: CompactAssignments
         score: ElectionScore
