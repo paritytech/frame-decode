@@ -1158,6 +1158,32 @@ forSpec:
         backedCandidates: Vec<BackedCandidate>
         disputes: Vec<DisputeStatementSet>
         parentHeader: T::Header
+  - range: [9080, null]
+    types:
+      # Dispute statements mapping for spec 9080
+      # Use DisputeStatement with distinct Valid/Invalid kinds
+      Statement:
+        _enum:
+          Valid: ValidDisputeStatementKind
+          Invalid: InvalidDisputeStatementKind
+      # Alias to align with runtime naming, if referenced
+      DisputeStatement: Statement
+      InvalidDisputeStatementKind:
+        _enum: ['Explicit']
+      ValidDisputeStatementKind:
+        _enum:
+          Explicit: []
+          BackingSeconded: Hash
+          BackingValid: Hash
+          ApprovalChecking: []
+      # Index/signature overrides for this spec
+      ParaValidatorIndex: u32
+      ValidatorSignature: Signature
+      # Override dispute set to use tuple statements (DisputeStatement, ParaValidatorIndex, ValidatorSignature)
+      DisputeStatementSet:
+        candidateHash: Hash
+        session: SessionIndex
+        statements: 'Vec<(DisputeStatement, ParaValidatorIndex, ValidatorSignature)>'
   - range: [2028, null]
     types:
       Address: MultiAddress<AccountId32, u32>
