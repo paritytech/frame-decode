@@ -1,5 +1,4 @@
-# This file provides all the type information necessary to decode historic blocks and storage entries on the 
-# Polkadot relay chain. See https://docs.rs/scale-info-legacy/0.2.0/scale_info_legacy/chain_types/struct.ChainTypeRegistry.html
+# This file provides all the type information necessary to decode historic blocks on the Kusama relay chain
 # for more information, or check out the documentation for this crate to see example usage.
 global:
   types:
