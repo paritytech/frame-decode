@@ -213,7 +213,7 @@ pub mod helpers {
 
     pub use crate::utils::{
         DecodableValues, DecodeErrorTrace, EncodableValues, IntoDecodableValues,
-        IntoEncodableValues, decode_with_error_tracing, list_storage_entries_any,
+        IntoEncodableValues, decode_with_error_tracing,
     };
     #[cfg(feature = "legacy")]
     pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};

@@ -29,7 +29,7 @@ pub trait CustomValueTypeInfo {
 
 /// This can be implemented for anything capable of providing information about the available Custom Values
 pub trait CustomValueEntryInfo {
-    /// Iterate over all of the available Custom Values, returning [`Entry`] as we go.
+    /// Iterate over all of the available Custom Values, returning [`CustomValue`] as we go.
     fn custom_values(&self) -> impl Iterator<Item = CustomValue<'_>>;
 }
 
