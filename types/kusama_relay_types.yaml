@@ -1007,7 +1007,7 @@ forSpec:
       # Spec 1028: legacy Address for dest and signer
       hardcoded::ExtrinsicAddress: LookupSource
       hardcoded::ExtrinsicSignature: MultiSignature
-      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment)'
+      hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
   - range: [1027, 1027]
