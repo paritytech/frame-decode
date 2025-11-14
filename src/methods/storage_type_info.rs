@@ -32,14 +32,24 @@ pub trait StorageTypeInfo {
         pallet_name: &str,
         storage_entry: &str,
     ) -> Result<StorageInfo<'_, Self::TypeId>, StorageInfoError<'_>>;
+}
 
-    /// Iterate over all of the available storage entries.
-    fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>>;
-    /// Iterate over all of the available storage entries in a given pallet.
-    fn storage_entries_in_pallet(&self, pallet_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
-        Entry::entries_in(self.storage_entries(), pallet_name)
+/// This can be implemented for anything capable of providing information about the available Storage Entries
+pub trait StorageEntryInfo {
+    /// Iterate over all of the available Storage Entries, returning [`Entry`] as we go.
+    fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>>;
+    /// Iterate over all of the available Storage Entries, returning a pair of `(pallet_name, constant_name)` as we go.
+    fn storage_tuples(&self) -> impl Iterator<Item = (Cow<'_, str>, Cow<'_, str>)> {
+        Entry::tuples_of(self.storage_entries())
+    }
+    /// Iterate over all of the available Storage Entries in a given pallet.
+    fn storage_in_pallet(&self, pallet: &str) -> impl Iterator<Item = Cow<'_, str>> {
+        Entry::entries_in(self.storage_entries(), pallet)
     }
 }
+
+/// An entry denoting a pallet or a constant name.
+pub type StorageEntry<'a> = Entry<Cow<'a, str>, Cow<'a, str>>;
 
 /// An error returned trying to access storage type information.
 #[non_exhaustive]
@@ -121,7 +131,7 @@ impl StorageInfoError<'_> {
 }
 
 /// Information about a storage entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageInfo<'info, TypeId: Clone> {
     /// No entries if a plain storage entry, or N entries for N maps.
     pub keys: Cow<'info, [StorageKeyInfo<TypeId>]>,
@@ -166,7 +176,7 @@ impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
 }
 
 /// Information about a single key within a storage entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageKeyInfo<TypeId> {
     /// How is this key hashed?
     pub hasher: StorageHasher,
@@ -343,7 +353,9 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
 
                     storage_entry_type_to_storage_info(&pallet.name, &storage, &self.types)
                 }
-                fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>> {
+            }
+            impl StorageEntryInfo for path::$name {
+                fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
                     self.pallets.iter().flat_map(|p| {
                         // Not strictly necessary, but we may as well filter out
                         // returning palelt names that have no entries in them.
@@ -352,16 +364,16 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                         };
 
                         Either::Right(
-                            core::iter::once(Entry::In(Cow::Borrowed(&p.name))).chain(
+                            core::iter::once(Entry::In(Cow::Borrowed(&*p.name))).chain(
                                 storage
                                     .entries
                                     .iter()
-                                    .map(|e| Entry::Name(Cow::Borrowed(&e.name))),
+                                    .map(|e| Entry::Name(Cow::Borrowed(&*e.name))),
                             ),
                         )
                     })
                 }
-                fn storage_entries_in_pallet(
+                fn storage_in_pallet(
                     &self,
                     pallet_name: &str,
                 ) -> impl Iterator<Item = Cow<'_, str>> {
@@ -528,7 +540,9 @@ mod legacy {
                             }
                         }
                     }
-                    fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>> {
+                }
+                impl StorageEntryInfo for path::$name {
+                    fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
                         use crate::utils::as_decoded;
                         as_decoded(&self.modules).iter().flat_map(|module| {
                             let Some(storage) = &module.storage else {
@@ -538,15 +552,17 @@ mod legacy {
                             let storage = as_decoded(storage);
                             let entries = as_decoded(&storage.entries);
 
-                            Either::Right(core::iter::once(Entry::In(Cow::Borrowed(pallet))).chain(
-                                entries.iter().map(|e| {
-                                    let entry = as_decoded(&e.name);
-                                    Entry::Name(Cow::Borrowed(entry.as_ref()))
-                                }),
-                            ))
+                            Either::Right(
+                                core::iter::once(Entry::In(Cow::Borrowed(pallet.as_ref()))).chain(
+                                    entries.iter().map(|e| {
+                                        let entry = as_decoded(&e.name);
+                                        Entry::Name(Cow::Borrowed(entry.as_ref()))
+                                    }),
+                                ),
+                            )
                         })
                     }
-                    fn storage_entries_in_pallet(
+                    fn storage_in_pallet(
                         &self,
                         pallet_name: &str,
                     ) -> impl Iterator<Item = Cow<'_, str>> {
@@ -737,8 +753,9 @@ mod legacy {
                 }
             }
         }
-
-        fn storage_entries(&self) -> impl Iterator<Item = Entry<'_>> {
+    }
+    impl StorageEntryInfo for frame_metadata::v13::RuntimeMetadataV13 {
+        fn storage_entries(&self) -> impl Iterator<Item = StorageEntry<'_>> {
             use crate::utils::as_decoded;
             as_decoded(&self.modules).iter().flat_map(|module| {
                 let Some(storage) = &module.storage else {
@@ -748,19 +765,18 @@ mod legacy {
                 let storage = as_decoded(storage);
                 let entries = as_decoded(&storage.entries);
 
-                Either::Right(core::iter::once(Entry::In(Cow::Borrowed(pallet))).chain(
-                    entries.iter().map(|e| {
-                        let entry = as_decoded(&e.name);
-                        Entry::Name(Cow::Borrowed(entry.as_ref()))
-                    }),
-                ))
+                Either::Right(
+                    core::iter::once(Entry::In(Cow::Borrowed(pallet.as_ref()))).chain(
+                        entries.iter().map(|e| {
+                            let entry = as_decoded(&e.name);
+                            Entry::Name(Cow::Borrowed(entry.as_ref()))
+                        }),
+                    ),
+                )
             })
         }
 
-        fn storage_entries_in_pallet(
-            &self,
-            pallet_name: &str,
-        ) -> impl Iterator<Item = Cow<'_, str>> {
+        fn storage_in_pallet(&self, pallet_name: &str) -> impl Iterator<Item = Cow<'_, str>> {
             let module = as_decoded(&self.modules)
                 .iter()
                 .find(|p| as_decoded(&p.name).as_ref() as &str == pallet_name);

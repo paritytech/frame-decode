@@ -215,7 +215,7 @@ impl ExtrinsicInfoError<'_> {
 }
 
 /// An argument with a name and type ID.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicInfoArg<'info, TypeId> {
     /// Argument name.
     pub name: Cow<'info, str>,
@@ -224,7 +224,7 @@ pub struct ExtrinsicInfoArg<'info, TypeId> {
 }
 
 /// Extrinsic call data information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicCallInfo<'info, TypeId> {
     /// Name of the pallet.
     pub pallet_name: Cow<'info, str>,
@@ -235,7 +235,7 @@ pub struct ExtrinsicCallInfo<'info, TypeId> {
 }
 
 /// Extrinsic signature information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicSignatureInfo<TypeId> {
     /// Type ID of the address.
     pub address_id: TypeId,
@@ -244,7 +244,7 @@ pub struct ExtrinsicSignatureInfo<TypeId> {
 }
 
 /// Extrinsic extension information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicExtensionInfo<'info, TypeId> {
     /// Names and type IDs of the transaction extensions.
     pub extension_ids: Vec<ExtrinsicInfoArg<'info, TypeId>>,

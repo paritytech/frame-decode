@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.13.0 (2025-11-14)
+
+- Separate the iterating over entries from the core `frame-decode` `*Info` traits; One only needs to implement `*Info` traits to work with `frame-decode`; the other traits are convenience traits.
+- Make `Entry` type generic so that it can potentially be used in more places, expose it, and expose concrete versions from each module.
+- Expose Kusama RC and AH types (though keep these hidden until the types are more complete).
+
 ## 0.12.1 (2025-11-12)
 
 - Add `map_ids()` functions to `RuntimeApiInfo`, `StorageInfo` and `ViewFunctionInfo` to make translating the `TypeId` parameter simpler.

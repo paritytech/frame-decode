@@ -25,7 +25,11 @@ pub trait CustomValueTypeInfo {
         &self,
         name: &str,
     ) -> Result<CustomValueInfo<'_, Self::TypeId>, CustomValueInfoError>;
-    /// Iterate over all of the available Custom Values.
+}
+
+/// This can be implemented for anything capable of providing information about the available Custom Values
+pub trait CustomValueEntryInfo {
+    /// Iterate over all of the available Custom Values, returning [`Entry`] as we go.
     fn custom_values(&self) -> impl Iterator<Item = CustomValue<'_>>;
 }
 
@@ -39,6 +43,7 @@ pub struct CustomValueInfoError {
 }
 
 /// Information about a Custom Value.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomValueInfo<'info, TypeId: Clone> {
     /// The bytes representing this custom value.
     ///
@@ -52,7 +57,7 @@ pub struct CustomValueInfo<'info, TypeId: Clone> {
 }
 
 /// The identifier for a single Custom Value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomValue<'info> {
     /// The name of this Custom Value.
     pub name: Cow<'info, str>,
@@ -64,7 +69,6 @@ macro_rules! impl_custom_value_type_info_for_v15_to_v16 {
             use $path as path;
             impl CustomValueTypeInfo for path::$name {
                 type TypeId = u32;
-
                 fn custom_value_info(
                     &self,
                     name: &str,
@@ -82,7 +86,8 @@ macro_rules! impl_custom_value_type_info_for_v15_to_v16 {
                         type_id: custom_value.ty.id,
                     })
                 }
-
+            }
+            impl CustomValueEntryInfo for path::$name {
                 fn custom_values(&self) -> impl Iterator<Item = CustomValue<'_>> {
                     self.custom.map.iter().map(|(name, _)| CustomValue {
                         name: Cow::Borrowed(name),

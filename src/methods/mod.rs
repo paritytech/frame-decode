@@ -29,8 +29,6 @@ pub mod view_function_decoder;
 pub mod view_function_encoder;
 pub mod view_function_type_info;
 
-use alloc::borrow::Cow;
-
 /// This represents either an entry name, or the name of the thing that the entry is
 /// in (for instance the name of a pallet or of a Runtime API trait).
 ///
@@ -41,36 +39,63 @@ use alloc::borrow::Cow;
 ///
 /// A container name will not be handed back more than once.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Entry<'info> {
+pub enum Entry<In, Name> {
     /// The name of the thing that the following entries are in/under.
-    In(Cow<'info, str>),
+    In(In),
     /// The name of the entry in/under the last given [`Entry::In`].
-    Name(Cow<'info, str>),
+    Name(Name),
 }
 
-impl<'info> Entry<'info> {
-    /// Take ownership of the entry, converting any lifetimes to `'static`.
-    pub fn into_owned(self) -> Entry<'static> {
+impl<T> Entry<T, T> {
+    /// Map the values in the entry, assuming they are the same.
+    pub fn map<R, F: FnOnce(T) -> R>(self, f: F) -> Entry<R, R> {
         match self {
-            Entry::In(name) => Entry::In(Cow::Owned(name.into_owned())),
-            Entry::Name(name) => Entry::Name(Cow::Owned(name.into_owned())),
+            Entry::In(t) => Entry::In(f(t)),
+            Entry::Name(t) => Entry::Name(f(t)),
         }
     }
+}
 
+impl<In, Name> Entry<In, Name> {
     /// Iterate over all of the entries in a specific container (ie all of the entries
     /// which follow a specific [`Entry::In`]).
     pub fn entries_in<'a>(
-        entries: impl Iterator<Item = Entry<'a>>,
-        container: &str,
-    ) -> impl Iterator<Item = Cow<'a, str>> {
+        entries: impl Iterator<Item = Entry<In, Name>>,
+        container: impl PartialEq<In>,
+    ) -> impl Iterator<Item = Name>
+    where
+        In: PartialEq,
+        Name: PartialEq,
+    {
         entries
-            .skip_while(|c| c != &Entry::In(Cow::Borrowed(container)))
+            .skip_while(move |c| !matches!(c, Entry::In(c) if &container == c))
             .skip(1)
             .take_while(|c| matches!(c, Entry::Name(_)))
             .filter_map(|c| match c {
                 Entry::In(_) => None,
                 Entry::Name(name) => Some(name),
             })
+    }
+
+    /// Iterate over all of the entries, returning tuples of `(entry_in, entry_name)`.
+    /// This can be easier to work with in some cases.
+    pub fn tuples_of(
+        entries: impl Iterator<Item = Entry<In, Name>>,
+    ) -> impl Iterator<Item = (In, Name)>
+    where
+        In: Clone,
+    {
+        let mut entry_in = None;
+        entries.filter_map(move |entry| match entry {
+            Entry::In(e_in) => {
+                entry_in = Some(e_in);
+                None
+            }
+            Entry::Name(e_name) => {
+                let e_in = entry_in.as_ref().unwrap().clone();
+                Some((e_in, e_name))
+            }
+        })
     }
 }
 
@@ -80,16 +105,16 @@ mod test {
 
     #[test]
     fn test_entries_in() {
-        fn entries() -> impl Iterator<Item = Entry<'static>> {
+        fn entries() -> impl Iterator<Item = Entry<&'static str, &'static str>> {
             [
-                Entry::In("Baz".into()),
-                Entry::In("Foo".into()),
-                Entry::Name("foo_a".into()),
-                Entry::Name("foo_b".into()),
-                Entry::Name("foo_c".into()),
-                Entry::In("Bar".into()),
-                Entry::Name("bar_a".into()),
-                Entry::In("Wibble".into()),
+                Entry::In("Baz"),
+                Entry::In("Foo"),
+                Entry::Name("foo_a"),
+                Entry::Name("foo_b"),
+                Entry::Name("foo_c"),
+                Entry::In("Bar"),
+                Entry::Name("bar_a"),
+                Entry::In("Wibble"),
             ]
             .into_iter()
         }
@@ -98,7 +123,7 @@ mod test {
         assert!(Entry::entries_in(entries(), "Wibble").next().is_none());
 
         let foos: Vec<String> = Entry::entries_in(entries(), "Foo")
-            .map(|s| s.into_owned())
+            .map(|s| s.to_owned())
             .collect();
         assert_eq!(
             foos,
@@ -106,7 +131,7 @@ mod test {
         );
 
         let bars: Vec<String> = Entry::entries_in(entries(), "Bar")
-            .map(|s| s.into_owned())
+            .map(|s| s.to_owned())
             .collect();
         assert_eq!(bars, Vec::from_iter(["bar_a".to_owned(),]));
     }
