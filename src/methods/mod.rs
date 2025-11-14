@@ -59,7 +59,7 @@ impl<T> Entry<T, T> {
 impl<In, Name> Entry<In, Name> {
     /// Iterate over all of the entries in a specific container (ie all of the entries
     /// which follow a specific [`Entry::In`]).
-    pub fn entries_in<'a>(
+    pub fn entries_in(
         entries: impl Iterator<Item = Entry<In, Name>>,
         container: impl PartialEq<In>,
     ) -> impl Iterator<Item = Name>
