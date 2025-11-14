@@ -52,9 +52,10 @@ pub mod storage {
     //!   from modern or historic runtimes.
     //! - See [`encode_storage_key_prefix`] to encode storage prefixes, and [`encode_storage_key`] to encode
     //!   storage keys.
-    //! - See [`StorageTypeInfo`] for the underlying trait which extracts the relevant information.
+    //! - See [`StorageTypeInfo`] for the underlying trait which provides storage entry information.
+    //! - See [`StorageEntryInfo`] for a underlying trait which provides information about the available
+    //!   storage entries.
 
-    pub use crate::methods::Entry;
     pub use crate::methods::storage_decoder::{
         StorageKey, StorageKeyDecodeError, StorageKeyPart, StorageKeyPartValue,
         StorageKeyValueDecodeError, StorageValueDecodeError,
@@ -68,7 +69,8 @@ pub mod storage {
         encode_storage_key_with_info, encode_storage_key_with_info_to,
     };
     pub use crate::methods::storage_type_info::{
-        StorageHasher, StorageInfo, StorageInfoError, StorageKeyInfo, StorageTypeInfo,
+        StorageEntry, StorageEntryInfo, StorageHasher, StorageInfo, StorageInfoError,
+        StorageKeyInfo, StorageTypeInfo,
     };
     pub use crate::utils::{
         DecodableValues, EncodableValues, IntoDecodableValues, IntoEncodableValues,
@@ -81,13 +83,14 @@ pub mod constants {
     //! - See [`decode_constant`] and [`decode_constant_with_info`] to decode constants
     //! - See [`ConstantTypeInfo`] for the underlying trait which extracts constant
     //!   information from metadata.
+    //! - See [`ConstantEntryInfo`] for a underlying trait which provides information about the available
+    //!   constants.
 
-    pub use crate::methods::Entry;
     pub use crate::methods::constant_decoder::{
         ConstantDecodeError, decode_constant, decode_constant_with_info,
     };
     pub use crate::methods::constant_type_info::{
-        ConstantInfo, ConstantInfoError, ConstantTypeInfo,
+        ConstantEntry, ConstantEntryInfo, ConstantInfo, ConstantInfoError, ConstantTypeInfo,
     };
 }
 
@@ -98,8 +101,9 @@ pub mod runtime_apis {
     //!   the name and inputs to make a Runtime API call.
     //! - See [`decode_runtime_api_response`] to decode Runtime API responses.
     //! - See [`RuntimeApiTypeInfo`] for the underlying trait which extracts the relevant information.
+    //! - See [`RuntimeApiEntryInfo`] for a underlying trait which provides information about the available
+    //!   Runtime APIs.
 
-    pub use crate::methods::Entry;
     pub use crate::methods::runtime_api_decoder::{
         RuntimeApiDecodeError, decode_runtime_api_response, decode_runtime_api_response_with_info,
     };
@@ -108,7 +112,8 @@ pub mod runtime_apis {
         encode_runtime_api_inputs_with_info_to, encode_runtime_api_name,
     };
     pub use crate::methods::runtime_api_type_info::{
-        RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput, RuntimeApiTypeInfo,
+        RuntimeApiEntry, RuntimeApiEntryInfo, RuntimeApiInfo, RuntimeApiInfoError, RuntimeApiInput,
+        RuntimeApiTypeInfo,
     };
     pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
@@ -120,8 +125,9 @@ pub mod view_functions {
     //!   and the encoded input data required to call a given View Function.
     //! - See [`decode_view_function_response`] to decode View Function responses.
     //! - See [`ViewFunctionTypeInfo`] for the underlying trait which extracts the relevant information.
+    //! - See [`ViewFunctionEntryInfo`] for a underlying trait which provides information about the available
+    //!   View Functions.
 
-    pub use crate::methods::Entry;
     pub use crate::methods::view_function_decoder::{
         ViewFunctionDecodeError, decode_view_function_response,
         decode_view_function_response_with_info,
@@ -131,7 +137,8 @@ pub mod view_functions {
         encode_view_function_inputs_to, encode_view_function_inputs_with_info_to,
     };
     pub use crate::methods::view_function_type_info::{
-        ViewFunctionInfo, ViewFunctionInfoError, ViewFunctionInput, ViewFunctionTypeInfo,
+        ViewFunctionEntry, ViewFunctionEntryInfo, ViewFunctionInfo, ViewFunctionInfoError,
+        ViewFunctionInput, ViewFunctionTypeInfo,
     };
     pub use crate::utils::{EncodableValues, IntoEncodableValues};
 }
@@ -142,12 +149,15 @@ pub mod custom_values {
     //! - See [`decode_custom_value`] and [`decode_custom_value_with_info`] to decode custom values
     //! - See [`CustomValueTypeInfo`] for the underlying trait which extracts custom value
     //!   information from metadata.
+    //! - See [`CustomValueEntryInfo`] for a underlying trait which provides information about the available
+    //!   custom values.
 
     pub use crate::methods::custom_value_decoder::{
         CustomValueDecodeError, decode_custom_value, decode_custom_value_with_info,
     };
     pub use crate::methods::custom_value_type_info::{
-        CustomValue, CustomValueInfo, CustomValueInfoError, CustomValueTypeInfo,
+        CustomValue, CustomValueEntryInfo, CustomValueInfo, CustomValueInfoError,
+        CustomValueTypeInfo,
     };
 }
 
@@ -162,8 +172,30 @@ pub mod legacy_types {
         pub fn relay_chain() -> scale_info_legacy::ChainTypeRegistry {
             // This is a convenience function to load the Polkadot relay chain types.
             // It is used in the examples in this crate.
-            let bytes = include_bytes!("../types/polkadot_types.yaml");
-            serde_yaml::from_slice(bytes).expect("Polkadot types are valid YAML")
+            let bytes = include_bytes!("../types/polkadot_relay_types.yaml");
+            serde_yaml::from_slice(bytes).expect("Polkadot RC types are valid YAML")
+        }
+    }
+
+    // Hidden until the types are ready.
+    #[doc(hidden)]
+    pub mod kusama {
+        //! Legacy types for Kusama chains.
+
+        /// Legacy types for the Kusama Relay Chain.
+        pub fn relay_chain() -> scale_info_legacy::ChainTypeRegistry {
+            // This is a convenience function to load the Polkadot relay chain types.
+            // It is used in the examples in this crate.
+            let bytes = include_bytes!("../types/kusama_relay_types.yaml");
+            serde_yaml::from_slice(bytes).expect("Kusama RC types are valid YAML")
+        }
+
+        /// Legacy types for the Kusama Asset Hub.
+        pub fn asset_hub() -> scale_info_legacy::ChainTypeRegistry {
+            // This is a convenience function to load the Polkadot relay chain types.
+            // It is used in the examples in this crate.
+            let bytes = include_bytes!("../types/kusama_assethub_types.yaml");
+            serde_yaml::from_slice(bytes).expect("Kusama AssetHub types are valid YAML")
         }
     }
 }
@@ -177,9 +209,11 @@ pub mod helpers {
     //!   will use a tracing visitor (if the `error-tracing` feature is enabled) to provide more
     //!   information in the event that decoding fails.
 
+    pub use crate::methods::Entry;
+
     pub use crate::utils::{
         DecodableValues, DecodeErrorTrace, EncodableValues, IntoDecodableValues,
-        IntoEncodableValues, decode_with_error_tracing, list_storage_entries_any,
+        IntoEncodableValues, decode_with_error_tracing,
     };
     #[cfg(feature = "legacy")]
     pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};
@@ -205,6 +239,8 @@ mod test {
     #[test]
     fn test_deserializing_legacy_types() {
         let _ = crate::legacy_types::polkadot::relay_chain();
+        let _ = crate::legacy_types::kusama::relay_chain();
+        let _ = crate::legacy_types::kusama::asset_hub();
     }
 
     macro_rules! impls_trait {

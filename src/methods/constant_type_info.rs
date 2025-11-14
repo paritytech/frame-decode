@@ -28,13 +28,24 @@ pub trait ConstantTypeInfo {
         pallet_name: &str,
         constant_name: &str,
     ) -> Result<ConstantInfo<'_, Self::TypeId>, ConstantInfoError<'_>>;
-    /// Iterate over all of the available Constants.
-    fn constants(&self) -> impl Iterator<Item = Entry<'_>>;
+}
+
+/// This can be implemented for anything capable of providing information about the available Constants
+pub trait ConstantEntryInfo {
+    /// Iterate over all of the available Constants, returning [`Entry`] as we go.
+    fn constant_entries(&self) -> impl Iterator<Item = ConstantEntry<'_>>;
+    /// Iterate over all of the available Constants, returning a pair of `(pallet_name, constant_name)` as we go.
+    fn constant_tuples(&self) -> impl Iterator<Item = (Cow<'_, str>, Cow<'_, str>)> {
+        Entry::tuples_of(self.constant_entries())
+    }
     /// Iterate over all of the available constants in a given pallet.
     fn constants_in_pallet(&self, pallet: &str) -> impl Iterator<Item = Cow<'_, str>> {
-        Entry::entries_in(self.constants(), pallet)
+        Entry::entries_in(self.constant_entries(), pallet)
     }
 }
+
+/// An entry denoting a pallet or a constant name.
+pub type ConstantEntry<'a> = Entry<Cow<'a, str>, Cow<'a, str>>;
 
 /// An error returned trying to access Constant information.
 #[non_exhaustive]
@@ -82,6 +93,7 @@ impl<'info> ConstantInfoError<'info> {
 }
 
 /// Information about a Constant.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantInfo<'info, TypeId: Clone> {
     /// The bytes representing this constant.
     ///
@@ -98,7 +110,6 @@ macro_rules! impl_constant_type_info_for_v14_to_v16 {
             use $path as path;
             impl ConstantTypeInfo for path::$name {
                 type TypeId = u32;
-
                 fn constant_info(
                     &self,
                     pallet_name: &str,
@@ -128,17 +139,17 @@ macro_rules! impl_constant_type_info_for_v14_to_v16 {
                         type_id: constant.ty.id,
                     })
                 }
-
-                fn constants(&self) -> impl Iterator<Item = Entry<'_>> {
+            }
+            impl ConstantEntryInfo for path::$name {
+                fn constant_entries(&self) -> impl Iterator<Item = ConstantEntry<'_>> {
                     self.pallets.iter().flat_map(|p| {
-                        core::iter::once(Entry::In(Cow::Borrowed(&p.name))).chain(
+                        core::iter::once(Entry::In(Cow::Borrowed(&*p.name))).chain(
                             p.constants
                                 .iter()
-                                .map(|c| Entry::Name(Cow::Borrowed(&c.name))),
+                                .map(|c| Entry::Name(Cow::Borrowed(&*c.name))),
                         )
                     })
                 }
-
                 fn constants_in_pallet(
                     &self,
                     pallet_name: &str,
@@ -175,7 +186,6 @@ mod legacy {
                 use $path as path;
                 impl ConstantTypeInfo for path::$name {
                     type TypeId = LookupName;
-
                     fn constant_info(
                         &self,
                         pallet_name: &str,
@@ -209,21 +219,21 @@ mod legacy {
                             type_id,
                         })
                     }
-
-                    fn constants(&self) -> impl Iterator<Item = Entry<'_>> {
+                }
+                impl ConstantEntryInfo for path::$name {
+                    fn constant_entries(&self) -> impl Iterator<Item = ConstantEntry<'_>> {
                         as_decoded(&self.modules).iter().flat_map(|module| {
                             let pallet_name = as_decoded(&module.name);
                             let constants = as_decoded(&module.constants);
 
-                            core::iter::once(Entry::In(Cow::Borrowed(pallet_name))).chain(
+                            core::iter::once(Entry::In(Cow::Borrowed(&**pallet_name))).chain(
                                 constants.iter().map(|c| {
                                     let constant_name = as_decoded(&c.name);
-                                    Entry::Name(Cow::Borrowed(constant_name))
+                                    Entry::Name(Cow::Borrowed(&**constant_name))
                                 }),
                             )
                         })
                     }
-
                     fn constants_in_pallet(
                         &self,
                         pallet_name: &str,
