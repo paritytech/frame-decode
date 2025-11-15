@@ -31,13 +31,24 @@ pub trait ViewFunctionTypeInfo {
         pallet_name: &str,
         function_name: &str,
     ) -> Result<ViewFunctionInfo<'_, Self::TypeId>, ViewFunctionInfoError<'_>>;
-    /// Iterate over all of the available View Functions.
-    fn view_functions(&self) -> impl Iterator<Item = Entry<'_>>;
+}
+
+/// This can be implemented for anything capable of providing information about the available View Functions
+pub trait ViewFunctionEntryInfo {
+    /// Iterate over all of the available View Functions, returning [`Entry`] as we go.
+    fn view_function_entries(&self) -> impl Iterator<Item = ViewFunctionEntry<'_>>;
+    /// Iterate over all of the available View Functions, returning a pair of `(pallet_name, view_function_name)` as we go.
+    fn view_function_tuples(&self) -> impl Iterator<Item = (Cow<'_, str>, Cow<'_, str>)> {
+        Entry::tuples_of(self.view_function_entries())
+    }
     /// Iterate over all of the available View Functions in a given pallet.
     fn view_functions_in_pallet(&self, pallet: &str) -> impl Iterator<Item = Cow<'_, str>> {
-        Entry::entries_in(self.view_functions(), pallet)
+        Entry::entries_in(self.view_function_entries(), pallet)
     }
 }
+
+/// An entry denoting a pallet or a View Function name.
+pub type ViewFunctionEntry<'a> = Entry<Cow<'a, str>, Cow<'a, str>>;
 
 /// An error returned trying to access View Function type information.
 #[non_exhaustive]
@@ -72,7 +83,7 @@ impl<'info> ViewFunctionInfoError<'info> {
 }
 
 /// Information about a View Function.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewFunctionInfo<'info, TypeId: Clone> {
     /// The query Id to use to call the view function.
     pub query_id: [u8; 32],
@@ -137,7 +148,7 @@ impl<'info, TypeId: Clone> ViewFunctionInfo<'info, TypeId> {
 }
 
 /// Information about a specific input value to a View Function.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewFunctionInput<'info, TypeId> {
     /// Name of the input.
     pub name: Cow<'info, str>,
@@ -195,14 +206,16 @@ impl ViewFunctionTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
             output_id: view_fn.output.id,
         })
     }
+}
 
-    fn view_functions(&self) -> impl Iterator<Item = Entry<'_>> {
+impl ViewFunctionEntryInfo for frame_metadata::v16::RuntimeMetadataV16 {
+    fn view_function_entries(&self) -> impl Iterator<Item = ViewFunctionEntry<'_>> {
         self.pallets.iter().flat_map(|pallet| {
-            core::iter::once(Entry::In(Cow::Borrowed(&pallet.name))).chain(
+            core::iter::once(Entry::In(Cow::Borrowed(pallet.name.as_ref()))).chain(
                 pallet
                     .view_functions
                     .iter()
-                    .map(|vf| Entry::Name(Cow::Borrowed(&vf.name))),
+                    .map(|vf| Entry::Name(Cow::Borrowed(vf.name.as_ref()))),
             )
         })
     }
