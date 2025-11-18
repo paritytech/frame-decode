@@ -535,6 +535,7 @@ global:
     ParaId: u32
     HeadData: Bytes
     ValidationCode: Bytes
+    LeasePeriod: u32
 
     # Registrar
     ParaInfo:
