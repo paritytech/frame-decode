@@ -6,15 +6,15 @@ global:
     # Babe
     EquivocationProof<Header>:
       offender: AuthorityId
-      slotNumber: u64
-      firstHeader: Header
-      secondHeader: Header
+      slot_number: u64
+      first_header: Header
+      second_header: Header
     BabeAuthorityWeight: u64
     schnorrkel::Randomness: Hash
     Slot: u64
     BabeEpochConfiguration:
       c: (u64, u64)
-      allowedSlots: AllowedSlots
+      allowed_slots: AllowedSlots
     AllowedSlots:
       _enum: ['PrimarySlots', 'PrimaryAndSecondaryPlainSlots', 'PrimaryAndSecondaryVRFSlots']
     MaybeRandomness: Option<schnorrkel::Randomness>
@@ -22,8 +22,8 @@ global:
     # System
     Perbill: u32
     ChangesTrieConfiguration:
-      digestInterval: u32
-      digestLevels: u32
+      digest_interval: u32
+      digest_levels: u32
     KeyValue: '(StorageKey, StorageData)'
     Key: Bytes
     StorageKey: Bytes # Unsure about this: storage keys can vary in shape based on hashers etc.
@@ -37,11 +37,11 @@ global:
     T::AccountData:
       free: Balance
       reserved: Balance
-      miscFrozen: Balance
-      feeFrozen: Balance
+      misc_frozen: Balance
+      fee_frozen: Balance
     LastRuntimeUpgradeInfo:
-      specVersion: Compact<u32>
-      specName: Text
+      spec_version: Compact<u32>
+      spec_name: Text
     Text: String
     ExtrinsicsWeight:
       normal: Weight
@@ -59,7 +59,7 @@ global:
     DispatchInfo:
       weight: Weight
       class: DispatchClass
-      paysFee: Pays
+      pays_fee: Pays
     DispatchClass:
       _enum: ['Normal', 'Operational', 'Mandatory']
     Pays:
@@ -118,17 +118,17 @@ global:
     <T as Trait>::Call: builtin::Call
     <T as Config>::Call: builtin::Call
     Scheduled<Call, BlockNumber>:
-      maybeId: Option<Bytes>
+      maybe_id: Option<Bytes>
       priority: schedule::Priority
       call: Call
-      maybePeriodic: Option<schedule::Period<BlockNumber>>
+      maybe_periodic: Option<schedule::Period<BlockNumber>>
       # origin: T::PalletsOrigin
     TaskAddress<BlockNumber>: (BlockNumber, u32)
     Scheduled<Call, BlockNumber, PalletsOrigin, UnusedAccountId>:
-      maybeId: Option<Bytes>
+      maybe_id: Option<Bytes>
       priority: schedule::Priority
       call: Call
-      maybePeriodic: Option<(BlockNumber, u32)>
+      maybe_periodic: Option<(BlockNumber, u32)>
       origin: PalletsOrigin
     T::PalletsOrigin:
       # This should be built from metadata in an ideal world.
@@ -164,10 +164,10 @@ global:
 
     # Authorship
     T::Header:
-      parentHash: Hash
+      parent_hash: Hash
       number: Compact<T::BlockNumber>
-      stateRoot: Hash
-      extrinsicsRoot: Hash
+      state_root: Hash
+      extrinsics_root: Hash
       digest: Digest
     Digest:
       logs: Vec<DigestItem>
@@ -192,8 +192,8 @@ global:
       _enum:
         NewConfiguration: Option<ChangesTrieConfiguration>
     ChangesTrieConfiguration:
-      digestInterval: u32
-      digestLevels: u32
+      digest_interval: u32
+      digest_levels: u32
     Signature: H512
     ConsensusEngineId: '[u8; 4]'
 
@@ -254,21 +254,21 @@ global:
       total: Compact<Balance>
       active: Compact<Balance>
       unlocking: Vec<UnlockChunk<Balance>>
-      claimedRewards: Vec<EraIndex>
+      claimed_rewards: Vec<EraIndex>
     UnlockChunk<Balance>:
       value: Compact<Balance>
       era: Compact<BlockNumber>
     EraIndex: u32
     Nominations<AccountId>:
       targets: Vec<AccountId>
-      submittedIn: EraIndex
+      submitted_in: EraIndex
       suppressed: bool
     Moment: u64
     EraRewardPoints<AccountId>:
       total: u32
       individual: BTreeMap<AccountId, u32>
     ElectionResult<AccountId, Balance>:
-      electedStashes: Vec<AccountId>
+      elected_stashes: Vec<AccountId>
       exposures: Vec<(AccountId, Exposure<AccountId, Balance>)>
       compute: ElectionCompute
     ElectionCompute:
@@ -287,9 +287,9 @@ global:
         Close: []
         Open: BlockNumber
     slashing::SlashingSpans:
-      spanIndex: slashing::SpanIndex
-      lastStart: EraIndex
-      lastNonzeroSlash: EraIndex
+      span_index: slashing::SpanIndex
+      last_start: EraIndex
+      last_nonzero_slash: EraIndex
       prior: Vec<EraIndex>
     slashing::SpanIndex: u32
     UnappliedSlash<AccountId, Balance>:
@@ -299,13 +299,13 @@ global:
       reporters: Vec<AccountId>
       payout: Balance
     slashing::SlashingSpans:
-      spanIndex: slashing::SpanIndex
-      lastStart: EraIndex
-      lastNonzeroSlash: EraIndex
+      span_index: slashing::SpanIndex
+      last_start: EraIndex
+      last_nonzero_slash: EraIndex
       prior: Vec<EraIndex>
     slashing::SpanRecord<Balance>:
       slashed: Balance
-      paidOut: Balance
+      paid_out: Balance
 
     # Offences
     ReportIdOf<T>: Hash
@@ -363,33 +363,33 @@ global:
     T::KeyOwnerProof: MembershipProof
     MembershipProof:
       session: SessionIndex
-      trieNodes: Vec<Bytes>
-      validatorCount: ValidatorCount
+      trie_nodes: Vec<Bytes>
+      validator_count: ValidatorCount
     ValidatorCount: u32
     EquivocationProof<Hash, BlockNumber>:
-      setId: u64
+      set_id: u64
       equivocation: GrandpaEquivocation<Hash, BlockNumber>
     GrandpaEquivocation<Hash, BlockNumber>:
       _enum:
         Prevote: GrandpaEquivocationValue<Hash, BlockNumber>
         Precommit: GrandpaEquivocationValue<Hash, BlockNumber>
     GrandpaEquivocationValue<Hash, BlockNumber>:
-      roundNumber: u64
+      round_number: u64
       identity: AuthorityId
       first: '(GrandpaPrevote<Hash, BlockNumber>, AuthoritySignature)'
       second: '(GrandpaPrevote<Hash, BlockNumber>, AuthoritySignature)'
     GrandpaPrevote<Hash, BlockNumber>:
-      targetHash: Hash,
-      targetNumber: BlockNumber
+      target_hash: Hash,
+      target_number: BlockNumber
     SetId: u64
 
     # ImOnline
     Heartbeat<BN>:
-      blockNumber: BN
-      networkState: OpaqueNetworkState
-      sessionIndex: SessionIndex
-      authorityIndex: AuthIndex
-      validatorsLen: u32
+      block_number: BN
+      network_state: OpaqueNetworkState
+      session_index: SessionIndex
+      authority_index: AuthIndex
+      validators_len: u32
     <T::AuthorityId as RuntimeAppPublic>::Signature: H512
     T::AuthorityId: AccountId
     ValidatorId<T>: AccountId
@@ -420,7 +420,7 @@ global:
         # 4x votes, locked for 8x...
         - Locked4x
         # 5x votes, locked for 16x...
-        - Locked5x,
+        - Locked5x
         # 6x votes,locked for 32x...
         - Locked6x
     ReferendumInfo<BlockNumber, Hash, Balance>:
@@ -429,7 +429,7 @@ global:
         Finished: ReferendumInfoFinished<BlockNumber>
     ReferendumStatus<BlockNumber, Hash, Balance>:
       end: BlockNumber
-      proposalHash: Hash
+      proposal_hash: Hash
       threshold: VoteThreshold
       delay: BlockNumber
       tally: Tally<Balance>
@@ -438,11 +438,10 @@ global:
       nays: Balance
       turnout: Balance
     VoteThreshold:
-      _enum: [
-        'Super Majority Approve',
-        'Super Majority Against',
-        'Simple Majority'
-      ]
+      _enum:
+        - SuperMajorityApprove
+        - SuperMajorityAgainst
+        - SimpleMajority
     ReferendumInfoFinished<BlockNumber>:
       approved: bool
       end: BlockNumber
@@ -484,8 +483,8 @@ global:
     # ElectionsPhragmen
     DefunctVoter<Source>:
       who: Source,
-      voteCount: Compact<u32>
-      candidateCount: Compact<u32>
+      vote_count: Compact<u32>
+      candidate_count: Compact<u32>
     <T::Lookup as StaticLookup>::Source: AccountId
     Renouncing:
       _enum:
@@ -504,14 +503,14 @@ global:
     # Parachains
     AttestedCandidate:
       candidate: AbridgedCandidateReceipt
-      validityVotes: Vec<ValidityAttestation>
-      validatorIndices: BitVec
+      validity_votes: Vec<ValidityAttestation>
+      validator_indices: BitVec
     DoubleVoteReport<Proof>:
       identity: ValidatorId
       first: (Statement, ValidatorSignature)
       second: (Statement, ValidatorSignature)
       proof: Proof
-      signingContext: SigningContext
+      signing_context: SigningContext
     <T::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof: MembershipProof
     ValidatorId: AccountId
     ValidatorSignature: Signature
@@ -522,8 +521,8 @@ global:
         Valid: Hash
         Invalid: Hash
     SigningContext:
-      sessionIndex: SessionIndex
-      parentHash: Hash
+      session_index: SessionIndex
+      parent_hash: Hash
 
     # Attestations
     MoreAttestations: {}
@@ -552,8 +551,8 @@ global:
     # Vesting
     VestingInfo<Balance, BlockNumber>:
       locked: Balance
-      perBlock: Balance
-      startingBlock: BlockNumber
+      per_block: Balance
+      starting_block: BlockNumber
 
     # Utility
     Timepoint<BlockNumber>:
@@ -568,7 +567,7 @@ global:
       web: Data
       riot: Data
       email: Data
-      pgpFingerprint: Option<H160>
+      pgp_fingerprint: Option<H160>
       image: Data
       twitter: Data
     IdentityInfo<MaxAdditionalFields>: IdentityInfo
@@ -675,11 +674,11 @@ global:
     CallHashOf<T>: Hash
     ProxyDefinition<AccountId, ProxyType, BlockNumber>:
       delegate: AccountId
-      proxyType: ProxyType
+      proxy_type: ProxyType
       delay: BlockNumber
     Announcement<AccountId, CallHash, BlockNumber>:
       real: AccountId
-      callHash: CallHash
+      call_hash: CallHash
       height: BlockNumber
 
     # MultiSig
@@ -707,12 +706,12 @@ global:
       deposit: Balance
       closes: Option<BlockNumber>
       tips: Vec<(AccountId, Balance)>
-      findersFee: bool
+      finders_fee: bool
     Bounty<AccountId, Balance, BlockNumber>:
       proposer: AccountId
       value: Balance
       fee: Balance
-      curatorDeposit: Balance
+      curator_deposit: Balance
       bond: Balance
       status: BountyStatus<AccountId, BlockNumber>
     BountyStatus<AccountId, BlockNumber>:
@@ -725,19 +724,19 @@ global:
         PendingPayout: BountyStatusPendingPayout<AccountId, BlockNumber>
     BountyStatusActive<AccountId, BlockNumber>:
       curator: AccountId
-      updateDue: BlockNumber
+      update_due: BlockNumber
     BountyStatusCuratorProposed<AccountId>:
       curator: AccountId
     BountyStatusPendingPayout<AccountId, BlockNumber>:
       curator: AccountId
       beneficiary: AccountId
-      unlockAt: BlockNumber
+      unlock_at: BlockNumber
 
     # Purchase
     AccountStatus<Balance>:
       validity: AccountValidity
-      freeBalance: Balance
-      lockedBalance: Balance
+      free_balance: Balance
+      locked_balance: Balance
       signature: Vec<u8>
       vat: Permill
     AccountValidity:
@@ -745,8 +744,8 @@ global:
 
     # imOnline
     OpaqueNetworkState:
-      peerId: OpaquePeerId
-      externalAddresses: Vec<OpaqueMultiaddr>
+      peer_id: OpaquePeerId
+      external_addresses: Vec<OpaqueMultiaddr>
     OpaquePeerId: Bytes
     OpaqueMultiaddr: Bytes
     AuthIndex: u32
@@ -806,7 +805,7 @@ global:
     # signed exts
     ChargeAssetTxPayment:
       tip: Compact<Balance>
-      assetId: Option<AssetId>
+      asset_id: Option<AssetId>
     ChargeTransactionPayment:
       tip: Compact<Balance>
     CheckBlockGasLimit: []

@@ -234,6 +234,9 @@ mod test {
     use crate::methods::storage_type_info::StorageTypeInfo;
     use crate::methods::view_function_type_info::ViewFunctionTypeInfo;
     use crate::utils::ToTypeRegistry;
+    use scale_info_legacy::type_registry::TypeRegistryResolveError;
+    use scale_info_legacy::{ChainTypeRegistry, LookupName};
+    use scale_type_resolver::Field;
 
     // This will panic if there is any issue decoding the legacy types we provide.
     #[test]
@@ -241,6 +244,168 @@ mod test {
         let _ = crate::legacy_types::polkadot::relay_chain();
         let _ = crate::legacy_types::kusama::relay_chain();
         let _ = crate::legacy_types::kusama::asset_hub();
+    }
+
+    fn legacy_types() -> [(&'static str, ChainTypeRegistry); 3] {
+        [
+            ("Polkadot RC", crate::legacy_types::polkadot::relay_chain()),
+            ("Kusama RC", crate::legacy_types::kusama::relay_chain()),
+            ("Kusama AH", crate::legacy_types::kusama::asset_hub()),
+        ]
+    }
+
+    fn all_type_registry_sets(
+        registry: &scale_info_legacy::ChainTypeRegistry,
+    ) -> impl Iterator<Item = scale_info_legacy::TypeRegistrySet<'_>> {
+        let all_spec_versions = core::iter::once(u64::MAX)
+            .chain(registry.spec_version_ranges().map(|(low, _high)| low));
+        all_spec_versions.map(|version| registry.for_spec_version(version))
+    }
+
+    #[test]
+    fn test_legacy_types_have_sane_type_names() {
+        // We ignore these ones:
+        let builtins = &[
+            "u8", "u16", "u32", "u64", "u128", "u256", "i8", "i16", "i32", "i64", "i128", "i256",
+            "char", "bool", "str",
+        ];
+
+        for (chain, types) in legacy_types() {
+            for types in all_type_registry_sets(&types) {
+                for ty in types.keys() {
+                    if let Some(path_and_name) = ty.name() {
+                        let name = path_and_name.split("::").last().unwrap();
+
+                        if builtins.contains(&name) {
+                            continue;
+                        }
+
+                        if name.starts_with(|c: char| !c.is_uppercase() || !c.is_ascii_alphabetic())
+                        {
+                            panic!("{chain}: {ty} does not begin with an uppercase letter");
+                        }
+                        if name.contains(|c: char| !c.is_ascii_alphanumeric()) {
+                            panic!("{chain}: {ty} contains a non-ascii-alphanumeric character");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_legacy_types_have_sane_field_names() {
+        fn assert_sane<'a>(
+            chain: &str,
+            ty: &LookupName,
+            fields: impl Iterator<Item = Field<'a, LookupName>>,
+        ) {
+            let field_names: Vec<_> = fields.map(|f| f.name).collect();
+
+            let all_fields_named = field_names.iter().all(|n| n.is_some());
+            let all_fields_unnamed = field_names.iter().all(|n| n.is_none());
+
+            if !(all_fields_named || all_fields_unnamed) {
+                panic!("{chain}: All fields must be named or unnamed, but aren't in '{ty}'");
+            }
+            if all_fields_named {
+                for name in field_names.into_iter().map(|n| n.unwrap()) {
+                    let Some(fst) = name.chars().next() else {
+                        panic!("{chain}: {ty} has a present but empty field name");
+                    };
+                    if !fst.is_ascii_alphabetic() {
+                        panic!(
+                            "{chain}: {ty} field name '{name}' is invalid (does not start with ascii letter)"
+                        );
+                    }
+                    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                        panic!(
+                            "{chain}: {ty} field name '{name}' is invalid (non-ascii-letter-or-number-or-underscore present in the name"
+                        );
+                    }
+                    if name.contains(|c: char| c.is_uppercase()) {
+                        panic!(
+                            "{chain}: {ty} field name '{name}' contains uppercase. Field names should be lowercase only"
+                        );
+                    }
+                }
+            }
+        }
+
+        for (chain, types) in legacy_types() {
+            for types in all_type_registry_sets(&types) {
+                for ty in types.keys() {
+                    let visitor = scale_type_resolver::visitor::new((), |_, _| ())
+                        .visit_variant(|_ctx, _path, vars| {
+                            for variant in vars {
+                                assert_sane(chain, &ty, variant.fields);
+                            }
+                        })
+                        .visit_composite(|_ctx, _path, fields| {
+                            assert_sane(chain, &ty, fields);
+                        });
+
+                    if let Err(e) = types.resolve_type(ty.clone(), visitor) {
+                        match e {
+                            TypeRegistryResolveError::UnexpectedBitOrderType
+                            | TypeRegistryResolveError::UnexpectedBitStoreType => {
+                                /* Ignore these */
+                            }
+                            e => panic!("{chain}: Cannot resolve type '{ty}': {e}"),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_legacy_types_have_sane_variant_names() {
+        fn assert_sane(chain: &str, ty: &LookupName, variant_name: &str) {
+            let Some(fst) = variant_name.chars().next() else {
+                panic!("{chain}: Enum {ty} has an empty variant");
+            };
+
+            if !fst.is_uppercase() {
+                panic!(
+                    "{chain}: Enum {ty} variant name '{variant_name}' should start with an uppercase letter"
+                );
+            }
+            if !fst.is_ascii_alphabetic() {
+                panic!(
+                    "{chain}: Enum {ty} variant name '{variant_name}' should start with an ASCII letter"
+                );
+            }
+            if !variant_name.chars().all(|c| c.is_ascii_alphanumeric()) {
+                panic!(
+                    "{chain}: Enum {ty} variant name '{variant_name}' is invalid (non-ascii-letter-or-number present in the name"
+                );
+            }
+        }
+
+        for (chain, types) in legacy_types() {
+            for types in all_type_registry_sets(&types) {
+                for ty in types.keys() {
+                    let visitor = scale_type_resolver::visitor::new((), |_, _| ()).visit_variant(
+                        |_ctx, _path, vars| {
+                            for variant in vars {
+                                assert_sane(chain, &ty, variant.name);
+                            }
+                        },
+                    );
+
+                    if let Err(e) = types.resolve_type(ty.clone(), visitor) {
+                        match e {
+                            TypeRegistryResolveError::UnexpectedBitOrderType
+                            | TypeRegistryResolveError::UnexpectedBitStoreType => {
+                                /* Ignore these */
+                            }
+                            e => panic!("{chain}: Cannot resolve type '{ty}': {e}"),
+                        }
+                    }
+                }
+            }
+        }
     }
 
     macro_rules! impls_trait {
