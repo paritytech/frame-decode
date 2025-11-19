@@ -4,6 +4,11 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.14.0 (2025-11-19)
+
+- Add Kusama RC types capable of decoding historic blocks.
+- Enforce that type definitions have sane variable names and use **snake case** rather than **camel case** for field names. If field names were relied on, then note that some of them will change as a result of this.
+
 ## 0.13.0 (2025-11-14)
 
 - Separate the iterating over entries from the core `frame-decode` `*Info` traits; One only needs to implement `*Info` traits to work with `frame-decode`; the other traits are convenience traits.
