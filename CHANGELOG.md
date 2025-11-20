@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.15.0 (2025-11-20)
+
+- Update to `scale-info-legacy` 0.4.0.
+- Tweak `AccountId32` types to be unnamed structs rather than tuple types, so that they get a path.
+- Add `legacy_types::from_bytes` to convert provided bytes into a `ChainTypeRegistry`, negating the need to include `serde_yaml` or whatever in other crates.
+
 ## 0.14.0 (2025-11-19)
 
 - Add Kusama RC types capable of decoding historic blocks.

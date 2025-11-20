@@ -161,7 +161,7 @@ checksum = "f81ec6369c545a7d40e4589b5597581fa1c441fe1cce96dd1de43159910a36a2"
 
 [[package]]
 name = "frame-decode"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "frame-metadata",
  "hex",
@@ -459,9 +459,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-legacy"
-version = "0.3.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06423f0d7ea951547143aff4695c4c3e821e66c9b80729a3ff55fa93d23e93e6"
+checksum = "2500adfb429a0ffda37919df92c05d0c1359c10e0444c17253c84b84dfce542f"
 dependencies = [
  "hashbrown 0.15.0",
  "scale-type-resolver",
