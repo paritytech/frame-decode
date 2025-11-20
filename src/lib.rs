@@ -165,6 +165,15 @@ pub mod custom_values {
 pub mod legacy_types {
     //! This module contains legacy types that can be used to decode pre-V14 blocks and storage.
 
+    use alloc::boxed::Box;
+    type GenericError = Box<dyn core::error::Error + Send + Sync + 'static>;
+
+    /// Deserialize bytes into a [`scale_info_legacy::ChainTypeRegistry`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<scale_info_legacy::ChainTypeRegistry, GenericError> {
+        let types = serde_yaml::from_slice(bytes)?;
+        Ok(types)
+    }
+
     pub mod polkadot {
         //! Legacy types for Polkadot chains.
 

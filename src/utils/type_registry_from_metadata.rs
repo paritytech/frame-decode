@@ -151,7 +151,7 @@ const _: () = {
                                 call_variants.push(Variant {
                                     index: c_idx as u8,
                                     name: call_name.to_owned(),
-                                    fields: VariantDesc::StructOf(args)
+                                    fields: VariantDesc::NamedStructOf(args)
                                 });
                             }
 
@@ -165,7 +165,7 @@ const _: () = {
                             call_module_variants.push(Variant {
                                 index: calls_index,
                                 name: module_name.to_owned(),
-                                fields: VariantDesc::TupleOf(vec![call_enum_lookup_name])
+                                fields: VariantDesc::UnnamedStructOf(vec![call_enum_lookup_name])
                             });
                         }
 
@@ -186,7 +186,7 @@ const _: () = {
                                 event_variants.push(Variant {
                                     index: e_idx as u8,
                                     name: event_name.to_owned(),
-                                    fields: VariantDesc::TupleOf(args)
+                                    fields: VariantDesc::UnnamedStructOf(args)
                                 });
                             }
 
@@ -200,7 +200,7 @@ const _: () = {
                             event_module_variants.push(Variant {
                                 index: events_index,
                                 name: module_name.to_owned(),
-                                fields: VariantDesc::TupleOf(vec![event_enum_lookup_name])
+                                fields: VariantDesc::UnnamedStructOf(vec![event_enum_lookup_name])
                             });
                         }
 
@@ -213,7 +213,7 @@ const _: () = {
                                 Variant {
                                     index: e_idx as u8,
                                     name: event_name.to_owned(),
-                                    fields: VariantDesc::TupleOf(Vec::new())
+                                    fields: VariantDesc::UnnamedStructOf(Vec::new())
                                 }
                             }).collect();
 
@@ -227,7 +227,7 @@ const _: () = {
                             error_module_variants.push(Variant {
                                 index: errors_index,
                                 name: module_name.to_owned(),
-                                fields: VariantDesc::TupleOf(vec![error_enum_lookup_name])
+                                fields: VariantDesc::UnnamedStructOf(vec![error_enum_lookup_name])
                             });
                         }
                     }

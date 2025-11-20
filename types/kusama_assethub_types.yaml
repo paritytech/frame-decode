@@ -1232,7 +1232,7 @@ global:
       approvals: Compact<u32>
 
     Index: u32
-    AccountId32: "[u8; 32]"
+    AccountId32: [ "[u8; 32]" ]
     AccountId: AccountId32
     SessionIndex: u32
     Bytes: Vec<u8>
