@@ -856,20 +856,7 @@ global:
     ValidateDoubleVoteReports: []
     DisallowSigned: []
 
-    AbridgedHrmpChannel:
-      maxCapacity: u32
-      maxTotalSize: u32
-      maxMessageSize: u32
-      msgCount: u32
-      totalSize: u32
-      mqcHead: Option<Hash>
-
-    MessagingStateSnapshotEgressEntry: (ParaId, AbridgedHrmpChannel)
-    MessagingStateSnapshot:
-      relayDispatchQueueSize: (u32, u32)
-      egressChannels: Vec<MessagingStateSnapshotEgressEntry>
-      dmqMqcHead: Option<Hash>
-      relayDispatchQueueMqcHead: Hash
+    # (moved AbridgedHrmpChannel and MessagingStateSnapshot to forSpec overrides)
 
     # Additional ParachainSystem storage-related types
     MessageQueueChain: Hash
@@ -896,50 +883,141 @@ global:
       recipient: ParaId
       data: Bytes
 
+    AssetId: u32
+    T::AssetId: AssetId
 forSpec:
-  - range: [23, null]
+  - range: [1, 2]
     types:
-      CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
-      CompactAssignments:
-        votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
-        votes2: Vec<(Compact<NominatorIndex>, CompactScoreCompact, Compact<ValidatorIndex>)>
-        votes3: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 2], Compact<ValidatorIndex>)>
-        votes4: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 3], Compact<ValidatorIndex>)>
-        votes5: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 4], Compact<ValidatorIndex>)>
-        votes6: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 5], Compact<ValidatorIndex>)>
-        votes7: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 6], Compact<ValidatorIndex>)>
-        votes8: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 7], Compact<ValidatorIndex>)>
-        votes9: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 8], Compact<ValidatorIndex>)>
-        votes10: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 9], Compact<ValidatorIndex>)>
-        votes11: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 10], Compact<ValidatorIndex>)>
-        votes12: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 11], Compact<ValidatorIndex>)>
-        votes13: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 12], Compact<ValidatorIndex>)>
-        votes14: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 13], Compact<ValidatorIndex>)>
-        votes15: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 14], Compact<ValidatorIndex>)>
-        votes16: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 15], Compact<ValidatorIndex>)>
-  - range: [25, null]
+      # Statemine/AssetHub early runtime uses only Aura session key
+      T::Keys: AccountId
+  - range: [1, null]
     types:
       RefCount: u32
-  - range: [28, null]
-    types:
-      hardcoded::ExtrinsicAddress: MultiAddress<AccountId32,u32>
-      <T::Lookup as StaticLookup>::Source: MultiAddress<AccountId32,u32>
-      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
-      ValidatorPrefs:
-        commission: Compact<Perbill>
-        blocked: bool
-  - range: [28, 29]
-    types:
-      AccountInfo<Index, AccountData>:
-        nonce: Index
-        consumers: RefCount
-        providers: RefCount
-        data: AccountData
-  - range: [30, null]
-    types:
       AccountInfo<Index, AccountData>:
         nonce: Index
         consumers: RefCount
         providers: RefCount
         sufficients: RefCount
         data: AccountData
+      AbridgedHrmpChannel:
+        maxCapacity: u32
+        maxTotalSize: u32
+        maxMessageSize: u32
+        mqcHead: Option<Hash>
+      MessagingStateSnapshotEgressEntry: (ParaId, AbridgedHrmpChannel)
+      MessagingStateSnapshot:
+        relayDispatchQueueSize: (u32, u32)
+        relayDispatchQueueMqcHead: Hash
+        dmqMqcHead: Option<Hash>
+        egressChannels: Vec<MessagingStateSnapshotEgressEntry>
+      PageIndexData:
+        beginUsed: u32
+        endUsed: u32
+        firstIndex: u32
+        lastIndex: u32
+      # Assets pallet (FRAME V13 era)
+      DepositBalanceOf<T, I>: BalanceOf<T, I>
+      T::Extra: ()
+      AssetDetails<Balance, AccountId, DepositBalance>:
+        owner: AccountId
+        issuer: AccountId
+        admin: AccountId
+        freezer: AccountId
+        supply: Balance
+        deposit: DepositBalance
+        minBalance: Balance
+        isSufficient: bool
+        accounts: u32
+        sufficients: u32
+        approvals: u32
+        isFrozen: bool
+      AssetBalance<Balance, Extra>:
+        balance: Balance
+        isFrozen: bool
+        isSufficient: bool
+        extra: Extra
+      Approval<Balance, DepositBalance>:
+        amount: Balance
+        deposit: DepositBalance
+      AssetMetadata<DepositBalance, BVec>:
+        deposit: DepositBalance
+        name: BVec
+        symbol: BVec
+        decimals: u8
+        isFrozen: bool
+      # Uniques pallet (FRAME V13 era)
+      T::ClassId: u32
+      T::InstanceId: u32
+      ClassDetails<AccountId, DepositBalance>:
+        owner: AccountId
+        issuer: AccountId
+        admin: AccountId
+        freezer: AccountId
+        totalDeposit: DepositBalance
+        freeHolding: bool
+        instances: u32
+        instanceMetadatas: u32
+        attributes: u32
+        isFrozen: bool
+      InstanceDetails<AccountId, DepositBalance>:
+        owner: AccountId
+        approved: Option<AccountId>
+        isFrozen: bool
+        deposit: DepositBalance
+      ClassMetadata<DepositBalance, N>:
+        deposit: DepositBalance
+        data: BoundedVec<u8, N>
+        isFrozen: bool
+      InstanceMetadata<DepositBalance, N>:
+        deposit: DepositBalance
+        data: BoundedVec<u8, N>
+        isFrozen: bool
+      T::StringLimit: u32
+      T::KeyLimit: u32
+      T::ValueLimit: u32
+#  - range: [23, null]
+#    types:
+#      CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
+#      CompactAssignments:
+#        votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
+#        votes2: Vec<(Compact<NominatorIndex>, CompactScoreCompact, Compact<ValidatorIndex>)>
+#        votes3: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 2], Compact<ValidatorIndex>)>
+#        votes4: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 3], Compact<ValidatorIndex>)>
+#        votes5: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 4], Compact<ValidatorIndex>)>
+#        votes6: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 5], Compact<ValidatorIndex>)>
+#        votes7: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 6], Compact<ValidatorIndex>)>
+#        votes8: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 7], Compact<ValidatorIndex>)>
+#        votes9: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 8], Compact<ValidatorIndex>)>
+#        votes10: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 9], Compact<ValidatorIndex>)>
+#        votes11: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 10], Compact<ValidatorIndex>)>
+#        votes12: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 11], Compact<ValidatorIndex>)>
+#        votes13: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 12], Compact<ValidatorIndex>)>
+#        votes14: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 13], Compact<ValidatorIndex>)>
+#        votes15: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 14], Compact<ValidatorIndex>)>
+#        votes16: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 15], Compact<ValidatorIndex>)>
+#  - range: [25, null]
+#    types:
+#      RefCount: u32
+#  - range: [28, null]
+#    types:
+#      hardcoded::ExtrinsicAddress: MultiAddress<AccountId32,u32>
+#      <T::Lookup as StaticLookup>::Source: MultiAddress<AccountId32,u32>
+#      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
+#      ValidatorPrefs:
+#        commission: Compact<Perbill>
+#        blocked: bool
+#  - range: [28, 29]
+#    types:
+#      AccountInfo<Index, AccountData>:
+#        nonce: Index
+#        consumers: RefCount
+#        providers: RefCount
+#        data: AccountData
+#  - range: [30, null]
+#    types:
+#      AccountInfo<Index, AccountData>:
+#        nonce: Index
+#        consumers: RefCount
+#        providers: RefCount
+#        sufficients: RefCount
+#        data: AccountData
