@@ -1,6 +1,5 @@
-# This file provides all the type information necessary to decode historic blocks and storage entries on the 
-# Polkadot relay chain. See https://docs.rs/scale-info-legacy/0.2.0/scale_info_legacy/chain_types/struct.ChainTypeRegistry.html
-# for more information, or check out the documentation for this crate to see example usage.
+# This file provides all the type information necessary to decode storage entries on the 
+# kusama assethub chain. See https://docs.rs/scale-info-legacy/0.2.0/scale_info_legacy/chain_types/struct.ChainTypeRegistry.html
 global:
   types:
     # Babe
@@ -886,9 +885,8 @@ global:
     AssetId: u32
     T::AssetId: AssetId
 forSpec:
-  - range: [1, 2]
+  - range: [1, 3]
     types:
-      # Statemine/AssetHub early runtime uses only Aura session key
       T::Keys: AccountId
   - range: [1, null]
     types:
@@ -975,49 +973,50 @@ forSpec:
       T::StringLimit: u32
       T::KeyLimit: u32
       T::ValueLimit: u32
-#  - range: [23, null]
-#    types:
-#      CompactScoreCompact: (Compact<ValidatorIndex>, Compact<OffchainAccuracy>)
-#      CompactAssignments:
-#        votes1: Vec<(Compact<NominatorIndex>, Compact<ValidatorIndex>)>
-#        votes2: Vec<(Compact<NominatorIndex>, CompactScoreCompact, Compact<ValidatorIndex>)>
-#        votes3: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 2], Compact<ValidatorIndex>)>
-#        votes4: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 3], Compact<ValidatorIndex>)>
-#        votes5: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 4], Compact<ValidatorIndex>)>
-#        votes6: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 5], Compact<ValidatorIndex>)>
-#        votes7: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 6], Compact<ValidatorIndex>)>
-#        votes8: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 7], Compact<ValidatorIndex>)>
-#        votes9: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 8], Compact<ValidatorIndex>)>
-#        votes10: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 9], Compact<ValidatorIndex>)>
-#        votes11: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 10], Compact<ValidatorIndex>)>
-#        votes12: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 11], Compact<ValidatorIndex>)>
-#        votes13: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 12], Compact<ValidatorIndex>)>
-#        votes14: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 13], Compact<ValidatorIndex>)>
-#        votes15: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 14], Compact<ValidatorIndex>)>
-#        votes16: Vec<(Compact<NominatorIndex>, [CompactScoreCompact; 15], Compact<ValidatorIndex>)>
-#  - range: [25, null]
-#    types:
-#      RefCount: u32
-#  - range: [28, null]
-#    types:
-#      hardcoded::ExtrinsicAddress: MultiAddress<AccountId32,u32>
-#      <T::Lookup as StaticLookup>::Source: MultiAddress<AccountId32,u32>
-#      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
-#      ValidatorPrefs:
-#        commission: Compact<Perbill>
-#        blocked: bool
-#  - range: [28, 29]
-#    types:
-#      AccountInfo<Index, AccountData>:
-#        nonce: Index
-#        consumers: RefCount
-#        providers: RefCount
-#        data: AccountData
-#  - range: [30, null]
-#    types:
-#      AccountInfo<Index, AccountData>:
-#        nonce: Index
-#        consumers: RefCount
-#        providers: RefCount
-#        sufficients: RefCount
-#        data: AccountData
+      # XCM v0 Outcome used in older PolkadotXcm events
+      xcm::v0::Outcome: Outcome
+      Outcome:
+        _enum:
+          Complete: Weight
+          Incomplete: (Weight, XcmError)
+          Error: XcmError
+      # Minimal XCM error enum (v0). Order matches older runtimes sufficiently to decode common cases.
+      XcmError:
+        _enum:
+          Undefined: []
+          Unimplemented: []
+          UnhandledXcmMessage: []
+          UnhandledEffect: []
+          EscalationOfPrivilege: []
+          UntrustedReserveLocation: []
+          UntrustedTeleportLocation: []
+          DestinationNotInvertible: []
+          MultiLocationFull: []
+          MultiLocationNotInvertible: []
+          BadOrigin: []
+          InvalidLocation: []
+          AssetNotFound: []
+          FailedToTransactAsset: []
+          NotWithdrawable: []
+          LocationCannotHold: []
+          ExceedsMaxMessageSize: []
+          DestinationUnsupported: []
+          Locked: []
+          OrdersNotEmpty: []
+          DuplicateOrder: []
+          NotDepositable: []
+          Unwitnessed: []
+          UnknownClaim: []
+          Trap: u64
+          Overflow: []
+          UnimplementedXcmVersion: []
+          Incomplete: []
+          NetworkNotSupported: []
+          BadXcm: []
+          WeightLimitReached: []
+          WeightNotComputable: []
+          Barrier: []
+          SendFailed: []
+          Transport: []
+          Unroutable: []
+          UnknownError: []
