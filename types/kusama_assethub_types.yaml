@@ -1330,6 +1330,7 @@ global:
 
     AssetId: u32
     T::AssetId: AssetId
+
 forSpec:
   - range: [1, 3]
     types:
