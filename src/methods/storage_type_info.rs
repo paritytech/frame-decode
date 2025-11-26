@@ -139,15 +139,34 @@ pub struct StorageInfo<'info, TypeId: Clone> {
     pub value_id: TypeId,
     /// Bytes representing the default value for this entry, if one exists.
     pub default_value: Option<Cow<'info, [u8]>>,
+    /// Are we using V9 metadata prior to a change which added a new storage hasher?
+    ///
+    /// See https://github.com/paritytech/substrate/commit/bbb363f4320b4a72e059c0fca96af42296d5a6bf#diff-aa7bc120d701816def0f2a5eb469212d2b7021d2fc9d3b284f843f3f8089e91a
+    /// Here a new hasher is added in the middle of the hashers enum. Thus, Metadata produced
+    /// by V9 runtimes prior to this change will not correctly decode into `frame-metadata`'s V9
+    /// which includes the change.
+    ///
+    /// On Kusama for instance, this should be set to true when using metadata from any spec
+    /// version below 1032 in order to enable decoding correctly from it.
+    pub use_old_v9_storage_hashers: bool,
 }
 
 impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
+    /// For older V9 metadatas, this needs toggling. See the docs on [`StorageInfo::use_old_v9_storage_hashers`].
+    pub fn use_use_old_v9_storage_hashers(self, b: bool) -> Self {
+        StorageInfo {
+            use_old_v9_storage_hashers: b,
+            ..self
+        }
+    }
+
     /// Take ownership of this [`StorageInfo`], turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfo<'static, TypeId> {
         StorageInfo {
             keys: Cow::Owned(self.keys.into_owned()),
             value_id: self.value_id,
             default_value: self.default_value.map(|v| Cow::Owned(v.into_owned())),
+            use_old_v9_storage_hashers: self.use_old_v9_storage_hashers,
         }
     }
 
@@ -171,6 +190,7 @@ impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
             keys: Cow::Owned(new_keys),
             value_id: new_value_id,
             default_value: self.default_value.map(|d| Cow::Owned(d.into_owned())),
+            use_old_v9_storage_hashers: false,
         })
     }
 }
@@ -253,6 +273,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                         keys: Cow::Owned(Vec::new()),
                         value_id: value.id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     }),
                     path::StorageEntryType::Map {
                         hashers,
@@ -278,6 +299,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                 }])),
                                 value_id,
                                 default_value,
+                                use_old_v9_storage_hashers: false,
                             })
                         } else if let scale_info::TypeDef::Tuple(tuple) = &key_ty.type_def {
                             // Else, if the key is a tuple, we expect a matching number of hashers
@@ -297,6 +319,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                     keys,
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             } else {
                                 // Hasher and key mismatch
@@ -494,6 +517,7 @@ mod legacy {
                                     keys: Cow::Owned(Vec::new()),
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             }
                             path::StorageEntryType::Map {
@@ -509,6 +533,7 @@ mod legacy {
                                     }])),
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             }
                             path::StorageEntryType::DoubleMap {
@@ -536,6 +561,7 @@ mod legacy {
                                     ])),
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             }
                         }
@@ -668,6 +694,7 @@ mod legacy {
                         keys: Cow::Owned(Vec::new()),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::Map {
@@ -680,6 +707,7 @@ mod legacy {
                         keys: Cow::Owned(Vec::from_iter([StorageKeyInfo { hasher, key_id }])),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::DoubleMap {
@@ -707,6 +735,7 @@ mod legacy {
                         ])),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::NMap {
@@ -749,6 +778,7 @@ mod legacy {
                         keys: Cow::Owned(keys?),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
             }
