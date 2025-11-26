@@ -383,7 +383,12 @@ where
 
     let mut parts = vec![];
     for key in &*storage_info.keys {
-        let hasher = key.hasher;
+        let hasher = if storage_info.use_old_v9_storage_hashers {
+            map_to_old_v9_storage_hashers(key.hasher)
+        } else {
+            key.hasher
+        };
+
         let start_idx = curr_idx(cursor);
         let part = match &hasher {
             StorageHasher::Blake2_128 | StorageHasher::Twox128 => {
@@ -754,6 +759,23 @@ fn strip_bytes<'a, T>(
 
     *cursor = &cursor[num..];
     Ok(bytes)
+}
+
+fn map_to_old_v9_storage_hashers(hasher: StorageHasher) -> StorageHasher {
+    match hasher {
+        // See https://github.com/paritytech/substrate/commit/bbb363f4320b4a72e059c0fca96af42296d5a6bf#diff-aa7bc120d701816def0f2a5eb469212d2b7021d2fc9d3b284f843f3f8089e91a.
+        // We SCALE decode into the "new" variants seen there, but need to translate back to the old ones, which
+        // is what was actually encoded from the runtime.
+        StorageHasher::Blake2_128 => StorageHasher::Blake2_128,
+        StorageHasher::Blake2_256 => StorageHasher::Blake2_256,
+        StorageHasher::Blake2_128Concat => StorageHasher::Twox128,
+        StorageHasher::Twox128 => StorageHasher::Twox256,
+        StorageHasher::Twox256 => StorageHasher::Twox64Concat,
+
+        // These types didn't exist prior to the change, so just leave them alone:
+        StorageHasher::Twox64Concat => StorageHasher::Twox64Concat,
+        StorageHasher::Identity => StorageHasher::Identity,
+    }
 }
 
 #[cfg(test)]
