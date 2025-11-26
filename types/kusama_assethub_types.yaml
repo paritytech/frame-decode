@@ -1399,7 +1399,7 @@ forSpec:
         admin: AccountId
         freezer: AccountId
         total_deposit: DepositBalance
-        freeHolding: bool
+        free_holding: bool
         instances: u32
         instanceMetadatas: u32
         attributes: u32
