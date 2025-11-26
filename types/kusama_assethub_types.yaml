@@ -534,7 +534,7 @@ global:
     ParaId: u32
     HeadData: Bytes
     ValidationCode: Bytes
-    relay_chain::v1::BlockNumber: BlockNumber
+    Relay_chain::v1::BlockNumber: BlockNumber
 
     # Storage proof used in parachain inherent
     StorageProof:
