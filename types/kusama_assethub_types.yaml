@@ -1306,23 +1306,23 @@ global:
     # Additional ParachainSystem storage-related types
     MessageQueueChain: Hash
     AbridgedHostConfiguration:
-      maxCodeSize: Compact<u32>
-      maxHeadDataSize: Compact<u32>
-      maxUpwardQueueCount: Compact<u32>
-      maxUpwardQueueSize: Compact<u32>
-      maxUpwardMessageSize: Compact<u32>
-      maxUpwardMessageNumPerCandidate: Compact<u32>
-      hrmpMaxMessageNumPerCandidate: Compact<u32>
-      umpServiceTotalWeight: Weight
-      hrmpMaxParachainOutboundChannels: Compact<u32>
-      hrmpMaxParathreadOutboundChannels: Compact<u32>
-      hrmpOpenRequestTtl: Compact<u32>
-      hrmpChannelMaxCapacity: Compact<u32>
-      hrmpChannelMaxTotalSize: Compact<u32>
-      hrmpMaxParachainInboundChannels: u32
-      hrmpMaxParathreadInboundChannels: u32
-      hrmpChannelMaxMessageSize: u32
-      codeRetentionPeriod: u32
+      max_code_size: Compact<u32>
+      max_head_data_size: Compact<u32>
+      max_upward_queue_count: Compact<u32>
+      max_upward_queue_size: Compact<u32>
+      max_upward_message_size: Compact<u32>
+      max_upward_message_num_per_candidate: Compact<u32>
+      hrmp_max_message_num_per_candidate: Compact<u32>
+      ump_service_total_weight: Weight
+      hrmp_max_parachain_outbound_channels: Compact<u32>
+      hrmp_max_parathread_outbound_channels: Compact<u32>
+      hrmp_open_request_ttl: Compact<u32>
+      hrmp_channel_max_capacity: Compact<u32>
+      hrmp_channel_max_total_size: Compact<u32>
+      hrmp_max_parachain_inbound_channels: u32
+      hrmp_max_parathread_inbound_channels: u32
+      hrmp_channel_max_message_size: u32
+      code_retention_period: u32
     UpwardMessage: Bytes
     OutboundHrmpMessage:
       recipient: ParaId
