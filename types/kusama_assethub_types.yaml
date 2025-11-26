@@ -1345,16 +1345,16 @@ forSpec:
         sufficients: RefCount
         data: AccountData
       AbridgedHrmpChannel:
-        maxCapacity: u32
-        maxTotalSize: u32
-        maxMessageSize: u32
-        mqcHead: Option<Hash>
+        max_capacity: u32
+        max_total_size: u32
+        max_message_size: u32
+        mqc_head: Option<Hash>
       MessagingStateSnapshotEgressEntry: (ParaId, AbridgedHrmpChannel)
       MessagingStateSnapshot:
-        relayDispatchQueueSize: (u32, u32)
-        relayDispatchQueueMqcHead: Hash
-        dmqMqcHead: Option<Hash>
-        egressChannels: Vec<MessagingStateSnapshotEgressEntry>
+        relay_dispatch_queue_size: (u32, u32)
+        relay_dispatch_queue_mqc_head: Hash
+        dm_mqc_head: Option<Hash>
+        egress_channels: Vec<MessagingStateSnapshotEgressEntry>
       PageIndexData:
         beginUsed: u32
         endUsed: u32
@@ -1371,7 +1371,7 @@ forSpec:
         supply: Balance
         deposit: DepositBalance
         minBalance: Balance
-        isSufficient: bool
+        is_sufficient: bool
         accounts: u32
         sufficients: u32
         approvals: u32
@@ -1379,7 +1379,7 @@ forSpec:
       AssetBalance<Balance, Extra>:
         balance: Balance
         is_frozen: bool
-        isSufficient: bool
+        is_sufficient: bool
         extra: Extra
       Approval<Balance, DepositBalance>:
         amount: Balance
@@ -1401,7 +1401,7 @@ forSpec:
         total_deposit: DepositBalance
         free_holding: bool
         instances: u32
-        instanceMetadatas: u32
+        instance_metadatas: u32
         attributes: u32
         is_frozen: bool
       InstanceDetails<AccountId, DepositBalance>:
