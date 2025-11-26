@@ -1375,10 +1375,10 @@ forSpec:
         accounts: u32
         sufficients: u32
         approvals: u32
-        isFrozen: bool
+        is_frozen: bool
       AssetBalance<Balance, Extra>:
         balance: Balance
-        isFrozen: bool
+        is_frozen: bool
         isSufficient: bool
         extra: Extra
       Approval<Balance, DepositBalance>:
@@ -1389,7 +1389,7 @@ forSpec:
         name: BVec
         symbol: BVec
         decimals: u8
-        isFrozen: bool
+        is_frozen: bool
       # Uniques pallet (FRAME V13 era)
       T::ClassId: u32
       T::InstanceId: u32
@@ -1403,20 +1403,20 @@ forSpec:
         instances: u32
         instanceMetadatas: u32
         attributes: u32
-        isFrozen: bool
+        is_frozen: bool
       InstanceDetails<AccountId, DepositBalance>:
         owner: AccountId
         approved: Option<AccountId>
-        isFrozen: bool
+        is_frozen: bool
         deposit: DepositBalance
       ClassMetadata<DepositBalance, N>:
         deposit: DepositBalance
         data: BoundedVec<u8, N>
-        isFrozen: bool
+        is_frozen: bool
       InstanceMetadata<DepositBalance, N>:
         deposit: DepositBalance
         data: BoundedVec<u8, N>
-        isFrozen: bool
+        is_frozen: bool
       T::StringLimit: u32
       T::KeyLimit: u32
       T::ValueLimit: u32
