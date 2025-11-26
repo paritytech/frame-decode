@@ -1,4 +1,4 @@
-# This file provides the type information necessary to decode historic blocks on the 
+# This file provides the type information necessary to decode storage and historic blocks on the 
 # Kusama Asset Hub chain. See https://docs.rs/scale-info-legacy/0.2.0/scale_info_legacy/chain_types/struct.ChainTypeRegistry.html
 # for more information, or check out the documentation for this crate to see example usage.
 global:
@@ -1301,3 +1301,167 @@ global:
     RestrictFunctionality: []
     ValidateDoubleVoteReports: []
     DisallowSigned: []
+
+    # Additional ParachainSystem storage-related types
+    MessageQueueChain: Hash
+    AbridgedHostConfiguration:
+      maxCodeSize: Compact<u32>
+      maxHeadDataSize: Compact<u32>
+      maxUpwardQueueCount: Compact<u32>
+      maxUpwardQueueSize: Compact<u32>
+      maxUpwardMessageSize: Compact<u32>
+      maxUpwardMessageNumPerCandidate: Compact<u32>
+      hrmpMaxMessageNumPerCandidate: Compact<u32>
+      umpServiceTotalWeight: Weight
+      hrmpMaxParachainOutboundChannels: Compact<u32>
+      hrmpMaxParathreadOutboundChannels: Compact<u32>
+      hrmpOpenRequestTtl: Compact<u32>
+      hrmpChannelMaxCapacity: Compact<u32>
+      hrmpChannelMaxTotalSize: Compact<u32>
+      hrmpMaxParachainInboundChannels: u32
+      hrmpMaxParathreadInboundChannels: u32
+      hrmpChannelMaxMessageSize: u32
+      codeRetentionPeriod: u32
+    UpwardMessage: Bytes
+    OutboundHrmpMessage:
+      recipient: ParaId
+      data: Bytes
+
+    AssetId: u32
+    T::AssetId: AssetId
+forSpec:
+  - range: [1, 3]
+    types:
+      T::Keys: AccountId
+  - range: [1, null]
+    types:
+      RefCount: u32
+      AccountInfo<Index, AccountData>:
+        nonce: Index
+        consumers: RefCount
+        providers: RefCount
+        sufficients: RefCount
+        data: AccountData
+      AbridgedHrmpChannel:
+        maxCapacity: u32
+        maxTotalSize: u32
+        maxMessageSize: u32
+        mqcHead: Option<Hash>
+      MessagingStateSnapshotEgressEntry: (ParaId, AbridgedHrmpChannel)
+      MessagingStateSnapshot:
+        relayDispatchQueueSize: (u32, u32)
+        relayDispatchQueueMqcHead: Hash
+        dmqMqcHead: Option<Hash>
+        egressChannels: Vec<MessagingStateSnapshotEgressEntry>
+      PageIndexData:
+        beginUsed: u32
+        endUsed: u32
+        firstIndex: u32
+        lastIndex: u32
+      # Assets pallet (FRAME V13 era)
+      DepositBalanceOf<T, I>: BalanceOf<T, I>
+      T::Extra: ()
+      AssetDetails<Balance, AccountId, DepositBalance>:
+        owner: AccountId
+        issuer: AccountId
+        admin: AccountId
+        freezer: AccountId
+        supply: Balance
+        deposit: DepositBalance
+        minBalance: Balance
+        isSufficient: bool
+        accounts: u32
+        sufficients: u32
+        approvals: u32
+        isFrozen: bool
+      AssetBalance<Balance, Extra>:
+        balance: Balance
+        isFrozen: bool
+        isSufficient: bool
+        extra: Extra
+      Approval<Balance, DepositBalance>:
+        amount: Balance
+        deposit: DepositBalance
+      AssetMetadata<DepositBalance, BVec>:
+        deposit: DepositBalance
+        name: BVec
+        symbol: BVec
+        decimals: u8
+        isFrozen: bool
+      # Uniques pallet (FRAME V13 era)
+      T::ClassId: u32
+      T::InstanceId: u32
+      ClassDetails<AccountId, DepositBalance>:
+        owner: AccountId
+        issuer: AccountId
+        admin: AccountId
+        freezer: AccountId
+        totalDeposit: DepositBalance
+        freeHolding: bool
+        instances: u32
+        instanceMetadatas: u32
+        attributes: u32
+        isFrozen: bool
+      InstanceDetails<AccountId, DepositBalance>:
+        owner: AccountId
+        approved: Option<AccountId>
+        isFrozen: bool
+        deposit: DepositBalance
+      ClassMetadata<DepositBalance, N>:
+        deposit: DepositBalance
+        data: BoundedVec<u8, N>
+        isFrozen: bool
+      InstanceMetadata<DepositBalance, N>:
+        deposit: DepositBalance
+        data: BoundedVec<u8, N>
+        isFrozen: bool
+      T::StringLimit: u32
+      T::KeyLimit: u32
+      T::ValueLimit: u32
+      # XCM v0 Outcome used in older PolkadotXcm events
+      xcm::v0::Outcome: Outcome
+      Outcome:
+        _enum:
+          Complete: Weight
+          Incomplete: (Weight, XcmError)
+          Error: XcmError
+      # Minimal XCM error enum (v0). Order matches older runtimes sufficiently to decode common cases.
+      XcmError:
+        _enum:
+          Undefined: []
+          Unimplemented: []
+          UnhandledXcmMessage: []
+          UnhandledEffect: []
+          EscalationOfPrivilege: []
+          UntrustedReserveLocation: []
+          UntrustedTeleportLocation: []
+          DestinationNotInvertible: []
+          MultiLocationFull: []
+          MultiLocationNotInvertible: []
+          BadOrigin: []
+          InvalidLocation: []
+          AssetNotFound: []
+          FailedToTransactAsset: []
+          NotWithdrawable: []
+          LocationCannotHold: []
+          ExceedsMaxMessageSize: []
+          DestinationUnsupported: []
+          Locked: []
+          OrdersNotEmpty: []
+          DuplicateOrder: []
+          NotDepositable: []
+          Unwitnessed: []
+          UnknownClaim: []
+          Trap: u64
+          Overflow: []
+          UnimplementedXcmVersion: []
+          Incomplete: []
+          NetworkNotSupported: []
+          BadXcm: []
+          WeightLimitReached: []
+          WeightNotComputable: []
+          Barrier: []
+          SendFailed: []
+          Transport: []
+          Unroutable: []
+          UnknownError: []
