@@ -1398,7 +1398,7 @@ forSpec:
         issuer: AccountId
         admin: AccountId
         freezer: AccountId
-        totalDeposit: DepositBalance
+        total_deposit: DepositBalance
         freeHolding: bool
         instances: u32
         instanceMetadatas: u32
