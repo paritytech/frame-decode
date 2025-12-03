@@ -225,7 +225,9 @@ pub mod helpers {
         IntoEncodableValues, decode_with_error_tracing,
     };
     #[cfg(feature = "legacy")]
-    pub use crate::utils::{type_registry_from_metadata, type_registry_from_metadata_any};
+    pub use crate::utils::{
+        ToTypeRegistry, type_registry_from_metadata, type_registry_from_metadata_any,
+    };
 
     /// An alias to [`scale_decode::visitor::decode_with_visitor`]. This can be used to decode the byte ranges
     /// given back from functions like [`crate::extrinsics::decode_extrinsic`] or
