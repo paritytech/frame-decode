@@ -1,4 +1,4 @@
-# This file provides all the type information necessary to decode historic blocks on the Kusama relay chain
+# This file provides all the type information necessary to decode historic and storage blocks on the Kusama relay chain
 # for more information, or check out the documentation for this crate to see example usage.
 global:
   types:
@@ -145,6 +145,7 @@ global:
 
     # Timestamp
     T::Moment: u64
+    MomentOf<T>: T::Moment
 
     # Indices
     T::AccountIndex: u32
@@ -163,6 +164,8 @@ global:
     LockIdentifier: '[u8; 8]'
     Reasons:
       _enum: ['Fee', 'Misc', 'All']
+    # Early runtimes encoded lock withdraw reasons as bitflags; decode as scalar mask
+    WithdrawReasons: u8
     Multiplier: u128
 
     # Authorship
@@ -357,8 +360,8 @@ global:
       reward: Balance
 
     # Session
-    T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId)
-    T::ValidatorId: AccountId
+    T::Keys: (T::AccountId, T::AccountId, T::AccountId, T::AccountId, T::AccountId)
+    T::ValidatorId: T::AccountId
     KeyTypeId: u32
 
     # Grandpa
@@ -450,6 +453,14 @@ global:
         - SuperMajorityApprove
         - SuperMajorityAgainst
         - SimpleMajority
+    ReferendumInfo<BlockNumber, Hash>:
+      _enum:
+        Ongoing: ReferendumStatus<BlockNumber, Hash, Balance>
+        Finished: ReferendumInfoFinished<BlockNumber>
+    ReferendumInfo<T::BlockNumber, T::Hash>:
+      _enum:
+        Ongoing: ReferendumStatus<BlockNumber, Hash, Balance>
+        Finished: ReferendumInfoFinished<BlockNumber>
     ReferendumInfoFinished<BlockNumber>:
       approved: bool
       end: BlockNumber
@@ -711,7 +722,7 @@ global:
     OpenTip<AccountId, Balance, BlockNumber, Hash>:
       reason: Hash
       who: AccountId
-      finder: AccountId
+      finder: Option<AccountId>
       deposit: Balance
       closes: Option<BlockNumber>
       tips: Vec<(AccountId, Balance)>
@@ -764,6 +775,9 @@ global:
 
     WeakBoundedVec<Item, N>: Vec<Item>
     BoundedVec<Item, N>: Vec<Item>
+    Linkage<Item>:
+      previous: Option<Item>
+      next: Option<Item>
 
     Balance: u128
     BalanceOf<T>: Balance
@@ -981,7 +995,86 @@ global:
     DisallowSigned: []
 
     Box<Proposal>: Call
+    VestingSchedule<T::Balance, T::BlockNumber>:
+      locked: T::Balance
+      perBlock: T::Balance
+      startingBlock: T::BlockNumber
+    VestingSchedule<Balance, BlockNumber>:
+      locked: Balance
+      perBlock: Balance
+      startingBlock: BlockNumber
+    BalanceLock<Balance, BlockNumber>:
+      id: LockIdentifier
+      amount: Balance
+      reasons: Reasons
 forSpec:
+  - range: [0, null]
+    types:
+      # Early Democracy used a struct for ReferendumInfo (no Tally, no enum)
+      ReferendumInfo<BlockNumber, Hash>:
+        end: BlockNumber
+        proposal_hash: Hash
+        threshold: VoteThreshold
+        delay: BlockNumber
+      ReferendumInfo<T::BlockNumber, T::Hash>:
+        end: BlockNumber
+        proposal_hash: Hash
+        threshold: VoteThreshold
+        delay: BlockNumber
+  - range: [1000, null]
+    types:
+      Weight: u32
+      # Slots pallet aliases used in early Kusama events (e.g. NewLeasePeriod)
+      LeasePeriod: LeasePeriodOf<T>
+  - range: [1000, null]
+    types:
+      # Democracy ReferendumInfo at these specs is a struct, not an enum
+      ReferendumInfo<BlockNumber, Hash>:
+        end: BlockNumber
+        proposal_hash: Hash
+        threshold: VoteThreshold
+        delay: BlockNumber
+      ReferendumInfo<T::BlockNumber, T::Hash>:
+        end: BlockNumber
+        proposal_hash: Hash
+        threshold: VoteThreshold
+        delay: BlockNumber
+  - range: [1021, null]
+    types:
+      EraPoints:
+        total: u32
+        individual: Vec<u32>
+  - range: [1000, null]
+    types:
+      BalanceLock<T::Balance, T::BlockNumber>:
+        id: LockIdentifier
+        amount: T::Balance
+        until: BlockNumber
+        reasons: WithdrawReasons
+      # Early Kusama staking ledger did not include `claimed_rewards`
+      StakingLedger<AccountId, Balance>:
+        stash: AccountId
+        total: Compact<Balance>
+        active: Compact<Balance>
+        unlocking: Vec<UnlockChunk<Balance>>
+      # Legacy linked-map storage encodes linkage alongside the value; include it here
+      ValidatorPrefs:
+        commission: Compact<Perbill>
+        previous: Option<T::AccountId>
+        next: Option<T::AccountId>
+      Nominations<AccountId>:
+        targets: Vec<AccountId>
+        submitted_in: EraIndex
+        suppressed: bool
+        previous: Option<T::AccountId>
+        next: Option<T::AccountId>
+  - range: [1000, 1045]
+    types:
+      # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
+      slashing::SlashingSpans:
+        span_index: slashing::SpanIndex
+        last_start: EraIndex
+        prior: Vec<EraIndex>
   - range: [1019, 1045]
     types:
       LookupSource:
@@ -996,7 +1089,7 @@ forSpec:
   - range: [1032, 1042]
     types:
       # Spec 1032 specific overrides
-      Index: u64
+      Index: u32
       hardcoded::ExtrinsicAddress: LookupSource
       hardcoded::ExtrinsicSignature: MultiSignature
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
@@ -1043,6 +1136,26 @@ forSpec:
         pgp_fingerprint: Option<H160>
         image: Data
       IdentityFields: u64
+  - range: [1039, 1044]
+    types:
+      # Treasury.OpenTip layout at spec 1039 (no deposit, no finders_fee)
+      OpenTip<AccountId, Balance, BlockNumber, Hash>:
+        reason: Hash
+        who: AccountId
+        finder: Option<AccountId>
+        closes: Option<BlockNumber>
+        tips: Vec<(AccountId, Balance)>
+  - range: [1043, 1044]
+    types:
+      # Spec 1043–1044: OpenTip includes deposit and finders_fee
+      OpenTip<AccountId, Balance, BlockNumber, Hash>:
+        reason: Hash
+        who: AccountId
+        finder: Option<AccountId>
+        deposit: Balance
+        closes: Option<BlockNumber>
+        tips: Vec<(AccountId, Balance)>
+        finders_fee: bool
   - range: [1045, 1045]
     types:
       hardcoded::ExtrinsicAddress: LookupSource
