@@ -18,11 +18,11 @@
 use crate::Error;
 use frame_metadata::RuntimeMetadata;
 use parity_scale_codec::Decode;
-use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex};
+use subxt::PolkadotConfig;
 use subxt::backend::legacy::LegacyRpcMethods;
+use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex};
 use subxt::backend::rpc::RpcClient;
 use subxt::utils::H256;
-use subxt::PolkadotConfig;
 use subxt_rpcs::client::RpcParams;
 
 /// A wrapper around the Subxt RPC client for making Substrate RPC calls.

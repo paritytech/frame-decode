@@ -15,15 +15,15 @@
 
 //! Block testing functionality.
 
+use crate::Error;
 use crate::rpc::SubstrateRpc;
 use crate::types::{ChainTypes, DecodedArg, DecodedExtrinsic};
-use crate::Error;
 use frame_metadata::RuntimeMetadata;
 use scale_info_legacy::{ChainTypeRegistry, TypeRegistrySet};
 use scale_type_resolver::TypeResolver;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use subxt::utils::H256;
 use tokio::sync::mpsc;
 
@@ -234,8 +234,7 @@ impl TestBlocks {
                     }
 
                     let block_number = blocks[idx];
-                    let result =
-                        test_single_block(block_number, &mut state, &historic_types).await;
+                    let result = test_single_block(block_number, &mut state, &historic_types).await;
 
                     if let Ok(block_result) = result {
                         if tx.send((idx, block_result)).await.is_err() {
