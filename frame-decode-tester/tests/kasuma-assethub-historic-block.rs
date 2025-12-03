@@ -21,7 +21,8 @@ async fn test_kusama_asset_hub_historic_blocks() {
         .add_url("wss://kusama-asset-hub-rpc.polkadot.io")
         .chain_types(ChainTypes::KusamaAssetHub)
         .test_block(0)
-        .test_block(955286)
+        .test_block(100)
+        .test_block(1000)
         .run()
         .await
         .expect("Failed to run test");
