@@ -157,7 +157,7 @@ jobs:
           args: --examples --workspace
 
   decode-tester:
-    name: Decode tester integration tests
+    name: Check Block Decoding
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
