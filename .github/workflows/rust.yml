@@ -156,6 +156,26 @@ jobs:
           command: test
           args: --examples --workspace
 
+  decode-tester:
+    name: Check Block Decoding
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Rust stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.3.0
+
+      - name: Run decode tester tests
+        run: cargo test -p frame-decode-tester --test '*' -- --nocapture
+
   clippy:
     name: Cargo clippy
     runs-on: ubuntu-latest
