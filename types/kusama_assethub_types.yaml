@@ -354,7 +354,7 @@ global:
       reward: Balance
 
     # Session
-    T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId)
+    T::Keys: AccountId
     T::ValidatorId: AccountId
     KeyTypeId: u32
 
@@ -535,6 +535,7 @@ global:
     HeadData: Bytes
     ValidationCode: Bytes
     relay_chain::v1::BlockNumber: BlockNumber
+    RelayChainBlockNumber: u32
 
     # Storage proof used in parachain inherent
     StorageProof:
@@ -1461,7 +1462,3 @@ global:
         Transport: []
         Unroutable: []
         UnknownError: []
-forSpec:
-  - range: [1, 3]
-    types:
-      T::Keys: AccountId
