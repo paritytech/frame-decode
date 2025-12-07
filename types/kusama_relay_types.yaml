@@ -779,6 +779,17 @@ global:
       previous: Option<Item>
       next: Option<Item>
 
+    # Society pallet bids
+    Bid<AccountId, Balance>:
+      who: AccountId
+      kind: BidKind<AccountId, Balance>
+      value: Balance
+    BidKind<AccountId, Balance>:
+      _enum:
+        Deposit: Balance
+        Vouch: (AccountId, Balance)
+        VouchDeposit: (AccountId, Balance)
+
     Balance: u128
     BalanceOf<T>: Balance
     BalanceOf<T, I>: Balance
@@ -1095,6 +1106,17 @@ forSpec:
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
+  - range: [1042, 1042]
+    types:
+      OpenTip<T::AccountId, BalanceOf<T>, T::BlockNumber, T::Hash>:
+        reason: T::Hash
+        who: T::AccountId
+        finder: Option<(T::AccountId, BalanceOf<T>)>
+        closes: Option<T::BlockNumber>
+        tips: Vec<(T::AccountId, BalanceOf<T>)>
+  - range: [1045, 1045]
+    types:
+      <(T::AccountId, Conviction)>: Vec<(T::AccountId, Conviction), Linkage<T::AccountId>>
   - range: [1028, 1028]
     types:
       # Spec 1028: legacy Address for dest and signer
@@ -1136,26 +1158,6 @@ forSpec:
         pgp_fingerprint: Option<H160>
         image: Data
       IdentityFields: u64
-  - range: [1039, 1044]
-    types:
-      # Treasury.OpenTip layout at spec 1039 (no deposit, no finders_fee)
-      OpenTip<AccountId, Balance, BlockNumber, Hash>:
-        reason: Hash
-        who: AccountId
-        finder: Option<AccountId>
-        closes: Option<BlockNumber>
-        tips: Vec<(AccountId, Balance)>
-  - range: [1043, 1044]
-    types:
-      # Spec 1043–1044: OpenTip includes deposit and finders_fee
-      OpenTip<AccountId, Balance, BlockNumber, Hash>:
-        reason: Hash
-        who: AccountId
-        finder: Option<AccountId>
-        deposit: Balance
-        closes: Option<BlockNumber>
-        tips: Vec<(AccountId, Balance)>
-        finders_fee: bool
   - range: [1045, 1045]
     types:
       hardcoded::ExtrinsicAddress: LookupSource
