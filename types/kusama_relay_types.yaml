@@ -972,6 +972,9 @@ global:
     hardcoded::ExtrinsicAddress: AccountId32
     hardcoded::ExtrinsicSignature: Sr25519Signature
     hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment, CheckBlockGasLimit)'
+    hardcoded::Linked:
+      previous: Option<AccountId>
+      next: Option<AccountId>
 
     # Hardcoded types for old metadatas that don't know about them.
 

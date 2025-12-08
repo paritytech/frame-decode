@@ -465,7 +465,7 @@ mod legacy {
     use scale_info_legacy::LookupName;
 
     macro_rules! impl_storage_type_info_for_v8_to_v12 {
-        ($path:path, $name:ident, $to_storage_hasher:ident) => {
+        ($path:path, $name:ident, $to_storage_hasher:ident, $is_linked_field:ident) => {
             const _: () = {
                 use $path as path;
                 impl StorageTypeInfo for path::$name {
@@ -521,11 +521,20 @@ mod legacy {
                                 })
                             }
                             path::StorageEntryType::Map {
-                                hasher, key, value, ..
+                                hasher, key, value, $is_linked_field: is_linked, ..
                             } => {
+                                // is_linked is some weird field that only appears on single-maps (not DoubleMap etc)
+                                // and, if true, indicates that the value comes back with some trailing bytes pointing
+                                // at the previous and next linked entry. Thus, we need to modify our output type ID
+                                // to accomodate this.
+                                let value_id = if *is_linked {
+                                    decode_is_linked_lookup_name_or_err(value, pallet_name)?
+                                } else {
+                                    decode_lookup_name_or_err(value, pallet_name)?
+                                };
+
                                 let key_id = decode_lookup_name_or_err(key, pallet_name)?;
                                 let hasher = $to_storage_hasher(hasher);
-                                let value_id = decode_lookup_name_or_err(value, pallet_name)?;
                                 Ok(StorageInfo {
                                     keys: Cow::Owned(Vec::from_iter([StorageKeyInfo {
                                         hasher,
@@ -621,27 +630,32 @@ mod legacy {
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v8,
         RuntimeMetadataV8,
-        to_storage_hasher_v8
+        to_storage_hasher_v8,
+        is_linked
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v9,
         RuntimeMetadataV9,
-        to_storage_hasher_v9
+        to_storage_hasher_v9,
+        is_linked
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v10,
         RuntimeMetadataV10,
-        to_storage_hasher_v10
+        to_storage_hasher_v10,
+        is_linked
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v11,
         RuntimeMetadataV11,
-        to_storage_hasher_v11
+        to_storage_hasher_v11,
+        unused
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v12,
         RuntimeMetadataV12,
-        to_storage_hasher_v12
+        to_storage_hasher_v12,
+        unused
     );
 
     impl StorageTypeInfo for frame_metadata::v13::RuntimeMetadataV13 {
@@ -869,6 +883,17 @@ mod legacy {
         pallet_name: &str,
     ) -> Result<LookupName, StorageInfoError<'static>> {
         let ty = sanitize_type_name(as_decoded(s).as_ref());
+        lookup_name_or_err(&ty, pallet_name)
+    }
+
+    fn decode_is_linked_lookup_name_or_err<S: AsRef<str>>(
+        s: &DecodeDifferent<&str, S>,
+        pallet_name: &str,
+    ) -> Result<LookupName, StorageInfoError<'static>> {
+        let ty = sanitize_type_name(as_decoded(s).as_ref());
+        // Append a hardcoded::Linked type to the end, which we expect in the type definitions
+        // to be something like { previous: Option<AccountId>, next: Option<AccountId> }:
+        let ty = format!("({ty}, hardcoded::Linked)");
         lookup_name_or_err(&ty, pallet_name)
     }
 
