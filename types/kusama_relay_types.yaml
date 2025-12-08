@@ -972,12 +972,15 @@ global:
     hardcoded::ExtrinsicAddress: AccountId32
     hardcoded::ExtrinsicSignature: Sr25519Signature
     hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment, CheckBlockGasLimit)'
+    # Legacy linked-map storage encodes linkage alongside the value; when
+    # frame-decode sees the historic `is_linked` flag it appends a
+    # `hardcoded::Linked` component to the storage value type. This models the
+    # `Linkage<T::AccountId>` shape used by those maps.
     hardcoded::Linked:
       previous: Option<AccountId>
       next: Option<AccountId>
-
     # Hardcoded types for old metadatas that don't know about them.
-
+    StrikeCount: u32
     # signed exts
     ChargeAssetTxPayment:
       tip: Compact<Balance>
@@ -1071,17 +1074,16 @@ forSpec:
         total: Compact<Balance>
         active: Compact<Balance>
         unlocking: Vec<UnlockChunk<Balance>>
-      # Legacy linked-map storage encodes linkage alongside the value; include it here
+      # Legacy linked-map storage for staking (Validators, Nominators) is
+      # modeled via an extra `hardcoded::Linked` component on the storage
+      # value type, so the value types themselves stay the same as in newer
+      # runtimes.
       ValidatorPrefs:
         commission: Compact<Perbill>
-        previous: Option<T::AccountId>
-        next: Option<T::AccountId>
       Nominations<AccountId>:
         targets: Vec<AccountId>
         submitted_in: EraIndex
         suppressed: bool
-        previous: Option<T::AccountId>
-        next: Option<T::AccountId>
   - range: [1000, 1044]
     types:
       # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
@@ -1109,7 +1111,7 @@ forSpec:
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
-  - range: [1042, 1042]
+  - range: [1042, 1050]
     types:
       OpenTip<T::AccountId, BalanceOf<T>, T::BlockNumber, T::Hash>:
         reason: T::Hash
@@ -1117,9 +1119,6 @@ forSpec:
         finder: Option<(T::AccountId, BalanceOf<T>)>
         closes: Option<T::BlockNumber>
         tips: Vec<(T::AccountId, BalanceOf<T>)>
-  - range: [1045, 1045]
-    types:
-      <(T::AccountId, Conviction)>: Vec<(T::AccountId, Conviction), Linkage<T::AccountId>>
   - range: [1028, 1028]
     types:
       # Spec 1028: legacy Address for dest and signer
