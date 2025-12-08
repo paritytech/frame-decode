@@ -1079,7 +1079,7 @@ forSpec:
         suppressed: bool
         previous: Option<T::AccountId>
         next: Option<T::AccountId>
-  - range: [1000, 1045]
+  - range: [1000, 1044]
     types:
       # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
       slashing::SlashingSpans:
@@ -1199,7 +1199,7 @@ forSpec:
     types:
       # Society pallet's Judgement for this specific runtime version
       Judgement: u8
-  - range: [2008, null]
+  - range: [2005, null]
     types:
       # Council.close uses Compact<Weight> for proposal_weight_bound; by this spec Weight is u64.
       Weight: u64
