@@ -31,7 +31,7 @@ jobs:
           override: true
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       # Dev note: we don't use `--all-targets` because tests require all features
       # and we don't want to have to gate different tests behind different features.
@@ -69,7 +69,7 @@ jobs:
           override: true
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Check all features
         uses: actions-rs/cargo@v1.0.3
@@ -93,7 +93,7 @@ jobs:
             components: rustfmt
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Cargo fmt
         uses: actions-rs/cargo@v1.0.3
@@ -116,7 +116,7 @@ jobs:
           override: true
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Check internal documentation links
         run: RUSTDOCFLAGS="--deny rustdoc::broken_intra_doc_links" cargo doc -vv --workspace --no-deps --document-private-items
@@ -136,7 +136,7 @@ jobs:
           override: true
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Cargo test
         uses: actions-rs/cargo@v1.0.3
@@ -172,7 +172,7 @@ jobs:
             override: true
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Run clippy
         uses: actions-rs/cargo@v1
@@ -196,7 +196,7 @@ jobs:
           override: true
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Check no_std build
         uses: actions-rs/cargo@v1.0.3
