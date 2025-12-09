@@ -60,10 +60,17 @@ pub fn type_registry_from_metadata_any(
 }
 
 #[cfg(feature = "legacy")]
-pub trait ToTypeRegistry {
+/// This is used with the [`type_registry_from_metadata`] helper function to extract types from the
+/// metadata. It is not intended to be implemented on anything else.
+pub trait ToTypeRegistry: sealed::Sealed {
+    /// Return a type registry.
     fn to_type_registry(
         &self,
     ) -> Result<scale_info_legacy::TypeRegistry, scale_info_legacy::lookup_name::ParseError>;
+}
+
+mod sealed {
+    pub trait Sealed {}
 }
 
 #[cfg(feature = "legacy")]
@@ -79,6 +86,7 @@ const _: () = {
 
     macro_rules! impl_for_v8_to_v13 {
         ($path:path $(, $builtin_index:ident)?) => {
+            impl sealed::Sealed for $path {}
             impl ToTypeRegistry for $path {
                 fn to_type_registry(&self) -> Result<scale_info_legacy::TypeRegistry, scale_info_legacy::lookup_name::ParseError> {
                     let metadata = self;

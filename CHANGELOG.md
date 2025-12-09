@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.16.1 (2025-12-03)
+
+- Expose the `crate::helpers::ToTypeRegistry` trait so that inputs to `crate::helpers::type_registry_from_metadata` can be named. Make it sealed so that others cannot rely on it.
+
 ## 0.16.0 (2025-11-26)
 
 - Add a flag to `StorageInfo` which can be set in order to tell `frame-decode` to use the old version of V9 storage hashers when decoding storage keys. We need to manually toggle this flag when using metadata produced by runtimes prior to [this change](https://github.com/paritytech/substrate/commit/bbb363f4320b4a72e059c0fca96af42296d5a6bf#diff-aa7bc120d701816def0f2a5eb469212d2b7021d2fc9d3b284f843f3f8089e91a), which altered the storage hashers (and thus their encoding/decoding). Kusama prior to spec version 1032 is one such case when this needs to be toggled.
