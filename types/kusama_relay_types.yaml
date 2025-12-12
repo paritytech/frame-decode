@@ -1209,6 +1209,10 @@ forSpec:
     types:
       Address: AccountId32
       LookupSource: AccountId32
+  - range: [2025, null]
+    types:
+      # From this spec, `RefCount` was upgraded to `u32` (see `UpgradedToU32RefCount` flag in metadata).
+      RefCount: u32
   - range: [9000, null]
     types:
       # ParasInherent (relay-chain) types needed to decode spec >= 9000
@@ -1346,6 +1350,23 @@ forSpec:
       ValidatorPrefs:
         commission: Compact<Perbill>
         blocked: bool
+      # AccountInfo upgraded to dual refcount (consumers + providers) at spec 2028
+      AccountInfo<Index, AccountData>:
+        nonce: Index
+        consumers: RefCount
+        providers: RefCount
+        data: AccountData
+  - range: [2030, null]
+    types:
+      # AccountInfo upgraded to triple refcount (consumers + providers + sufficients)
+      # By this spec, the runtime encodes an additional `sufficients: RefCount`
+      # field, which would otherwise appear as 4 leftover bytes when decoding.
+      AccountInfo<Index, AccountData>:
+        nonce: Index
+        consumers: RefCount
+        providers: RefCount
+        sufficients: RefCount
+        data: AccountData
   - range: [9010, null]
     types:
       # Witness as defined in metadata (two Compact<u32> fields)
