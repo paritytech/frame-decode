@@ -521,7 +521,11 @@ mod legacy {
                                 })
                             }
                             path::StorageEntryType::Map {
-                                hasher, key, value, $is_linked_field: is_linked, ..
+                                hasher,
+                                key,
+                                value,
+                                $is_linked_field: is_linked,
+                                ..
                             } => {
                                 // is_linked is some weird field that only appears on single-maps (not DoubleMap etc)
                                 // and, if true, indicates that the value comes back with some trailing bytes pointing
