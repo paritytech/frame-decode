@@ -26,12 +26,8 @@ pub use decode_with_error_tracing::{DecodeErrorTrace, decode_with_error_tracing}
 pub use either::Either;
 #[cfg(feature = "legacy")]
 pub use type_registry_from_metadata::{
-    type_registry_from_metadata, type_registry_from_metadata_any,
+    ToTypeRegistry, type_registry_from_metadata, type_registry_from_metadata_any,
 };
-
-// We don't want to expose these traits at the moment, but want to test them.
-#[cfg(all(test, feature = "legacy"))]
-pub use type_registry_from_metadata::ToTypeRegistry;
 
 /// A utility function to unwrap the `DecodeDifferent` enum found in earlier metadata versions.
 #[cfg(feature = "legacy")]
