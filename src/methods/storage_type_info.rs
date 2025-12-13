@@ -17,9 +17,9 @@ use super::Entry;
 use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use alloc::format;
 
 /// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the
 /// type IDs and related info needed to decode storage entries.
