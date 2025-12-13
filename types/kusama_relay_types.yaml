@@ -1014,12 +1014,12 @@ global:
     Box<Proposal>: Call
     VestingSchedule<T::Balance, T::BlockNumber>:
       locked: T::Balance
-      perBlock: T::Balance
-      startingBlock: T::BlockNumber
+      per_block: T::Balance
+      starting_block: T::BlockNumber
     VestingSchedule<Balance, BlockNumber>:
       locked: Balance
-      perBlock: Balance
-      startingBlock: BlockNumber
+      per_block: Balance
+      starting_block: BlockNumber
     BalanceLock<Balance, BlockNumber>:
       id: LockIdentifier
       amount: Balance
@@ -1056,7 +1056,7 @@ forSpec:
         proposal_hash: Hash
         threshold: VoteThreshold
         delay: BlockNumber
-  - range: [1021, null]
+  - range: [1020, null]
     types:
       EraPoints:
         total: u32
