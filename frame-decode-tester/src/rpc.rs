@@ -121,8 +121,12 @@ impl SubstrateRpc {
 }
 
 /// Minimal representation of the runtime version returned by `state_getRuntimeVersion`.
+///
+/// The RPC returns camelCase JSON field names (e.g. `specVersion`), so we need
+/// to rename this field accordingly for deserialization to succeed.
 #[derive(Deserialize)]
 struct RuntimeVersion {
+    #[serde(rename = "specVersion")]
     spec_version: u32,
 }
 

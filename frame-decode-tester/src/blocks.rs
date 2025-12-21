@@ -256,11 +256,19 @@ impl TestBlocks {
                     }
 
                     let block_number = blocks[idx];
-                    let result = test_single_block(block_number, &mut state, &historic_types).await;
+                    let result =
+                        test_single_block(block_number, &mut state, &historic_types).await;
 
-                    if let Ok(block_result) = result {
-                        if tx.send((idx, block_result)).await.is_err() {
-                            break;
+                    match result {
+                        Ok(block_result) => {
+                            if tx.send((idx, block_result)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Worker {worker_idx}: failed to test block {block_number}: {e}"
+                            );
                         }
                     }
                 }

@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "frame-decode"
-version = "0.16.0"
+version = "0.16.1"
 dependencies = [
  "frame-metadata 23.0.0",
  "hex",
@@ -812,7 +812,7 @@ dependencies = [
 name = "frame-decode-tester"
 version = "0.1.0"
 dependencies = [
- "frame-decode 0.16.0",
+ "frame-decode 0.16.1",
  "frame-metadata 23.0.0",
  "hex",
  "parity-scale-codec",
