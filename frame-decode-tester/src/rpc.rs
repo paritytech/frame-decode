@@ -18,10 +18,10 @@
 use crate::Error;
 use frame_metadata::RuntimeMetadata;
 use parity_scale_codec::Decode;
+use serde::Deserialize;
 use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex};
 use subxt::utils::H256;
 use subxt_rpcs::client::{RpcClient, RpcParams};
-use serde::Deserialize;
 
 /// A thin wrapper around the low-level RPC client for making Substrate RPC calls.
 pub struct SubstrateRpc {

@@ -114,8 +114,7 @@ impl TestBlocksBuilder {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        self.urls
-            .extend(urls.into_iter().map(|url| url.into()));
+        self.urls.extend(urls.into_iter().map(|url| url.into()));
         self
     }
 
@@ -256,8 +255,7 @@ impl TestBlocks {
                     }
 
                     let block_number = blocks[idx];
-                    let result =
-                        test_single_block(block_number, &mut state, &historic_types).await;
+                    let result = test_single_block(block_number, &mut state, &historic_types).await;
 
                     match result {
                         Ok(block_result) => {
