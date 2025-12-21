@@ -80,7 +80,11 @@ impl ExtrinsicTestResult {
 
 /// Builder for configuring block tests.
 pub struct TestBlocksBuilder {
-    url: Option<String>,
+    /// One or more RPC URLs to connect to.
+    ///
+    /// Multiple URLs allow us to spread load across several nodes. Each worker
+    /// will pick one of the configured URLs to connect to.
+    urls: Vec<String>,
     chain_types: ChainTypes,
     blocks: Vec<u64>,
     connections: usize,
@@ -89,7 +93,7 @@ pub struct TestBlocksBuilder {
 impl Default for TestBlocksBuilder {
     fn default() -> Self {
         TestBlocksBuilder {
-            url: None,
+            urls: Vec::new(),
             chain_types: ChainTypes::default(),
             blocks: Vec::new(),
             connections: 10,
@@ -100,7 +104,18 @@ impl Default for TestBlocksBuilder {
 impl TestBlocksBuilder {
     /// Set the RPC URL to connect to.
     pub fn add_url(mut self, url: impl Into<String>) -> Self {
-        self.url = Some(url.into());
+        self.urls.push(url.into());
+        self
+    }
+
+    /// Add multiple RPC URLs to connect to.
+    pub fn add_urls<I, S>(mut self, urls: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.urls
+            .extend(urls.into_iter().map(|url| url.into()));
         self
     }
 
@@ -124,7 +139,9 @@ impl TestBlocksBuilder {
 
     /// Build and run the block tests.
     pub async fn run(mut self) -> Result<TestBlocks, Error> {
-        let url = self.url.ok_or(Error::NoUrlsConfigured)?;
+        if self.urls.is_empty() {
+            return Err(Error::NoUrlsConfigured);
+        }
 
         if self.blocks.is_empty() {
             return Err(Error::NoBlocksSpecified);
@@ -135,7 +152,7 @@ impl TestBlocksBuilder {
         self.blocks.dedup();
 
         let test_blocks = TestBlocks {
-            url,
+            urls: self.urls,
             chain_types: self.chain_types,
             blocks: self.blocks,
             connections: self.connections,
@@ -148,7 +165,11 @@ impl TestBlocksBuilder {
 
 /// Block tester that connects to a Substrate node and tests extrinsic decoding.
 pub struct TestBlocks {
-    url: String,
+    /// RPC URLs to connect to.
+    ///
+    /// When multiple URLs are provided, workers will be distributed across
+    /// these URLs in a simple round-robin fashion to help parallelise work.
+    urls: Vec<String>,
     chain_types: ChainTypes,
     blocks: Vec<u64>,
     connections: usize,
@@ -194,7 +215,7 @@ impl TestBlocks {
     /// Execute the block tests.
     async fn execute(mut self) -> Result<TestBlocks, Error> {
         let historic_types = Arc::new(self.chain_types.load());
-        let url = Arc::new(self.url.clone());
+        let urls = Arc::new(self.urls.clone());
         let num_connections = self.connections.min(self.blocks.len());
 
         // Create a shared index into the blocks list
@@ -205,8 +226,8 @@ impl TestBlocks {
         let (tx, mut rx) = mpsc::channel::<(usize, BlockTestResult)>(num_connections * 2);
 
         // Spawn worker tasks
-        for _ in 0..num_connections {
-            let url = url.clone();
+        for worker_idx in 0..num_connections {
+            let urls = urls.clone();
             let blocks = blocks.clone();
             let next_block_idx = next_block_idx.clone();
             let historic_types = historic_types.clone();
@@ -214,6 +235,7 @@ impl TestBlocks {
 
             tokio::spawn(async move {
                 // Each worker creates its own connection
+                let url = urls[worker_idx % urls.len()].clone();
                 let rpc = match SubstrateRpc::connect(&url).await {
                     Ok(rpc) => rpc,
                     Err(_) => return,

@@ -819,8 +819,10 @@ dependencies = [
  "scale-info-legacy",
  "scale-type-resolver",
  "scale-value",
+ "serde",
  "subxt",
  "subxt-rpcs",
+ "thiserror 1.0.69",
  "tokio",
 ]
 

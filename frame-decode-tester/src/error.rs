@@ -15,39 +15,28 @@
 
 //! Error types for frame-decode-tester.
 
-use std::fmt;
-
 /// Errors that can occur during testing.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// No URL configured for testing.
+    #[error("No RPC URL configured")]
     NoUrlsConfigured,
     /// No blocks specified for testing.
+    #[error("No blocks specified for testing")]
     NoBlocksSpecified,
     /// Failed to connect to RPC endpoint.
+    #[error("Failed to connect: {0}")]
     ConnectionFailed(String),
     /// RPC request failed.
+    #[error("RPC error: {0}")]
     RpcError(String),
     /// Failed to decode metadata.
+    #[error("Metadata decode error: {0}")]
     MetadataDecodeError(String),
     /// Block not found.
+    #[error("Block {0} not found")]
     BlockNotFound(u64),
 }
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::NoUrlsConfigured => write!(f, "No RPC URL configured"),
-            Error::NoBlocksSpecified => write!(f, "No blocks specified for testing"),
-            Error::ConnectionFailed(msg) => write!(f, "Failed to connect: {msg}"),
-            Error::RpcError(msg) => write!(f, "RPC error: {msg}"),
-            Error::MetadataDecodeError(msg) => write!(f, "Metadata decode error: {msg}"),
-            Error::BlockNotFound(num) => write!(f, "Block {num} not found"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 impl From<subxt::Error> for Error {
     fn from(e: subxt::Error) -> Self {

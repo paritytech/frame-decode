@@ -18,34 +18,35 @@
 use crate::Error;
 use frame_metadata::RuntimeMetadata;
 use parity_scale_codec::Decode;
-use subxt::PolkadotConfig;
-use subxt::backend::legacy::LegacyRpcMethods;
 use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex};
-use subxt::backend::rpc::RpcClient;
 use subxt::utils::H256;
-use subxt_rpcs::client::RpcParams;
+use subxt_rpcs::client::{RpcClient, RpcParams};
+use serde::Deserialize;
 
-/// A wrapper around the Subxt RPC client for making Substrate RPC calls.
+/// A thin wrapper around the low-level RPC client for making Substrate RPC calls.
 pub struct SubstrateRpc {
     client: RpcClient,
-    legacy: LegacyRpcMethods<PolkadotConfig>,
 }
 
 impl SubstrateRpc {
     /// Connect to a Substrate node at the given URL.
     pub async fn connect(url: &str) -> Result<Self, Error> {
-        let client = RpcClient::from_insecure_url(url)
+        let client = RpcClient::from_url(url)
             .await
             .map_err(|e| Error::ConnectionFailed(format!("{url}: {e}")))?;
-        let legacy = LegacyRpcMethods::new(client.clone());
-        Ok(SubstrateRpc { client, legacy })
+        Ok(SubstrateRpc { client })
     }
 
     /// Get the block hash for a given block number.
     pub async fn get_block_hash(&self, block_number: u64) -> Result<Option<H256>, Error> {
+        let mut params = RpcParams::new();
+        params
+            .push(NumberOrHex::Number(block_number))
+            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+
         let hash = self
-            .legacy
-            .chain_get_block_hash(Some(NumberOrHex::Number(block_number)))
+            .client
+            .request::<Option<H256>>("chain_getBlockHash", params)
             .await
             .map_err(|e| Error::RpcError(format!("chain_getBlockHash: {e}")))?;
         Ok(hash)
@@ -53,9 +54,14 @@ impl SubstrateRpc {
 
     /// Get the block body (extrinsics) for a given block hash.
     pub async fn get_block_body(&self, hash: H256) -> Result<Vec<Bytes>, Error> {
-        let block = self
-            .legacy
-            .chain_get_block(Some(hash))
+        let mut params = RpcParams::new();
+        params
+            .push(format!("{hash:?}"))
+            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+
+        let block: Option<SignedBlock<Bytes>> = self
+            .client
+            .request("chain_getBlock", params)
             .await
             .map_err(|e| Error::RpcError(format!("chain_getBlock: {e}")))?;
 
@@ -67,9 +73,16 @@ impl SubstrateRpc {
 
     /// Get the runtime version at a given block hash.
     pub async fn get_runtime_version(&self, hash: Option<H256>) -> Result<u32, Error> {
+        let mut params = RpcParams::new();
+        if let Some(h) = hash {
+            params
+                .push(format!("{h:?}"))
+                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+        }
+
         let version = self
-            .legacy
-            .state_get_runtime_version(hash)
+            .client
+            .request::<RuntimeVersion>("state_getRuntimeVersion", params)
             .await
             .map_err(|e| Error::RpcError(format!("state_getRuntimeVersion: {e}")))?;
         Ok(version.spec_version)
@@ -105,6 +118,24 @@ impl SubstrateRpc {
 
         Ok(bytes)
     }
+}
+
+/// Minimal representation of the runtime version returned by `state_getRuntimeVersion`.
+#[derive(Deserialize)]
+struct RuntimeVersion {
+    spec_version: u32,
+}
+
+/// Minimal representation of a signed block returned by `chain_getBlock`.
+#[derive(Deserialize)]
+struct SignedBlock<T> {
+    block: Block<T>,
+}
+
+/// Minimal representation of a block containing just the extrinsics field we care about.
+#[derive(Deserialize)]
+struct Block<T> {
+    extrinsics: Vec<T>,
 }
 
 /// Decode metadata from raw bytes.
