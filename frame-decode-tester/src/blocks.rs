@@ -130,6 +130,17 @@ impl TestBlocksBuilder {
         self
     }
 
+    /// Test multiple blocks by number.
+    ///
+    /// Blocks will be sorted and deduplicated when `.run()` is called.
+    pub fn test_blocks<I>(mut self, blocks: I) -> Self
+    where
+        I: IntoIterator<Item = u64>,
+    {
+        self.blocks.extend(blocks);
+        self
+    }
+
     /// Set the number of parallel connections to use (default: 10).
     pub fn connections(mut self, count: usize) -> Self {
         self.connections = count.max(1);
