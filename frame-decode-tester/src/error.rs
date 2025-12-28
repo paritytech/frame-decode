@@ -24,6 +24,9 @@ pub enum Error {
     /// No blocks specified for testing.
     #[error("No blocks specified for testing")]
     NoBlocksSpecified,
+    /// No storage items specified for testing.
+    #[error("No storage items specified for testing")]
+    NoStorageItemsSpecified,
     /// Failed to connect to RPC endpoint.
     #[error("Failed to connect: {0}")]
     ConnectionFailed(String),

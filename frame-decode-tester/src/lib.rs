@@ -37,8 +37,10 @@
 mod blocks;
 mod error;
 mod rpc;
+mod storage;
 mod types;
 
 pub use blocks::{BlockTestResult, ExtrinsicTestResult, TestBlocks};
 pub use error::Error;
+pub use storage::{StorageBlockTestResult, StorageItem, StorageItemTestResult, StorageValueTestResult, TestStorage};
 pub use types::{ChainTypes, DecodedExtrinsic};

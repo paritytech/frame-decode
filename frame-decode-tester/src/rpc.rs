@@ -23,6 +23,17 @@ use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex};
 use subxt::utils::H256;
 use subxt_rpcs::client::{RpcClient, RpcParams};
 
+fn bytes_to_hex_prefixed(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(2 + bytes.len() * 2);
+    out.push_str("0x");
+    out.push_str(&hex::encode(bytes));
+    out
+}
+
+fn strip_0x(s: &str) -> &str {
+    s.strip_prefix("0x").unwrap_or(s)
+}
+
 /// A thin wrapper around the low-level RPC client for making Substrate RPC calls.
 pub struct SubstrateRpc {
     client: RpcClient,
@@ -117,6 +128,78 @@ impl SubstrateRpc {
             hex::decode(hex_str).map_err(|e| Error::MetadataDecodeError(format!("hex: {e}")))?;
 
         Ok(bytes)
+    }
+
+    /// Get raw storage value bytes for a given storage key at a given block hash.
+    ///
+    /// This uses `state_getStorage`.
+    pub async fn get_storage(&self, key: &[u8], hash: Option<H256>) -> Result<Option<Vec<u8>>, Error> {
+        let mut params = RpcParams::new();
+        params
+            .push(bytes_to_hex_prefixed(key))
+            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+        if let Some(h) = hash {
+            params
+                .push(format!("{h:?}"))
+                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+        }
+
+        let result: Option<String> = self
+            .client
+            .request("state_getStorage", params)
+            .await
+            .map_err(|e| Error::RpcError(format!("state_getStorage: {e}")))?;
+
+        let Some(hex_str) = result else {
+            return Ok(None);
+        };
+        let bytes = hex::decode(strip_0x(&hex_str))
+            .map_err(|e| Error::RpcError(format!("state_getStorage hex decode: {e}")))?;
+        Ok(Some(bytes))
+    }
+
+    /// Get storage keys for a given prefix, paged.
+    ///
+    /// This uses `state_getKeysPaged(prefix, count, start_key, at)`.
+    pub async fn get_keys_paged(
+        &self,
+        prefix: &[u8],
+        count: u32,
+        start_key: Option<&[u8]>,
+        hash: Option<H256>,
+    ) -> Result<Vec<Vec<u8>>, Error> {
+        let mut params = RpcParams::new();
+        params
+            .push(bytes_to_hex_prefixed(prefix))
+            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+        params
+            .push(count)
+            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+
+        let start: Option<String> = start_key.map(bytes_to_hex_prefixed);
+        params
+            .push(start)
+            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+
+        if let Some(h) = hash {
+            params
+                .push(format!("{h:?}"))
+                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+        }
+
+        let keys_hex: Vec<String> = self
+            .client
+            .request("state_getKeysPaged", params)
+            .await
+            .map_err(|e| Error::RpcError(format!("state_getKeysPaged: {e}")))?;
+
+        let mut out = Vec::with_capacity(keys_hex.len());
+        for k in keys_hex {
+            let bytes =
+                hex::decode(strip_0x(&k)).map_err(|e| Error::RpcError(format!("key hex: {e}")))?;
+            out.push(bytes);
+        }
+        Ok(out)
     }
 }
 
