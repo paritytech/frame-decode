@@ -54,5 +54,3 @@ async fn test_kusama_asset_hub_historic_storage() {
         tester.value_count()
     );
 }
-
-

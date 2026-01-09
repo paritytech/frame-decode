@@ -42,5 +42,7 @@ mod types;
 
 pub use blocks::{BlockTestResult, ExtrinsicTestResult, TestBlocks};
 pub use error::Error;
-pub use storage::{StorageBlockTestResult, StorageItem, StorageItemTestResult, StorageValueTestResult, TestStorage};
+pub use storage::{
+    StorageBlockTestResult, StorageItem, StorageItemTestResult, StorageValueTestResult, TestStorage,
+};
 pub use types::{ChainTypes, DecodedExtrinsic};

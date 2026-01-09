@@ -133,7 +133,11 @@ impl SubstrateRpc {
     /// Get raw storage value bytes for a given storage key at a given block hash.
     ///
     /// This uses `state_getStorage`.
-    pub async fn get_storage(&self, key: &[u8], hash: Option<H256>) -> Result<Option<Vec<u8>>, Error> {
+    pub async fn get_storage(
+        &self,
+        key: &[u8],
+        hash: Option<H256>,
+    ) -> Result<Option<Vec<u8>>, Error> {
         let mut params = RpcParams::new();
         params
             .push(bytes_to_hex_prefixed(key))

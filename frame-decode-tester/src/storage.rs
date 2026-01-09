@@ -194,7 +194,8 @@ impl TestStorageBuilder {
         pallet_name: impl Into<String>,
         storage_entry: impl Into<String>,
     ) -> Self {
-        self.items.push(StorageItem::new(pallet_name, storage_entry));
+        self.items
+            .push(StorageItem::new(pallet_name, storage_entry));
         self
     }
 
@@ -423,7 +424,8 @@ async fn test_single_storage_block(
             .for_spec_version(spec_version as u64)
             .to_owned();
 
-        if let Ok(metadata_types) = frame_decode::helpers::type_registry_from_metadata_any(&metadata)
+        if let Ok(metadata_types) =
+            frame_decode::helpers::type_registry_from_metadata_any(&metadata)
         {
             types_for_spec.prepend(metadata_types);
         }
@@ -471,7 +473,10 @@ async fn test_single_storage_block(
                         types_for_spec,
                     );
                     values.push(match result {
-                        Ok(value) => StorageValueTestResult::Success { key: key_hex, value },
+                        Ok(value) => StorageValueTestResult::Success {
+                            key: key_hex,
+                            value,
+                        },
                         Err(error) => StorageValueTestResult::Failure {
                             key: key_hex,
                             error,
@@ -550,15 +555,57 @@ fn decode_storage_value_to_result(
     let mut cursor = &*bytes;
 
     let value = match metadata {
-        RuntimeMetadata::V8(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, legacy_types_for_spec),
-        RuntimeMetadata::V9(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, legacy_types_for_spec),
-        RuntimeMetadata::V10(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, legacy_types_for_spec),
-        RuntimeMetadata::V11(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, legacy_types_for_spec),
-        RuntimeMetadata::V12(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, legacy_types_for_spec),
-        RuntimeMetadata::V13(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, legacy_types_for_spec),
-        RuntimeMetadata::V14(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types),
-        RuntimeMetadata::V15(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types),
-        RuntimeMetadata::V16(m) => decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types),
+        RuntimeMetadata::V8(m) => decode_storage_value_inner(
+            &mut cursor,
+            pallet_name,
+            storage_entry,
+            m,
+            legacy_types_for_spec,
+        ),
+        RuntimeMetadata::V9(m) => decode_storage_value_inner(
+            &mut cursor,
+            pallet_name,
+            storage_entry,
+            m,
+            legacy_types_for_spec,
+        ),
+        RuntimeMetadata::V10(m) => decode_storage_value_inner(
+            &mut cursor,
+            pallet_name,
+            storage_entry,
+            m,
+            legacy_types_for_spec,
+        ),
+        RuntimeMetadata::V11(m) => decode_storage_value_inner(
+            &mut cursor,
+            pallet_name,
+            storage_entry,
+            m,
+            legacy_types_for_spec,
+        ),
+        RuntimeMetadata::V12(m) => decode_storage_value_inner(
+            &mut cursor,
+            pallet_name,
+            storage_entry,
+            m,
+            legacy_types_for_spec,
+        ),
+        RuntimeMetadata::V13(m) => decode_storage_value_inner(
+            &mut cursor,
+            pallet_name,
+            storage_entry,
+            m,
+            legacy_types_for_spec,
+        ),
+        RuntimeMetadata::V14(m) => {
+            decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types)
+        }
+        RuntimeMetadata::V15(m) => {
+            decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types)
+        }
+        RuntimeMetadata::V16(m) => {
+            decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types)
+        }
         _ => Err("Unsupported metadata version".to_string()),
     }?;
 
@@ -599,5 +646,3 @@ where
 
     Ok(value)
 }
-
-
