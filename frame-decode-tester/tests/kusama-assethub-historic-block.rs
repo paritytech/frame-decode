@@ -21,7 +21,10 @@ async fn test_kusama_asset_hub_historic_blocks() {
     let tester = TestBlocks::builder()
         .add_url("wss://kusama-asset-hub-rpc.polkadot.io")
         .chain_types(ChainTypes::KusamaAssetHub)
-        .test_blocks([26668, 38244, 54248, 59658, 67650, 82191, 83237, 101503, 203466, 295787, 461692, 504329, 569326, 587686, 653183, 693487, 901442])
+        .test_blocks([
+            26668, 38244, 54248, 59658, 67650, 82191, 83237, 101503, 203466, 295787, 461692,
+            504329, 569326, 587686, 653183, 693487, 901442,
+        ])
         .run()
         .await
         .expect("Failed to run test");
