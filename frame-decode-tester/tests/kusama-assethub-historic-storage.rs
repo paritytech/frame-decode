@@ -21,7 +21,7 @@ async fn test_kusama_asset_hub_historic_storage() {
     let tester = TestStorage::builder()
         .add_url("wss://kusama-asset-hub-rpc.polkadot.io")
         .chain_types(ChainTypes::KusamaAssetHub)
-        .test_blocks([0, 100, 1000])
+        .test_blocks([26668, 38244, 54248, 59658, 67650, 82191, 83237, 101503, 203466, 295787, 461692, 504329, 569326, 587686, 653183, 693487, 901442])
         // Keep this starter test conservative: a plain storage value with a single key.
         .test_storage_item("System", "Number")
         .max_keys_per_item(1)
