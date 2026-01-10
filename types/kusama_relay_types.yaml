@@ -453,10 +453,6 @@ global:
         - SuperMajorityApprove
         - SuperMajorityAgainst
         - SimpleMajority
-    ReferendumInfo<BlockNumber, Hash>:
-      _enum:
-        Ongoing: ReferendumStatus<BlockNumber, Hash, Balance>
-        Finished: ReferendumInfoFinished<BlockNumber>
     ReferendumInfo<T::BlockNumber, T::Hash>:
       _enum:
         Ongoing: ReferendumStatus<BlockNumber, Hash, Balance>
@@ -1027,12 +1023,6 @@ global:
 forSpec:
   - range: [0, null]
     types:
-      # Early Democracy used a struct for ReferendumInfo (no Tally, no enum)
-      ReferendumInfo<BlockNumber, Hash>:
-        end: BlockNumber
-        proposal_hash: Hash
-        threshold: VoteThreshold
-        delay: BlockNumber
       ReferendumInfo<T::BlockNumber, T::Hash>:
         end: BlockNumber
         proposal_hash: Hash
@@ -1043,19 +1033,6 @@ forSpec:
       Weight: u32
       # Slots pallet aliases used in early Kusama events (e.g. NewLeasePeriod)
       LeasePeriod: LeasePeriodOf<T>
-  - range: [1000, null]
-    types:
-      # Democracy ReferendumInfo at these specs is a struct, not an enum
-      ReferendumInfo<BlockNumber, Hash>:
-        end: BlockNumber
-        proposal_hash: Hash
-        threshold: VoteThreshold
-        delay: BlockNumber
-      ReferendumInfo<T::BlockNumber, T::Hash>:
-        end: BlockNumber
-        proposal_hash: Hash
-        threshold: VoteThreshold
-        delay: BlockNumber
   - range: [1020, null]
     types:
       EraPoints:
