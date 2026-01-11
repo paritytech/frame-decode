@@ -161,9 +161,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for paths-filter to compare commits
+
+      - name: Check which type files changed
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          # Make diffing deterministic and easy to reproduce with act tool
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            kusama_assethub:
+              - 'types/kusama_assethub_types.yaml'
+              - 'frame-decode-tester/tests/kusama-assethub-*.rs'
+              - 'frame-decode-tester/src/**'
+              - 'frame-decode-tester/Cargo.toml'
 
       - name: Install Rust stable toolchain
+        if: steps.changes.outputs.kusama_assethub == 'true'
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -171,62 +188,21 @@ jobs:
           override: true
 
       - name: Rust Cache
+        if: steps.changes.outputs.kusama_assethub == 'true'
         uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Determine which decode tests to run
-        id: decode_matrix
-        shell: bash
+      - name: Run Kusama Asset Hub decode tests
+        if: steps.changes.outputs.kusama_assethub == 'true'
         run: |
-          set -euo pipefail
+          cargo test -p frame-decode-tester \
+            --features kusama-assethub \
+            --test kusama-assethub-historic-block \
+            --test kusama-assethub-historic-storage \
+            -- --nocapture
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          else
-            BASE_SHA="${{ github.event.before }}"
-          fi
-          HEAD_SHA="${{ github.sha }}"
-
-          echo "Base SHA: $BASE_SHA"
-          echo "Head SHA: $HEAD_SHA"
-
-          if [[ -z "$BASE_SHA" ]]; then
-            echo "No base SHA found; running all decode tests by default."
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "features=kusama-assethub" >> "$GITHUB_OUTPUT"
-            echo "tests=--test kasuma-assethub-historic-block" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" || true)
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-
-          run=false
-          features=()
-          tests=()
-
-          if echo "$CHANGED_FILES" | grep -q '^types/kusama_assethub_types\.yaml$'; then
-            run=true
-            features+=("kusama-assethub")
-            tests+=("--test kasuma-assethub-historic-block")
-          fi
-
-          if [[ "$run" == "false" ]]; then
-            echo "No relevant type files changed; skipping decode tester tests."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Running decode tests with features: ${features[*]}"
-          echo "run=true" >> "$GITHUB_OUTPUT"
-          echo "features=$(IFS=, ; echo "${features[*]}")" >> "$GITHUB_OUTPUT"
-          echo "tests=${tests[*]}" >> "$GITHUB_OUTPUT"
-
-      - name: Run decode tester tests
-        if: steps.decode_matrix.outputs.run == 'true'
-        run: |
-          set -euo pipefail
-          cargo test -p frame-decode-tester --features "${{ steps.decode_matrix.outputs.features }}" ${{ steps.decode_matrix.outputs.tests }} -- --nocapture
+      - name: Skip decode tests (no relevant changes)
+        if: steps.changes.outputs.kusama_assethub != 'true'
+        run: echo "No relevant type files changed; skipping decode tester tests."
 
   clippy:
     name: Cargo clippy

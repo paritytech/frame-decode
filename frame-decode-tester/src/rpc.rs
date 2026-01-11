@@ -22,6 +22,7 @@ use serde::Deserialize;
 use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex};
 use subxt::utils::H256;
 use subxt_rpcs::client::{RpcClient, RpcParams};
+use subxt_rpcs::{LegacyRpcMethods, RpcConfig};
 
 fn bytes_to_hex_prefixed(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(2 + bytes.len() * 2);
@@ -34,9 +35,23 @@ fn strip_0x(s: &str) -> &str {
     s.strip_prefix("0x").unwrap_or(s)
 }
 
+/// Minimal RPC configuration for our RPC methods.
+/// We only need the Hash type for the methods we use.
+struct MinimalConfig;
+
+impl RpcConfig for MinimalConfig {
+    type Hash = H256;
+    // We don't use these, but the trait requires them.
+    // Use H256 as a placeholder that satisfies the trait bounds.
+    type Header =
+        subxt::config::substrate::SubstrateHeader<u32, subxt::config::substrate::BlakeTwo256>;
+    type AccountId = subxt::utils::AccountId32;
+}
+
 /// A thin wrapper around the low-level RPC client for making Substrate RPC calls.
 pub struct SubstrateRpc {
     client: RpcClient,
+    legacy: LegacyRpcMethods<MinimalConfig>,
 }
 
 impl SubstrateRpc {
@@ -45,7 +60,8 @@ impl SubstrateRpc {
         let client = RpcClient::from_url(url)
             .await
             .map_err(|e| Error::ConnectionFailed(format!("{url}: {e}")))?;
-        Ok(SubstrateRpc { client })
+        let legacy = LegacyRpcMethods::new(client.clone());
+        Ok(SubstrateRpc { client, legacy })
     }
 
     /// Get the block hash for a given block number.
@@ -53,7 +69,7 @@ impl SubstrateRpc {
         let mut params = RpcParams::new();
         params
             .push(NumberOrHex::Number(block_number))
-            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+            .expect("Serializing RPC params shouldn't fail");
 
         let hash = self
             .client
@@ -68,7 +84,7 @@ impl SubstrateRpc {
         let mut params = RpcParams::new();
         params
             .push(format!("{hash:?}"))
-            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+            .expect("Serializing RPC params shouldn't fail");
 
         let block: Option<SignedBlock<Bytes>> = self
             .client
@@ -84,16 +100,9 @@ impl SubstrateRpc {
 
     /// Get the runtime version at a given block hash.
     pub async fn get_runtime_version(&self, hash: Option<H256>) -> Result<u32, Error> {
-        let mut params = RpcParams::new();
-        if let Some(h) = hash {
-            params
-                .push(format!("{h:?}"))
-                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
-        }
-
         let version = self
-            .client
-            .request::<RuntimeVersion>("state_getRuntimeVersion", params)
+            .legacy
+            .state_get_runtime_version(hash)
             .await
             .map_err(|e| Error::RpcError(format!("state_getRuntimeVersion: {e}")))?;
         Ok(version.spec_version)
@@ -113,7 +122,7 @@ impl SubstrateRpc {
         if let Some(h) = hash {
             params
                 .push(format!("{h:?}"))
-                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+                .expect("Serializing RPC params shouldn't fail");
         }
 
         let result: String = self
@@ -141,11 +150,11 @@ impl SubstrateRpc {
         let mut params = RpcParams::new();
         params
             .push(bytes_to_hex_prefixed(key))
-            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+            .expect("Serializing RPC params shouldn't fail");
         if let Some(h) = hash {
             params
                 .push(format!("{h:?}"))
-                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+                .expect("Serializing RPC params shouldn't fail");
         }
 
         let result: Option<String> = self
@@ -175,20 +184,20 @@ impl SubstrateRpc {
         let mut params = RpcParams::new();
         params
             .push(bytes_to_hex_prefixed(prefix))
-            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+            .expect("Serializing RPC params shouldn't fail");
         params
             .push(count)
-            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+            .expect("Serializing RPC params shouldn't fail");
 
         let start: Option<String> = start_key.map(bytes_to_hex_prefixed);
         params
             .push(start)
-            .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+            .expect("Serializing RPC params shouldn't fail");
 
         if let Some(h) = hash {
             params
                 .push(format!("{h:?}"))
-                .map_err(|e| Error::RpcError(format!("params: {e}")))?;
+                .expect("Serializing RPC params shouldn't fail");
         }
 
         let keys_hex: Vec<String> = self
@@ -205,12 +214,6 @@ impl SubstrateRpc {
         }
         Ok(out)
     }
-}
-
-/// Minimal representation of the runtime version returned by `state_getRuntimeVersion`.
-#[derive(Deserialize)]
-struct RuntimeVersion {
-    spec_version: u32,
 }
 
 /// Minimal representation of a signed block returned by `chain_getBlock`.
