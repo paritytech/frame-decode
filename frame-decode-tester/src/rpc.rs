@@ -43,7 +43,8 @@ impl RpcConfig for MinimalConfig {
     type Hash = H256;
     // We don't use these, but the trait requires them.
     // Use H256 as a placeholder that satisfies the trait bounds.
-    type Header = subxt::config::substrate::SubstrateHeader<u32, subxt::config::substrate::BlakeTwo256>;
+    type Header =
+        subxt::config::substrate::SubstrateHeader<u32, subxt::config::substrate::BlakeTwo256>;
     type AccountId = subxt::utils::AccountId32;
 }
 
