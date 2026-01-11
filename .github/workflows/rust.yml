@@ -156,6 +156,51 @@ jobs:
           command: test
           args: --examples --workspace
 
+  decode-tester:
+    name: Check Block Decoding
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for paths-filter to compare commits
+
+      - name: Check which type files changed
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            kusama-assethub:
+              - 'types/kusama_assethub_types.yaml'
+              - 'frame-decode-tester/tests/kusama-assethub-*.rs'
+              - 'frame-decode-tester/src/**'
+              - 'frame-decode-tester/Cargo.toml'
+
+      - name: Install Rust stable toolchain
+        if: steps.changes.outputs.kusama-assethub == 'true'
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        if: steps.changes.outputs.kusama-assethub == 'true'
+        uses: Swatinem/rust-cache@v1.3.0
+
+      - name: Run Kusama Asset Hub decode tests
+        if: steps.changes.outputs.kusama-assethub == 'true'
+        run: |
+          cargo test -p frame-decode-tester \
+            --features kusama-assethub \
+            --test kusama-assethub-historic-block \
+            --test kusama-assethub-historic-storage \
+            -- --nocapture
+
+      - name: Skip decode tests (no relevant changes)
+        if: steps.changes.outputs.kusama-assethub != 'true'
+        run: echo "No relevant type files changed; skipping decode tester tests."
+
   clippy:
     name: Cargo clippy
     runs-on: ubuntu-latest
