@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use subxt::utils::H256;
 use tokio::sync::mpsc;
+use tokio::time::{Duration, sleep};
 
 /// A storage item to test (pallet + storage entry name).
 #[derive(Debug, Clone)]
@@ -329,6 +330,9 @@ impl TestStorage {
                 };
 
                 let mut state = StorageTestState {
+                    urls: urls.clone(),
+                    url_idx: worker_idx % urls.len(),
+                    url: url.clone(),
                     rpc,
                     current_spec_version: u32::MAX,
                     current_metadata: None,
@@ -341,7 +345,7 @@ impl TestStorage {
                         break;
                     }
                     let block_number = blocks[idx];
-                    let result = test_single_storage_block(
+                    let block_result = test_single_storage_block_with_retry(
                         block_number,
                         &mut state,
                         &historic_types,
@@ -351,17 +355,8 @@ impl TestStorage {
                     )
                     .await;
 
-                    match result {
-                        Ok(block_result) => {
-                            if tx.send((idx, block_result)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "Worker {worker_idx}: failed to test storage at block {block_number}: {e}"
-                            );
-                        }
+                    if tx.send((idx, block_result)).await.is_err() {
+                        break;
                     }
                 }
             });
@@ -387,10 +382,135 @@ impl TestStorage {
 }
 
 struct StorageTestState {
+    urls: Arc<Vec<String>>,
+    url_idx: usize,
+    url: String,
     rpc: SubstrateRpc,
     current_spec_version: u32,
     current_metadata: Option<RuntimeMetadata>,
     current_types_for_spec: Option<TypeRegistrySet<'static>>,
+}
+
+impl StorageTestState {
+    fn is_transient(err: &Error) -> bool {
+        match err {
+            Error::ConnectionFailed(_) => true,
+            Error::RpcError(msg) => {
+                let msg = msg.to_ascii_lowercase();
+                msg.contains("timeout")
+                    || msg.contains("timed out")
+                    || msg.contains("429")
+                    || msg.contains("too many requests")
+                    || msg.contains("connection closed")
+                    || msg.contains("restart required")
+                    || msg.contains("temporarily unavailable")
+            }
+            _ => false,
+        }
+    }
+
+    async fn rotate_rpc(&mut self) -> bool {
+        if self.urls.is_empty() {
+            return false;
+        }
+
+        let tries = self.urls.len();
+        for _ in 0..tries {
+            self.url_idx = (self.url_idx + 1) % self.urls.len();
+            let url = self.urls[self.url_idx].clone();
+            if let Ok(rpc) = SubstrateRpc::connect(&url).await {
+                self.url = url;
+                self.rpc = rpc;
+                self.current_metadata = None;
+                self.current_types_for_spec = None;
+                self.current_spec_version = u32::MAX;
+                return true;
+            }
+        }
+        false
+    }
+
+    async fn reconnect_same_url(&mut self) -> bool {
+        if let Ok(rpc) = SubstrateRpc::connect(&self.url).await {
+            self.rpc = rpc;
+            self.current_metadata = None;
+            self.current_types_for_spec = None;
+            self.current_spec_version = u32::MAX;
+            return true;
+        }
+        false
+    }
+}
+
+fn storage_block_level_failure(
+    block_number: u64,
+    spec_version_hint: u32,
+    error: Error,
+) -> StorageBlockTestResult {
+    StorageBlockTestResult {
+        block_number,
+        block_hash: H256::from([0u8; 32]),
+        spec_version: if spec_version_hint == u32::MAX {
+            0
+        } else {
+            spec_version_hint
+        },
+        items: vec![StorageItemTestResult {
+            pallet_name: "__rpc".to_string(),
+            storage_entry: "__rpc".to_string(),
+            values: vec![StorageValueTestResult::Failure {
+                key: "(n/a)".to_string(),
+                error: format!("Failed to test storage at block {block_number}: {error}"),
+                raw_bytes: None,
+            }],
+        }],
+    }
+}
+
+async fn test_single_storage_block_with_retry(
+    block_number: u64,
+    state: &mut StorageTestState,
+    historic_types: &Arc<ChainTypeRegistry>,
+    items: &Arc<Vec<StorageItem>>,
+    keys_page_size: u32,
+    max_keys_per_item: usize,
+) -> StorageBlockTestResult {
+    const MAX_ATTEMPTS: usize = 5;
+    let mut last_err: Option<Error> = None;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match test_single_storage_block(
+            block_number,
+            state,
+            historic_types,
+            items,
+            keys_page_size,
+            max_keys_per_item,
+        )
+        .await
+        {
+            Ok(ok) => return ok,
+            Err(e) => {
+                last_err = Some(e);
+
+                if StorageTestState::is_transient(last_err.as_ref().unwrap()) {
+                    // Prefer rotating to another URL; fall back to reconnecting current.
+                    if !state.rotate_rpc().await {
+                        let _ = state.reconnect_same_url().await;
+                    }
+                }
+
+                let backoff_ms = (200u64 << attempt).min(2000);
+                sleep(Duration::from_millis(backoff_ms)).await;
+            }
+        }
+    }
+
+    storage_block_level_failure(
+        block_number,
+        state.current_spec_version,
+        last_err.unwrap_or_else(|| Error::RpcError("unknown error".into())),
+    )
 }
 
 async fn test_single_storage_block(
@@ -441,9 +561,6 @@ async fn test_single_storage_block(
         .await?
         .ok_or(Error::BlockNotFound(block_number))?;
 
-    let metadata = state.current_metadata.as_ref().unwrap();
-    let types_for_spec = state.current_types_for_spec.as_ref().unwrap();
-
     let mut item_results = Vec::with_capacity(items.len());
     for item in items.iter() {
         let prefix = frame_decode::storage::encode_storage_key_prefix(
@@ -451,7 +568,7 @@ async fn test_single_storage_block(
             &item.storage_entry,
         );
         let keys = fetch_keys_for_prefix(
-            &state.rpc,
+            state,
             &prefix,
             Some(block_hash),
             keys_page_size,
@@ -462,9 +579,11 @@ async fn test_single_storage_block(
         let mut values = Vec::with_capacity(keys.len());
         for key in keys {
             let key_hex = format!("0x{}", hex::encode(&key));
-            let raw = state.rpc.get_storage(&key, Some(block_hash)).await;
+            let raw = get_storage_with_retry(state, &key, Some(block_hash)).await;
             match raw {
                 Ok(Some(bytes)) => {
+                    let metadata = state.current_metadata.as_ref().unwrap();
+                    let types_for_spec = state.current_types_for_spec.as_ref().unwrap();
                     let result = decode_storage_value_to_result(
                         &item.pallet_name,
                         &item.storage_entry,
@@ -517,7 +636,7 @@ async fn test_single_storage_block(
 }
 
 async fn fetch_keys_for_prefix(
-    rpc: &SubstrateRpc,
+    state: &mut StorageTestState,
     prefix: &[u8],
     at: Option<H256>,
     keys_page_size: u32,
@@ -530,9 +649,7 @@ async fn fetch_keys_for_prefix(
         let remaining = max_keys - all.len();
         let count = keys_page_size.min(remaining as u32);
 
-        let page = rpc
-            .get_keys_paged(prefix, count, start_key.as_deref(), at)
-            .await?;
+        let page = get_keys_paged_with_retry(state, prefix, count, start_key.as_deref(), at).await?;
 
         if page.is_empty() {
             break;
@@ -543,6 +660,62 @@ async fn fetch_keys_for_prefix(
     }
 
     Ok(all)
+}
+
+async fn get_keys_paged_with_retry(
+    state: &mut StorageTestState,
+    prefix: &[u8],
+    count: u32,
+    start_key: Option<&[u8]>,
+    at: Option<H256>,
+) -> Result<Vec<Vec<u8>>, Error> {
+    const MAX_ATTEMPTS: usize = 4;
+    let mut last_err: Option<Error> = None;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match state.rpc.get_keys_paged(prefix, count, start_key, at).await {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                last_err = Some(e);
+                if StorageTestState::is_transient(last_err.as_ref().unwrap()) {
+                    if !state.rotate_rpc().await {
+                        let _ = state.reconnect_same_url().await;
+                    }
+                }
+                let backoff_ms = (150u64 << attempt).min(1500);
+                sleep(Duration::from_millis(backoff_ms)).await;
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| Error::RpcError("unknown error".into())))
+}
+
+async fn get_storage_with_retry(
+    state: &mut StorageTestState,
+    key: &[u8],
+    at: Option<H256>,
+) -> Result<Option<Vec<u8>>, Error> {
+    const MAX_ATTEMPTS: usize = 4;
+    let mut last_err: Option<Error> = None;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match state.rpc.get_storage(key, at).await {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                last_err = Some(e);
+                if StorageTestState::is_transient(last_err.as_ref().unwrap()) {
+                    if !state.rotate_rpc().await {
+                        let _ = state.reconnect_same_url().await;
+                    }
+                }
+                let backoff_ms = (150u64 << attempt).min(1500);
+                sleep(Duration::from_millis(backoff_ms)).await;
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| Error::RpcError("unknown error".into())))
 }
 
 fn decode_storage_value_to_result(

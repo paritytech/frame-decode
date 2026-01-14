@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use subxt::utils::H256;
 use tokio::sync::mpsc;
+use tokio::time::{Duration, sleep};
 
 /// Result of testing a single block.
 #[derive(Debug)]
@@ -252,6 +253,9 @@ impl TestBlocks {
                 };
 
                 let mut state = BlockTestState {
+                    urls: urls.clone(),
+                    url_idx: worker_idx % urls.len(),
+                    url: url.clone(),
                     rpc,
                     current_spec_version: u32::MAX,
                     current_metadata: None,
@@ -266,12 +270,12 @@ impl TestBlocks {
                     }
 
                     let block_number = blocks[idx];
-                    let result = test_single_block(block_number, &mut state, &historic_types).await;
+                    let block_result =
+                        test_single_block_with_retry(block_number, &mut state, &historic_types)
+                            .await;
 
-                    if let Ok(block_result) = result {
-                        if tx.send((idx, block_result)).await.is_err() {
-                            break;
-                        }
+                    if tx.send((idx, block_result)).await.is_err() {
+                        break;
                     }
                 }
             });
@@ -302,10 +306,117 @@ impl TestBlocks {
 
 /// Internal state for block testing.
 struct BlockTestState {
+    urls: Arc<Vec<String>>,
+    url_idx: usize,
+    url: String,
     rpc: SubstrateRpc,
     current_spec_version: u32,
     current_metadata: Option<RuntimeMetadata>,
     current_types_for_spec: Option<TypeRegistrySet<'static>>,
+}
+
+impl BlockTestState {
+    fn is_transient(err: &Error) -> bool {
+        match err {
+            Error::ConnectionFailed(_) => true,
+            Error::RpcError(msg) => {
+                let msg = msg.to_ascii_lowercase();
+                msg.contains("timeout")
+                    || msg.contains("timed out")
+                    || msg.contains("429")
+                    || msg.contains("too many requests")
+                    || msg.contains("connection closed")
+                    || msg.contains("restart required")
+                    || msg.contains("temporarily unavailable")
+            }
+            _ => false,
+        }
+    }
+
+    async fn rotate_rpc(&mut self) -> bool {
+        if self.urls.is_empty() {
+            return false;
+        }
+
+        let tries = self.urls.len();
+        for _ in 0..tries {
+            self.url_idx = (self.url_idx + 1) % self.urls.len();
+            let url = self.urls[self.url_idx].clone();
+            if let Ok(rpc) = SubstrateRpc::connect(&url).await {
+                self.url = url;
+                self.rpc = rpc;
+                self.current_metadata = None;
+                self.current_types_for_spec = None;
+                self.current_spec_version = u32::MAX;
+                return true;
+            }
+        }
+        false
+    }
+
+    async fn reconnect_same_url(&mut self) -> bool {
+        if let Ok(rpc) = SubstrateRpc::connect(&self.url).await {
+            self.rpc = rpc;
+            self.current_metadata = None;
+            self.current_types_for_spec = None;
+            self.current_spec_version = u32::MAX;
+            return true;
+        }
+        false
+    }
+}
+
+fn block_level_failure(block_number: u64, spec_version_hint: u32, error: Error) -> BlockTestResult {
+    BlockTestResult {
+        block_number,
+        block_hash: H256::from([0u8; 32]),
+        spec_version: if spec_version_hint == u32::MAX {
+            0
+        } else {
+            spec_version_hint
+        },
+        extrinsics: vec![ExtrinsicTestResult::Failure {
+            error: format!("Failed to test block {block_number}: {error}"),
+            raw_bytes: "0x".to_string(),
+        }],
+    }
+}
+
+async fn test_single_block_with_retry(
+    block_number: u64,
+    state: &mut BlockTestState,
+    historic_types: &Arc<ChainTypeRegistry>,
+) -> BlockTestResult {
+    const MAX_ATTEMPTS: usize = 5;
+
+    let mut last_err: Option<Error> = None;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match test_single_block(block_number, state, historic_types).await {
+            Ok(ok) => return ok,
+            Err(e) => {
+                last_err = Some(e);
+
+                // Reconnect on transient RPC/connection failures.
+                if BlockTestState::is_transient(last_err.as_ref().unwrap()) {
+                    // Prefer rotating to another URL; fall back to reconnecting current.
+                    if !state.rotate_rpc().await {
+                        let _ = state.reconnect_same_url().await;
+                    }
+                }
+
+                // Exponential backoff with a cap.
+                let backoff_ms = (200u64 << attempt).min(2000);
+                sleep(Duration::from_millis(backoff_ms)).await;
+            }
+        }
+    }
+
+    block_level_failure(
+        block_number,
+        state.current_spec_version,
+        last_err.unwrap_or_else(|| Error::RpcError("unknown error".into())),
+    )
 }
 
 /// Test a single block.

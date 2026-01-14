@@ -199,6 +199,8 @@ jobs:
             --test kusama-assethub-historic-block \
             --test kusama-assethub-historic-storage \
             -- --nocapture
+        env:
+          FRAME_DECODE_TIER: ${{ github.event_name == 'pull_request' && 'pr' || 'deep' }}
 
       - name: Skip decode tests (no relevant changes)
         if: steps.changes.outputs.kusama_assethub != 'true'
