@@ -24,6 +24,7 @@ use scale_type_resolver::TypeResolver;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 use subxt::utils::H256;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, sleep};
@@ -228,6 +229,7 @@ impl TestBlocks {
         let historic_types = Arc::new(self.chain_types.load());
         let urls = Arc::new(self.urls.clone());
         let num_connections = self.connections.min(self.blocks.len());
+        let total_blocks = self.blocks.len();
 
         // Create a shared index into the blocks list
         let next_block_idx = Arc::new(AtomicU64::new(0));
@@ -286,8 +288,21 @@ impl TestBlocks {
 
         // Collect results (may arrive out of order)
         let mut results_map: HashMap<usize, BlockTestResult> = HashMap::new();
+        let mut tested_blocks = 0usize;
+        let mut extrinsics_tested = 0usize;
+        let mut last_log = Instant::now();
+        let log_every = Duration::from_secs(30);
         while let Some((idx, result)) = rx.recv().await {
+            tested_blocks += 1;
+            extrinsics_tested += result.extrinsics.len();
             results_map.insert(idx, result);
+
+            if last_log.elapsed() >= log_every {
+                eprintln!(
+                    "[progress] blocks tested={tested_blocks}/{total_blocks} extrinsics={extrinsics_tested}"
+                );
+                last_log = Instant::now();
+            }
         }
 
         // Sort results back into order

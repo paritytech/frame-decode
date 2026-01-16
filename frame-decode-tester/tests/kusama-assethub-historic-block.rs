@@ -16,11 +16,11 @@
 
 mod common;
 
-use frame_decode_tester::{ChainTypes, ExtrinsicTestResult, TestBlocks};
 use common::{
-    blocks_for_spec_windows, connections_for_blocks, debug_enabled, expand_markers,
-    extra_block_samples_per_window, TestTier, KUSAMA_ASSETHUB_RPC_URLS,
+    KUSAMA_ASSETHUB_RPC_URLS, TestTier, blocks_for_spec_windows, connections_for_blocks,
+    debug_enabled, expand_markers, extra_block_samples_per_window,
 };
+use frame_decode_tester::{ChainTypes, ExtrinsicTestResult, TestBlocks};
 use std::time::Instant;
 
 fn failure_summary(tester: &TestBlocks) -> String {
@@ -87,8 +87,9 @@ async fn test_kusama_asset_hub_historic_blocks() {
         );
         for block in tester.results().iter() {
             eprintln!(
-                "[debug] sample block={} spec_version={} extrinsics={}",
+                "[debug] sample block={} hash={:?} spec_version={} extrinsics={}",
                 block.block_number,
+                block.block_hash,
                 block.spec_version,
                 block.extrinsics.len()
             );

@@ -10,16 +10,12 @@ pub enum TestTier {
 
 impl TestTier {
     pub fn from_env() -> Self {
-        match std::env::var("FRAME_DECODE_TIER")
-            .ok()
-            .as_deref()
-        {
+        match std::env::var("FRAME_DECODE_TIER").ok().as_deref() {
             Some("deep") | Some("DEEP") => TestTier::Deep,
             _ => TestTier::Pr,
         }
     }
 }
-
 
 pub const KUSAMA_ASSETHUB_RPC_URLS: &[&str] = &[
     // official one first.
@@ -55,7 +51,7 @@ pub fn extra_block_samples_per_window(tier: TestTier) -> usize {
         // Keep PR tier fast.
         TestTier::Pr => 10,
         // Heavier sampling for the scheduled deep run.
-        TestTier::Deep => 200,
+        TestTier::Deep => 300,
     }
 }
 
@@ -64,7 +60,7 @@ pub fn storage_blocks_per_marker(tier: TestTier) -> usize {
         // Storage is expensive; keep PR minimal.
         TestTier::Pr => 1, // just first item `b`
         // Deep tier: test b,b+1,b+2 around runtime transition.
-        TestTier::Deep => 3,
+        TestTier::Deep => 5,
     }
 }
 
@@ -127,10 +123,13 @@ pub fn blocks_for_spec_windows(markers: &[u64], extra_samples_per_window: usize)
     for w in markers.windows(2) {
         let start = w[0];
         let end = w[1];
-        out.extend(sample_blocks_in_window(start, end, extra_samples_per_window));
+        out.extend(sample_blocks_in_window(
+            start,
+            end,
+            extra_samples_per_window,
+        ));
     }
     out.sort_unstable();
     out.dedup();
     out
 }
-

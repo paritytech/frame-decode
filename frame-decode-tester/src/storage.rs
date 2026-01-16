@@ -25,6 +25,7 @@ use scale_type_resolver::TypeResolver;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 use subxt::utils::H256;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, sleep};
@@ -247,7 +248,8 @@ impl TestStorageBuilder {
         pallet_name: impl Into<String>,
         storage_entry: impl Into<String>,
     ) -> Self {
-        self.skip_items.push(StorageItem::new(pallet_name, storage_entry));
+        self.skip_items
+            .push(StorageItem::new(pallet_name, storage_entry));
         self
     }
 
@@ -363,6 +365,7 @@ impl TestStorage {
         let historic_types = Arc::new(self.chain_types.load());
         let urls = Arc::new(self.urls.clone());
         let num_connections = self.connections.min(self.blocks.len());
+        let total_blocks = self.blocks.len();
 
         let next_block_idx = Arc::new(AtomicU64::new(0));
         let blocks = Arc::new(self.blocks.clone());
@@ -435,8 +438,21 @@ impl TestStorage {
         drop(tx);
 
         let mut results_map: HashMap<usize, StorageBlockTestResult> = HashMap::new();
+        let mut tested_blocks = 0usize;
+        let mut values_tested = 0usize;
+        let mut last_log = Instant::now();
+        let log_every = Duration::from_secs(30);
         while let Some((idx, result)) = rx.recv().await {
+            tested_blocks += 1;
+            values_tested += result.value_count();
             results_map.insert(idx, result);
+
+            if last_log.elapsed() >= log_every {
+                eprintln!(
+                    "[progress] storage blocks tested={tested_blocks}/{total_blocks} values={values_tested}"
+                );
+                last_log = Instant::now();
+            }
         }
 
         let mut sorted_indices: Vec<_> = results_map.keys().copied().collect();
@@ -662,7 +678,8 @@ async fn test_single_storage_block(
         (a.pallet_name.as_str(), a.storage_entry.as_str())
             .cmp(&(b.pallet_name.as_str(), b.storage_entry.as_str()))
     });
-    selected_items.dedup_by(|a, b| a.pallet_name == b.pallet_name && a.storage_entry == b.storage_entry);
+    selected_items
+        .dedup_by(|a, b| a.pallet_name == b.pallet_name && a.storage_entry == b.storage_entry);
 
     // Apply skip list when discovery is enabled (or always, harmless).
     if !skip_items.is_empty() {
@@ -836,7 +853,8 @@ async fn fetch_keys_for_prefix(
         let remaining = max_keys - all.len();
         let count = keys_page_size.min(remaining as u32);
 
-        let page = get_keys_paged_with_retry(state, prefix, count, start_key.as_deref(), at).await?;
+        let page =
+            get_keys_paged_with_retry(state, prefix, count, start_key.as_deref(), at).await?;
 
         if page.is_empty() {
             break;

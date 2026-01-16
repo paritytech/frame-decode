@@ -16,11 +16,12 @@
 
 mod common;
 
-use frame_decode_tester::{ChainTypes, StorageValueTestResult, TestStorage};
 use common::{
-    connections_for_storage, debug_enabled, expand_markers, max_keys_per_item, storage_blocks_per_marker,
-    discover_max_items_per_block, max_values_per_block, TestTier, KUSAMA_ASSETHUB_RPC_URLS,
+    KUSAMA_ASSETHUB_RPC_URLS, TestTier, connections_for_storage, debug_enabled,
+    discover_max_items_per_block, expand_markers, max_keys_per_item, max_values_per_block,
+    storage_blocks_per_marker,
 };
+use frame_decode_tester::{ChainTypes, StorageValueTestResult, TestStorage};
 use std::time::Instant;
 
 fn failure_summary(tester: &TestStorage) -> String {
@@ -96,8 +97,9 @@ async fn test_kusama_asset_hub_historic_storage() {
         );
         for block in tester.results().iter() {
             eprintln!(
-                "[debug] sample block={} spec_version={} items={} values={}",
+                "[debug] sample block={} hash={:?} spec_version={} items={} values={}",
                 block.block_number,
+                block.block_hash,
                 block.spec_version,
                 block.items.len(),
                 block.value_count()
