@@ -21,7 +21,6 @@ use common::{
     blocks_for_spec_windows, connections_for_blocks, debug_enabled, expand_markers,
     extra_block_samples_per_window, TestTier, KUSAMA_ASSETHUB_RPC_URLS,
 };
-use std::time::Instant;
 
 fn failure_summary(tester: &TestBlocks) -> String {
     let mut out = String::new();
@@ -54,7 +53,6 @@ async fn test_kusama_asset_hub_historic_blocks() {
     blocks.dedup();
     let expected_blocks = blocks.len();
 
-    let started = Instant::now();
     let tester = TestBlocks::builder()
         .add_urls(KUSAMA_ASSETHUB_RPC_URLS.iter().copied())
         .chain_types(ChainTypes::KusamaAssetHub)
@@ -63,18 +61,6 @@ async fn test_kusama_asset_hub_historic_blocks() {
         .run()
         .await
         .expect("Failed to run test");
-    let elapsed = started.elapsed().as_secs_f64().max(0.000_001);
-
-    eprintln!(
-        "METRIC decode_blocks chain=kusama_assethub tier={tier:?} connections={connections} urls={} expected_blocks={expected_blocks} tested_blocks={} extrinsics={} failures={} secs={:.3} blocks_per_s={:.3} extrinsics_per_s={:.3}",
-        KUSAMA_ASSETHUB_RPC_URLS.len(),
-        tester.block_count(),
-        tester.extrinsic_count(),
-        tester.failure_count(),
-        elapsed,
-        tester.block_count() as f64 / elapsed,
-        tester.extrinsic_count() as f64 / elapsed,
-    );
 
     if debug_enabled() {
         eprintln!(
@@ -85,7 +71,7 @@ async fn test_kusama_asset_hub_historic_blocks() {
             tester.extrinsic_count(),
             tester.failure_count(),
         );
-        for block in tester.results().iter().take(20) {
+        for block in tester.results().iter().take(5) {
             eprintln!(
                 "[debug] sample block={} spec_version={} extrinsics={}",
                 block.block_number,

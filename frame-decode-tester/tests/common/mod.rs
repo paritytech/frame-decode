@@ -50,3 +50,73 @@ pub fn connections_for_storage(tier: TestTier) -> usize {
     }
 }
 
+pub fn extra_block_samples_per_window(tier: TestTier) -> usize {
+    match tier {
+        // Keep PR tier fast.
+        TestTier::Pr => 10,
+        // Heavier sampling for the scheduled deep run.
+        TestTier::Deep => 200,
+    }
+}
+
+pub fn storage_blocks_per_marker(tier: TestTier) -> usize {
+    match tier {
+        // Storage is expensive; keep PR minimal.
+        TestTier::Pr => 1, // just `b`
+        // Deep tier: test b,b+1,b+2 around runtime transition.
+        TestTier::Deep => 3,
+    }
+}
+
+pub fn max_keys_per_item(tier: TestTier) -> usize {
+    match tier {
+        TestTier::Pr => 1,
+        TestTier::Deep => 5,
+    }
+}
+
+pub fn sample_blocks_in_window(start: u64, end_exclusive: u64, samples: usize) -> Vec<u64> {
+    if samples == 0 {
+        return Vec::new();
+    }
+    if end_exclusive <= start + 1 {
+        return Vec::new();
+    }
+
+    let len = end_exclusive - start;
+    // Evenly spaced samples, deterministic.
+    let step = (len / samples as u64).max(1);
+    let mut out = Vec::with_capacity(samples);
+    let mut n = start;
+    while n < end_exclusive && out.len() < samples {
+        out.push(n);
+        n = n.saturating_add(step);
+    }
+    out
+}
+
+pub fn expand_markers(markers: &[u64], blocks_per_marker: usize) -> Vec<u64> {
+    let mut out = Vec::with_capacity(markers.len() * blocks_per_marker);
+    for &b in markers {
+        for i in 0..blocks_per_marker {
+            out.push(b + i as u64);
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+pub fn blocks_for_spec_windows(markers: &[u64], extra_samples_per_window: usize) -> Vec<u64> {
+    // Sample only windows we can define (marker[i]..marker[i+1]).
+    let mut out = Vec::new();
+    for w in markers.windows(2) {
+        let start = w[0];
+        let end = w[1];
+        out.extend(sample_blocks_in_window(start, end, extra_samples_per_window));
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+

@@ -251,6 +251,8 @@ Each test run emits a `METRIC` line summarizing throughput:
 
 These help guide tuning of concurrency and sampling parameters.
 
+For scheduled runs, CI also executes a **nightly deep tier** which sets `FRAME_DECODE_TIER=deep`.
+
 ### How to run locally
 
 #### Run Kusama Asset Hub decode tests (PR tier / default)
