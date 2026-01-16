@@ -62,7 +62,7 @@ pub fn extra_block_samples_per_window(tier: TestTier) -> usize {
 pub fn storage_blocks_per_marker(tier: TestTier) -> usize {
     match tier {
         // Storage is expensive; keep PR minimal.
-        TestTier::Pr => 1, // just `b`
+        TestTier::Pr => 1, // just first item `b`
         // Deep tier: test b,b+1,b+2 around runtime transition.
         TestTier::Deep => 3,
     }
@@ -72,6 +72,20 @@ pub fn max_keys_per_item(tier: TestTier) -> usize {
     match tier {
         TestTier::Pr => 1,
         TestTier::Deep => 5,
+    }
+}
+
+pub fn discover_max_items_per_block(tier: TestTier) -> usize {
+    match tier {
+        TestTier::Pr => 20,
+        TestTier::Deep => 250,
+    }
+}
+
+pub fn max_values_per_block(tier: TestTier) -> usize {
+    match tier {
+        TestTier::Pr => 250,
+        TestTier::Deep => 5000,
     }
 }
 

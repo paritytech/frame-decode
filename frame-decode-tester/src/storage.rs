@@ -18,6 +18,7 @@
 use crate::Error;
 use crate::rpc::SubstrateRpc;
 use crate::types::ChainTypes;
+use frame_decode::storage::StorageEntryInfo;
 use frame_metadata::RuntimeMetadata;
 use scale_info_legacy::{ChainTypeRegistry, TypeRegistrySet};
 use scale_type_resolver::TypeResolver;
@@ -129,8 +130,13 @@ pub struct TestStorageBuilder {
     blocks: Vec<u64>,
     connections: usize,
     items: Vec<StorageItem>,
+    discover_entries: bool,
+    discover_max_items_per_block: usize,
+    always_include: Vec<StorageItem>,
+    skip_items: Vec<StorageItem>,
     keys_page_size: u32,
     max_keys_per_item: usize,
+    max_values_per_block: usize,
 }
 
 impl Default for TestStorageBuilder {
@@ -141,8 +147,13 @@ impl Default for TestStorageBuilder {
             blocks: Vec::new(),
             connections: 10,
             items: Vec::new(),
+            discover_entries: false,
+            discover_max_items_per_block: 50,
+            always_include: Vec::new(),
+            skip_items: Vec::new(),
             keys_page_size: 256,
             max_keys_per_item: 256,
+            max_values_per_block: usize::MAX,
         }
     }
 }
@@ -209,6 +220,37 @@ impl TestStorageBuilder {
         self
     }
 
+    /// Auto-discover storage entries from metadata at each tested block.
+    ///
+    /// This is for broad, sampled storage coverage. Discovered entries are capped to
+    /// `max_items_per_block` (in addition to any `always_include` items).
+    pub fn discover_storage_entries(mut self, max_items_per_block: usize) -> Self {
+        self.discover_entries = true;
+        self.discover_max_items_per_block = max_items_per_block.max(1);
+        self
+    }
+
+    /// this makes sure a given storage item is always tested even when discovery is enabled.
+    pub fn always_include_storage_item(
+        mut self,
+        pallet_name: impl Into<String>,
+        storage_entry: impl Into<String>,
+    ) -> Self {
+        self.always_include
+            .push(StorageItem::new(pallet_name, storage_entry));
+        self
+    }
+
+    /// Skip a storage item by name when discovery is enabled.
+    pub fn skip_storage_item(
+        mut self,
+        pallet_name: impl Into<String>,
+        storage_entry: impl Into<String>,
+    ) -> Self {
+        self.skip_items.push(StorageItem::new(pallet_name, storage_entry));
+        self
+    }
+
     /// Set the number of parallel connections to use (default: 10).
     pub fn connections(mut self, count: usize) -> Self {
         self.connections = count.max(1);
@@ -227,6 +269,12 @@ impl TestStorageBuilder {
         self
     }
 
+    /// Cap the total number of storage values tested per block (across all storage items).
+    pub fn max_values_per_block(mut self, count: usize) -> Self {
+        self.max_values_per_block = count.max(1);
+        self
+    }
+
     /// Build and run the storage tests.
     pub async fn run(mut self) -> Result<TestStorage, Error> {
         if self.urls.is_empty() {
@@ -235,7 +283,7 @@ impl TestStorageBuilder {
         if self.blocks.is_empty() {
             return Err(Error::NoBlocksSpecified);
         }
-        if self.items.is_empty() {
+        if !self.discover_entries && self.items.is_empty() {
             return Err(Error::NoStorageItemsSpecified);
         }
 
@@ -248,8 +296,13 @@ impl TestStorageBuilder {
             blocks: self.blocks,
             connections: self.connections,
             items: self.items,
+            discover_entries: self.discover_entries,
+            discover_max_items_per_block: self.discover_max_items_per_block,
+            always_include: self.always_include,
+            skip_items: self.skip_items,
             keys_page_size: self.keys_page_size,
             max_keys_per_item: self.max_keys_per_item,
+            max_values_per_block: self.max_values_per_block,
             results: Vec::new(),
         };
 
@@ -264,8 +317,13 @@ pub struct TestStorage {
     blocks: Vec<u64>,
     connections: usize,
     items: Vec<StorageItem>,
+    discover_entries: bool,
+    discover_max_items_per_block: usize,
+    always_include: Vec<StorageItem>,
+    skip_items: Vec<StorageItem>,
     keys_page_size: u32,
     max_keys_per_item: usize,
+    max_values_per_block: usize,
     results: Vec<StorageBlockTestResult>,
 }
 
@@ -309,8 +367,13 @@ impl TestStorage {
         let next_block_idx = Arc::new(AtomicU64::new(0));
         let blocks = Arc::new(self.blocks.clone());
         let items = Arc::new(self.items.clone());
+        let discover_entries = self.discover_entries;
+        let discover_max_items_per_block = self.discover_max_items_per_block;
+        let always_include = Arc::new(self.always_include.clone());
+        let skip_items = Arc::new(self.skip_items.clone());
         let keys_page_size = self.keys_page_size;
         let max_keys_per_item = self.max_keys_per_item;
+        let max_values_per_block = self.max_values_per_block;
 
         let (tx, mut rx) = mpsc::channel::<(usize, StorageBlockTestResult)>(num_connections * 2);
 
@@ -321,6 +384,8 @@ impl TestStorage {
             let next_block_idx = next_block_idx.clone();
             let historic_types = historic_types.clone();
             let tx = tx.clone();
+            let always_include = always_include.clone();
+            let skip_items = skip_items.clone();
 
             tokio::spawn(async move {
                 let url = urls[worker_idx % urls.len()].clone();
@@ -352,6 +417,11 @@ impl TestStorage {
                         &items,
                         keys_page_size,
                         max_keys_per_item,
+                        discover_entries,
+                        discover_max_items_per_block,
+                        &always_include,
+                        &skip_items,
+                        max_values_per_block,
                     )
                     .await;
 
@@ -474,6 +544,11 @@ async fn test_single_storage_block_with_retry(
     items: &Arc<Vec<StorageItem>>,
     keys_page_size: u32,
     max_keys_per_item: usize,
+    discover_entries: bool,
+    discover_max_items_per_block: usize,
+    always_include: &Arc<Vec<StorageItem>>,
+    skip_items: &Arc<Vec<StorageItem>>,
+    max_values_per_block: usize,
 ) -> StorageBlockTestResult {
     const MAX_ATTEMPTS: usize = 5;
     let mut last_err: Option<Error> = None;
@@ -486,6 +561,11 @@ async fn test_single_storage_block_with_retry(
             items,
             keys_page_size,
             max_keys_per_item,
+            discover_entries,
+            discover_max_items_per_block,
+            always_include,
+            skip_items,
+            max_values_per_block,
         )
         .await
         {
@@ -520,6 +600,11 @@ async fn test_single_storage_block(
     items: &Arc<Vec<StorageItem>>,
     keys_page_size: u32,
     max_keys_per_item: usize,
+    discover_entries: bool,
+    discover_max_items_per_block: usize,
+    always_include: &Arc<Vec<StorageItem>>,
+    skip_items: &Arc<Vec<StorageItem>>,
+    max_values_per_block: usize,
 ) -> Result<StorageBlockTestResult, Error> {
     // Same rule as in TestBlocks: runtime updates take effect the block after.
     let runtime_update_block = block_number.saturating_sub(1);
@@ -561,23 +646,68 @@ async fn test_single_storage_block(
         .await?
         .ok_or(Error::BlockNotFound(block_number))?;
 
-    let mut item_results = Vec::with_capacity(items.len());
-    for item in items.iter() {
+    let metadata_ref = state.current_metadata.as_ref().unwrap();
+
+    let mut selected_items: Vec<StorageItem> = if discover_entries {
+        storage_items_from_metadata(metadata_ref)?
+    } else {
+        items.as_ref().clone()
+    };
+
+    // Always include specific items (for stability/known coverage).
+    selected_items.extend(always_include.iter().cloned());
+
+    // Sort/dedup to keep deterministic ordering.
+    selected_items.sort_by(|a, b| {
+        (a.pallet_name.as_str(), a.storage_entry.as_str())
+            .cmp(&(b.pallet_name.as_str(), b.storage_entry.as_str()))
+    });
+    selected_items.dedup_by(|a, b| a.pallet_name == b.pallet_name && a.storage_entry == b.storage_entry);
+
+    // Apply skip list when discovery is enabled (or always, harmless).
+    if !skip_items.is_empty() {
+        selected_items.retain(|it| {
+            !skip_items
+                .iter()
+                .any(|s| s.pallet_name == it.pallet_name && s.storage_entry == it.storage_entry)
+        });
+    }
+
+    if discover_entries {
+        // Cap the number of discovered items per block (always_include already added).
+        let cap = discover_max_items_per_block.max(1);
+        if selected_items.len() > cap {
+            selected_items.truncate(cap);
+        }
+    }
+
+    let mut item_results = Vec::with_capacity(selected_items.len());
+    let mut remaining_values_budget = max_values_per_block;
+
+    for item in selected_items.iter() {
+        if remaining_values_budget == 0 {
+            break;
+        }
         let prefix = frame_decode::storage::encode_storage_key_prefix(
             &item.pallet_name,
             &item.storage_entry,
         );
+
+        let per_item_cap = remaining_values_budget.min(max_keys_per_item);
         let keys = fetch_keys_for_prefix(
             state,
             &prefix,
             Some(block_hash),
             keys_page_size,
-            max_keys_per_item,
+            per_item_cap,
         )
         .await?;
 
         let mut values = Vec::with_capacity(keys.len());
         for key in keys {
+            if remaining_values_budget == 0 {
+                break;
+            }
             let key_hex = format!("0x{}", hex::encode(&key));
             let raw = get_storage_with_retry(state, &key, Some(block_hash)).await;
             match raw {
@@ -618,6 +748,7 @@ async fn test_single_storage_block(
                     });
                 }
             }
+            remaining_values_budget = remaining_values_budget.saturating_sub(1);
         }
 
         item_results.push(StorageItemTestResult {
@@ -633,6 +764,62 @@ async fn test_single_storage_block(
         spec_version,
         items: item_results,
     })
+}
+
+fn storage_items_from_metadata(metadata: &RuntimeMetadata) -> Result<Vec<StorageItem>, Error> {
+    use frame_metadata::RuntimeMetadata as RM;
+
+    let tuples: Vec<(String, String)> = match metadata {
+        RM::V8(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V9(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V10(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V11(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V12(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V13(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V14(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V15(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        RM::V16(m) => m
+            .storage_tuples()
+            .map(|(p, s)| (p.into_owned(), s.into_owned()))
+            .collect(),
+        _ => return Err(Error::RpcError("Unsupported metadata version".into())),
+    };
+
+    Ok(tuples
+        .into_iter()
+        .filter_map(|(pallet, entry)| {
+            // Skip the synthetic "Entry::In(pallet)" markers which can yield empty names.
+            if pallet.is_empty() || entry.is_empty() {
+                None
+            } else {
+                Some(StorageItem::new(pallet, entry))
+            }
+        })
+        .collect())
 }
 
 async fn fetch_keys_for_prefix(
