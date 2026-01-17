@@ -16,13 +16,13 @@
 //! Storage testing functionality.
 
 use crate::Error;
-use crate::rpc::SubstrateRpc;
+use crate::rpc_state::RpcTestState;
 use crate::types::ChainTypes;
 use frame_decode::storage::StorageEntryInfo;
 use frame_metadata::RuntimeMetadata;
 use scale_info_legacy::{ChainTypeRegistry, TypeRegistrySet};
 use scale_type_resolver::TypeResolver;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -391,20 +391,9 @@ impl TestStorage {
             let skip_items = skip_items.clone();
 
             tokio::spawn(async move {
-                let url = urls[worker_idx % urls.len()].clone();
-                let rpc = match SubstrateRpc::connect(&url).await {
-                    Ok(rpc) => rpc,
+                let mut state = match RpcTestState::new(urls.clone(), worker_idx).await {
+                    Ok(s) => s,
                     Err(_) => return,
-                };
-
-                let mut state = StorageTestState {
-                    urls: urls.clone(),
-                    url_idx: worker_idx % urls.len(),
-                    url: url.clone(),
-                    rpc,
-                    current_spec_version: u32::MAX,
-                    current_metadata: None,
-                    current_types_for_spec: None,
                 };
 
                 loop {
@@ -438,6 +427,10 @@ impl TestStorage {
         drop(tx);
 
         let mut results_map: HashMap<usize, StorageBlockTestResult> = HashMap::new();
+        let mut debug_seen_specs = HashSet::new();
+        let debug_enabled = std::env::var("FRAME_DECODE_TEST_DEBUG")
+            .ok()
+            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
         let mut tested_blocks = 0usize;
         let mut values_tested = 0usize;
         let mut last_log = Instant::now();
@@ -446,6 +439,23 @@ impl TestStorage {
             tested_blocks += 1;
             values_tested += result.value_count();
             results_map.insert(idx, result);
+
+            if debug_enabled {
+                let is_new_spec = debug_seen_specs.insert(results_map[&idx].spec_version);
+                let has_failures = results_map[&idx].failure_count() > 0;
+                if is_new_spec || has_failures {
+                    let block = &results_map[&idx];
+                    eprintln!(
+                        "[debug-progress] block={} hash={:?} spec_version={} items={} values={} failures={}",
+                        block.block_number,
+                        block.block_hash,
+                        block.spec_version,
+                        block.items.len(),
+                        block.value_count(),
+                        block.failure_count(),
+                    );
+                }
+            }
 
             if last_log.elapsed() >= log_every {
                 eprintln!(
@@ -464,67 +474,6 @@ impl TestStorage {
         }
 
         Ok(self)
-    }
-}
-
-struct StorageTestState {
-    urls: Arc<Vec<String>>,
-    url_idx: usize,
-    url: String,
-    rpc: SubstrateRpc,
-    current_spec_version: u32,
-    current_metadata: Option<RuntimeMetadata>,
-    current_types_for_spec: Option<TypeRegistrySet<'static>>,
-}
-
-impl StorageTestState {
-    fn is_transient(err: &Error) -> bool {
-        match err {
-            Error::ConnectionFailed(_) => true,
-            Error::RpcError(msg) => {
-                let msg = msg.to_ascii_lowercase();
-                msg.contains("timeout")
-                    || msg.contains("timed out")
-                    || msg.contains("429")
-                    || msg.contains("too many requests")
-                    || msg.contains("connection closed")
-                    || msg.contains("restart required")
-                    || msg.contains("temporarily unavailable")
-            }
-            _ => false,
-        }
-    }
-
-    async fn rotate_rpc(&mut self) -> bool {
-        if self.urls.is_empty() {
-            return false;
-        }
-
-        let tries = self.urls.len();
-        for _ in 0..tries {
-            self.url_idx = (self.url_idx + 1) % self.urls.len();
-            let url = self.urls[self.url_idx].clone();
-            if let Ok(rpc) = SubstrateRpc::connect(&url).await {
-                self.url = url;
-                self.rpc = rpc;
-                self.current_metadata = None;
-                self.current_types_for_spec = None;
-                self.current_spec_version = u32::MAX;
-                return true;
-            }
-        }
-        false
-    }
-
-    async fn reconnect_same_url(&mut self) -> bool {
-        if let Ok(rpc) = SubstrateRpc::connect(&self.url).await {
-            self.rpc = rpc;
-            self.current_metadata = None;
-            self.current_types_for_spec = None;
-            self.current_spec_version = u32::MAX;
-            return true;
-        }
-        false
     }
 }
 
@@ -555,7 +504,7 @@ fn storage_block_level_failure(
 
 async fn test_single_storage_block_with_retry(
     block_number: u64,
-    state: &mut StorageTestState,
+    state: &mut RpcTestState,
     historic_types: &Arc<ChainTypeRegistry>,
     items: &Arc<Vec<StorageItem>>,
     keys_page_size: u32,
@@ -589,11 +538,8 @@ async fn test_single_storage_block_with_retry(
             Err(e) => {
                 last_err = Some(e);
 
-                if StorageTestState::is_transient(last_err.as_ref().unwrap()) {
-                    // Prefer rotating to another URL; fall back to reconnecting current.
-                    if !state.rotate_rpc().await {
-                        let _ = state.reconnect_same_url().await;
-                    }
+                if RpcTestState::is_transient(last_err.as_ref().unwrap()) {
+                    state.recover_from_transient().await;
                 }
 
                 let backoff_ms = (200u64 << attempt).min(2000);
@@ -611,7 +557,7 @@ async fn test_single_storage_block_with_retry(
 
 async fn test_single_storage_block(
     block_number: u64,
-    state: &mut StorageTestState,
+    state: &mut RpcTestState,
     historic_types: &Arc<ChainTypeRegistry>,
     items: &Arc<Vec<StorageItem>>,
     keys_page_size: u32,
@@ -691,7 +637,7 @@ async fn test_single_storage_block(
     }
 
     if discover_entries {
-        // Cap the number of discovered items per block (always_include already added).
+        // We are capping the number of discovered items per block.
         let cap = discover_max_items_per_block.max(1);
         if selected_items.len() > cap {
             selected_items.truncate(cap);
@@ -726,7 +672,7 @@ async fn test_single_storage_block(
                 break;
             }
             let key_hex = format!("0x{}", hex::encode(&key));
-            let raw = get_storage_with_retry(state, &key, Some(block_hash)).await;
+            let raw = state.rpc.get_storage(&key, Some(block_hash)).await;
             match raw {
                 Ok(Some(bytes)) => {
                     let metadata = state.current_metadata.as_ref().unwrap();
@@ -783,48 +729,15 @@ async fn test_single_storage_block(
     })
 }
 
+// extracts a list of storage entries (pallet + storage name) from runtime metadata,
+// so the storage test can auto‑discover what to query instead of hardcoding a list
 fn storage_items_from_metadata(metadata: &RuntimeMetadata) -> Result<Vec<StorageItem>, Error> {
-    use frame_metadata::RuntimeMetadata as RM;
-
-    let tuples: Vec<(String, String)> = match metadata {
-        RM::V8(m) => m
-            .storage_tuples()
+    let tuples: Vec<(String, String)> = with_metadata_uniform!(metadata, |m| {
+        m.storage_tuples()
             .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V9(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V10(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V11(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V12(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V13(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V14(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V15(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        RM::V16(m) => m
-            .storage_tuples()
-            .map(|(p, s)| (p.into_owned(), s.into_owned()))
-            .collect(),
-        _ => return Err(Error::RpcError("Unsupported metadata version".into())),
-    };
+            .collect::<Vec<_>>()
+    })
+    .map_err(|e| Error::RpcError(e.into()))?;
 
     Ok(tuples
         .into_iter()
@@ -840,7 +753,7 @@ fn storage_items_from_metadata(metadata: &RuntimeMetadata) -> Result<Vec<Storage
 }
 
 async fn fetch_keys_for_prefix(
-    state: &mut StorageTestState,
+    state: &mut RpcTestState,
     prefix: &[u8],
     at: Option<H256>,
     keys_page_size: u32,
@@ -853,8 +766,10 @@ async fn fetch_keys_for_prefix(
         let remaining = max_keys - all.len();
         let count = keys_page_size.min(remaining as u32);
 
-        let page =
-            get_keys_paged_with_retry(state, prefix, count, start_key.as_deref(), at).await?;
+        let page = state
+            .rpc
+            .get_keys_paged(prefix, count, start_key.as_deref(), at)
+            .await?;
 
         if page.is_empty() {
             break;
@@ -867,62 +782,6 @@ async fn fetch_keys_for_prefix(
     Ok(all)
 }
 
-async fn get_keys_paged_with_retry(
-    state: &mut StorageTestState,
-    prefix: &[u8],
-    count: u32,
-    start_key: Option<&[u8]>,
-    at: Option<H256>,
-) -> Result<Vec<Vec<u8>>, Error> {
-    const MAX_ATTEMPTS: usize = 4;
-    let mut last_err: Option<Error> = None;
-
-    for attempt in 0..MAX_ATTEMPTS {
-        match state.rpc.get_keys_paged(prefix, count, start_key, at).await {
-            Ok(v) => return Ok(v),
-            Err(e) => {
-                last_err = Some(e);
-                if StorageTestState::is_transient(last_err.as_ref().unwrap()) {
-                    if !state.rotate_rpc().await {
-                        let _ = state.reconnect_same_url().await;
-                    }
-                }
-                let backoff_ms = (150u64 << attempt).min(1500);
-                sleep(Duration::from_millis(backoff_ms)).await;
-            }
-        }
-    }
-
-    Err(last_err.unwrap_or_else(|| Error::RpcError("unknown error".into())))
-}
-
-async fn get_storage_with_retry(
-    state: &mut StorageTestState,
-    key: &[u8],
-    at: Option<H256>,
-) -> Result<Option<Vec<u8>>, Error> {
-    const MAX_ATTEMPTS: usize = 4;
-    let mut last_err: Option<Error> = None;
-
-    for attempt in 0..MAX_ATTEMPTS {
-        match state.rpc.get_storage(key, at).await {
-            Ok(v) => return Ok(v),
-            Err(e) => {
-                last_err = Some(e);
-                if StorageTestState::is_transient(last_err.as_ref().unwrap()) {
-                    if !state.rotate_rpc().await {
-                        let _ = state.reconnect_same_url().await;
-                    }
-                }
-                let backoff_ms = (150u64 << attempt).min(1500);
-                sleep(Duration::from_millis(backoff_ms)).await;
-            }
-        }
-    }
-
-    Err(last_err.unwrap_or_else(|| Error::RpcError("unknown error".into())))
-}
-
 fn decode_storage_value_to_result(
     pallet_name: &str,
     storage_entry: &str,
@@ -932,60 +791,9 @@ fn decode_storage_value_to_result(
 ) -> Result<scale_value::Value<String>, String> {
     let mut cursor = &*bytes;
 
-    let value = match metadata {
-        RuntimeMetadata::V8(m) => decode_storage_value_inner(
-            &mut cursor,
-            pallet_name,
-            storage_entry,
-            m,
-            legacy_types_for_spec,
-        ),
-        RuntimeMetadata::V9(m) => decode_storage_value_inner(
-            &mut cursor,
-            pallet_name,
-            storage_entry,
-            m,
-            legacy_types_for_spec,
-        ),
-        RuntimeMetadata::V10(m) => decode_storage_value_inner(
-            &mut cursor,
-            pallet_name,
-            storage_entry,
-            m,
-            legacy_types_for_spec,
-        ),
-        RuntimeMetadata::V11(m) => decode_storage_value_inner(
-            &mut cursor,
-            pallet_name,
-            storage_entry,
-            m,
-            legacy_types_for_spec,
-        ),
-        RuntimeMetadata::V12(m) => decode_storage_value_inner(
-            &mut cursor,
-            pallet_name,
-            storage_entry,
-            m,
-            legacy_types_for_spec,
-        ),
-        RuntimeMetadata::V13(m) => decode_storage_value_inner(
-            &mut cursor,
-            pallet_name,
-            storage_entry,
-            m,
-            legacy_types_for_spec,
-        ),
-        RuntimeMetadata::V14(m) => {
-            decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types)
-        }
-        RuntimeMetadata::V15(m) => {
-            decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types)
-        }
-        RuntimeMetadata::V16(m) => {
-            decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, &m.types)
-        }
-        _ => Err("Unsupported metadata version".to_string()),
-    }?;
+    let value = with_metadata_versioned!(metadata, legacy_types_for_spec, |m, resolver| {
+        decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, resolver)
+    })?;
 
     if !cursor.is_empty() {
         return Err(format!(

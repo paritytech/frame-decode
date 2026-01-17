@@ -16,12 +16,12 @@
 //! Block testing functionality.
 
 use crate::Error;
-use crate::rpc::SubstrateRpc;
+use crate::rpc_state::RpcTestState;
 use crate::types::{ChainTypes, DecodedArg, DecodedExtrinsic};
 use frame_metadata::RuntimeMetadata;
 use scale_info_legacy::{ChainTypeRegistry, TypeRegistrySet};
 use scale_type_resolver::TypeResolver;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -248,20 +248,9 @@ impl TestBlocks {
 
             tokio::spawn(async move {
                 // Each worker creates its own connection
-                let url = urls[worker_idx % urls.len()].clone();
-                let rpc = match SubstrateRpc::connect(&url).await {
-                    Ok(rpc) => rpc,
+                let mut state = match RpcTestState::new(urls.clone(), worker_idx).await {
+                    Ok(s) => s,
                     Err(_) => return,
-                };
-
-                let mut state = BlockTestState {
-                    urls: urls.clone(),
-                    url_idx: worker_idx % urls.len(),
-                    url: url.clone(),
-                    rpc,
-                    current_spec_version: u32::MAX,
-                    current_metadata: None,
-                    current_types_for_spec: None,
                 };
 
                 loop {
@@ -288,6 +277,10 @@ impl TestBlocks {
 
         // Collect results (may arrive out of order)
         let mut results_map: HashMap<usize, BlockTestResult> = HashMap::new();
+        let mut debug_seen_specs = HashSet::new();
+        let debug_enabled = std::env::var("FRAME_DECODE_TEST_DEBUG")
+            .ok()
+            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
         let mut tested_blocks = 0usize;
         let mut extrinsics_tested = 0usize;
         let mut last_log = Instant::now();
@@ -296,6 +289,22 @@ impl TestBlocks {
             tested_blocks += 1;
             extrinsics_tested += result.extrinsics.len();
             results_map.insert(idx, result);
+
+            if debug_enabled {
+                let is_new_spec = debug_seen_specs.insert(results_map[&idx].spec_version);
+                let has_failures = results_map[&idx].failure_count() > 0;
+                if is_new_spec || has_failures {
+                    let block = &results_map[&idx];
+                    eprintln!(
+                        "[debug-progress] block={} hash={:?} spec_version={} extrinsics={} failures={}",
+                        block.block_number,
+                        block.block_hash,
+                        block.spec_version,
+                        block.extrinsics.len(),
+                        block.failure_count(),
+                    );
+                }
+            }
 
             if last_log.elapsed() >= log_every {
                 eprintln!(
@@ -319,68 +328,6 @@ impl TestBlocks {
     }
 }
 
-/// Internal state for block testing.
-struct BlockTestState {
-    urls: Arc<Vec<String>>,
-    url_idx: usize,
-    url: String,
-    rpc: SubstrateRpc,
-    current_spec_version: u32,
-    current_metadata: Option<RuntimeMetadata>,
-    current_types_for_spec: Option<TypeRegistrySet<'static>>,
-}
-
-impl BlockTestState {
-    fn is_transient(err: &Error) -> bool {
-        match err {
-            Error::ConnectionFailed(_) => true,
-            Error::RpcError(msg) => {
-                let msg = msg.to_ascii_lowercase();
-                msg.contains("timeout")
-                    || msg.contains("timed out")
-                    || msg.contains("429")
-                    || msg.contains("too many requests")
-                    || msg.contains("connection closed")
-                    || msg.contains("restart required")
-                    || msg.contains("temporarily unavailable")
-            }
-            _ => false,
-        }
-    }
-
-    async fn rotate_rpc(&mut self) -> bool {
-        if self.urls.is_empty() {
-            return false;
-        }
-
-        let tries = self.urls.len();
-        for _ in 0..tries {
-            self.url_idx = (self.url_idx + 1) % self.urls.len();
-            let url = self.urls[self.url_idx].clone();
-            if let Ok(rpc) = SubstrateRpc::connect(&url).await {
-                self.url = url;
-                self.rpc = rpc;
-                self.current_metadata = None;
-                self.current_types_for_spec = None;
-                self.current_spec_version = u32::MAX;
-                return true;
-            }
-        }
-        false
-    }
-
-    async fn reconnect_same_url(&mut self) -> bool {
-        if let Ok(rpc) = SubstrateRpc::connect(&self.url).await {
-            self.rpc = rpc;
-            self.current_metadata = None;
-            self.current_types_for_spec = None;
-            self.current_spec_version = u32::MAX;
-            return true;
-        }
-        false
-    }
-}
-
 fn block_level_failure(block_number: u64, spec_version_hint: u32, error: Error) -> BlockTestResult {
     BlockTestResult {
         block_number,
@@ -399,7 +346,7 @@ fn block_level_failure(block_number: u64, spec_version_hint: u32, error: Error) 
 
 async fn test_single_block_with_retry(
     block_number: u64,
-    state: &mut BlockTestState,
+    state: &mut RpcTestState,
     historic_types: &Arc<ChainTypeRegistry>,
 ) -> BlockTestResult {
     const MAX_ATTEMPTS: usize = 5;
@@ -413,11 +360,8 @@ async fn test_single_block_with_retry(
                 last_err = Some(e);
 
                 // Reconnect on transient RPC/connection failures.
-                if BlockTestState::is_transient(last_err.as_ref().unwrap()) {
-                    // Prefer rotating to another URL; fall back to reconnecting current.
-                    if !state.rotate_rpc().await {
-                        let _ = state.reconnect_same_url().await;
-                    }
+                if RpcTestState::is_transient(last_err.as_ref().unwrap()) {
+                    state.recover_from_transient().await;
                 }
 
                 // Exponential backoff with a cap.
@@ -437,7 +381,7 @@ async fn test_single_block_with_retry(
 /// Test a single block.
 async fn test_single_block(
     block_number: u64,
-    state: &mut BlockTestState,
+    state: &mut RpcTestState,
     historic_types: &Arc<ChainTypeRegistry>,
 ) -> Result<BlockTestResult, Error> {
     // Check if we need to update metadata (runtime updates take effect the block after)
@@ -514,17 +458,9 @@ fn decode_extrinsic_to_result(
     block_number: u64,
     extrinsic_index: usize,
 ) -> ExtrinsicTestResult {
-    let result = match metadata {
-        RuntimeMetadata::V8(m) => decode_extrinsic_inner(bytes, m, historic_types),
-        RuntimeMetadata::V9(m) => decode_extrinsic_inner(bytes, m, historic_types),
-        RuntimeMetadata::V10(m) => decode_extrinsic_inner(bytes, m, historic_types),
-        RuntimeMetadata::V11(m) => decode_extrinsic_inner(bytes, m, historic_types),
-        RuntimeMetadata::V12(m) => decode_extrinsic_inner(bytes, m, historic_types),
-        RuntimeMetadata::V13(m) => decode_extrinsic_inner(bytes, m, historic_types),
-        RuntimeMetadata::V14(m) => decode_extrinsic_inner(bytes, m, &m.types),
-        RuntimeMetadata::V15(m) => decode_extrinsic_inner(bytes, m, &m.types),
-        _ => Err(format!("Unsupported metadata version")),
-    };
+    let result = with_metadata_versioned!(metadata, historic_types, |m, resolver| {
+        decode_extrinsic_inner(bytes, m, resolver)
+    });
 
     match result {
         Ok(decoded) => ExtrinsicTestResult::Success(decoded),

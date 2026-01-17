@@ -34,9 +34,13 @@
 //!     .await?;
 //! ```
 
+#[macro_use]
+mod macros;
+
 mod blocks;
 mod error;
 mod rpc;
+mod rpc_state;
 mod storage;
 mod types;
 
