@@ -81,10 +81,6 @@ async fn test_kusama_relay_historic_storage() {
         .test_blocks(blocks.iter().copied())
         .connections(connections)
         .discover_storage_entries(discover_max)
-        .always_include_storage_item("System", "Number")
-        .always_include_storage_item("Timestamp", "Now")
-        // Skip known huge or noisy entries.
-        .skip_storage_item("System", "Events")
         .max_keys_per_item(max_keys)
         .max_values_per_block(max_values)
         .run()
