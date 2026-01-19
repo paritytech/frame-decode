@@ -216,9 +216,13 @@ reasonable (multiple URLs + modest concurrency).
 - **Kusama Asset Hub**
   - `kusama-assethub-historic-block`: decodes extrinsics across blocks around runtime upgrades.
   - `kusama-assethub-historic-storage`: decodes storage values across the same block set.
+- **Kusama Relay**
+  - `kusama-relay-historic-block`: decodes extrinsics across blocks around runtime upgrades.
+  - `kusama-relay-historic-storage`: decodes storage values across the same block set.
 
 The block list is based on “spec version change markers” (first block under a new runtime spec), and we
-currently test **3 consecutive blocks per marker**: `b, b+1, b+2`.
+currently test **3 consecutive blocks per marker**: `b, b+1, b+2`. For historic coverage we cap markers
+to **pre-V14 transitions** (V14+ metadata embeds types).
 
 ### Test tiers (PR vs deep)
 
@@ -241,7 +245,7 @@ The `decode-tester` CI job is gated using `dorny/paths-filter` and only runs whe
 - `frame-decode-tester/tests/kusama-assethub-*.rs`
 - `frame-decode-tester/Cargo.toml`
 
-When the gate is triggered, CI runs (Kusama Asset Hub) in **deep tier** by default to ensure maximum coverage before merge.
+When the gate is triggered, CI runs the decode tests in **deep tier** by default to ensure maximum coverage before merge.
 
 ### Benchmark/throughput reporting
 
@@ -250,8 +254,6 @@ Each test run emits a `METRIC` line summarizing throughput:
 - `METRIC decode_storage ... secs=... blocks_per_s=... values_per_s=...`
 
 These help guide tuning of concurrency and sampling parameters.
-
-For scheduled runs, CI also executes a **nightly deep tier** which sets `FRAME_DECODE_TIER=deep`.
 
 ### How to run locally
 
@@ -282,6 +284,17 @@ few sample block/spec-version lines:
 FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester --features kusama-assethub \
   --test kusama-assethub-historic-block \
   --test kusama-assethub-historic-storage \
+  -- --nocapture
+```
+
+#### Run all Kusama historic tests (Asset Hub + Relay)
+
+```bash
+FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester --features "kusama-assethub kusama-relay" \
+  --test kusama-assethub-historic-block \
+  --test kusama-assethub-historic-storage \
+  --test kusama-relay-historic-block \
+  --test kusama-relay-historic-storage \
   -- --nocapture
 ```
 

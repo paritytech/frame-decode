@@ -10,6 +10,8 @@ repository = "https://github.com/paritytech/frame-decode"
 default = []
 # Enable tests that validate Kusama Asset Hub historic blocks.
 kusama-assethub = []
+# Enable tests that validate Kusama relay chain historic blocks.
+kusama-relay = []
 
 [dependencies]
 frame-decode = { path = "..", features = ["legacy", "legacy-types", "error-tracing"] }

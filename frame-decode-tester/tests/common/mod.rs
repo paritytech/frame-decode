@@ -26,6 +26,14 @@ pub const KUSAMA_ASSETHUB_RPC_URLS: &[&str] = &[
     "wss://asset-hub-kusama-rpc.n.dwellir.com",
 ];
 
+pub const KUSAMA_RELAY_RPC_URLS: &[&str] = &[
+    // official one first.
+    // https://docs.polkadot.com/getting-started/networks/#kusama-network
+    "wss://kusama-rpc.polkadot.io",
+    // https://www.dwellir.com/public-rpc-endpoints
+    "wss://kusama-rpc.n.dwellir.com",
+];
+
 pub fn debug_enabled() -> bool {
     std::env::var("FRAME_DECODE_TEST_DEBUG")
         .ok()

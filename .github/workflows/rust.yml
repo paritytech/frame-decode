@@ -178,9 +178,12 @@ jobs:
               - 'frame-decode-tester/tests/kusama-assethub-*.rs'
               - 'frame-decode-tester/src/**'
               - 'frame-decode-tester/Cargo.toml'
+            kusama_relay:
+              - 'types/kusama_relay_types.yaml'
+              - 'frame-decode-tester/tests/kusama-relay-*.rs'
 
       - name: Install Rust stable toolchain
-        if: steps.changes.outputs.kusama_assethub == 'true'
+        if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true'
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -188,23 +191,25 @@ jobs:
           override: true
 
       - name: Rust Cache
-        if: steps.changes.outputs.kusama_assethub == 'true'
+        if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true'
         uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Run Kusama Asset Hub decode tests
-        if: steps.changes.outputs.kusama_assethub == 'true'
+      - name: Run Kusama decode tests
+        if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true'
         run: |
           cargo test -p frame-decode-tester \
-            --features kusama-assethub \
+            --features "kusama-assethub kusama-relay" \
             --test kusama-assethub-historic-block \
             --test kusama-assethub-historic-storage \
+            --test kusama-relay-historic-block \
+            --test kusama-relay-historic-storage \
             -- --nocapture
         env:
           FRAME_DECODE_TIER: deep
           FRAME_DECODE_TEST_DEBUG: "1"
 
       - name: Skip decode tests (no relevant changes)
-        if: steps.changes.outputs.kusama_assethub != 'true'
+        if: steps.changes.outputs.kusama_assethub != 'true' && steps.changes.outputs.kusama_relay != 'true'
         run: echo "No relevant type files changed; skipping decode tester tests."
 
   clippy:
