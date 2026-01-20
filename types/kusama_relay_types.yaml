@@ -1,4 +1,4 @@
-# This file provides all the type information necessary to decode historic blocks on the Kusama relay chain
+# This file provides all the type information necessary to decode historic and storage blocks on the Kusama relay chain
 # for more information, or check out the documentation for this crate to see example usage.
 global:
   types:
@@ -145,6 +145,7 @@ global:
 
     # Timestamp
     T::Moment: u64
+    MomentOf<T>: T::Moment
 
     # Indices
     T::AccountIndex: u32
@@ -163,6 +164,8 @@ global:
     LockIdentifier: '[u8; 8]'
     Reasons:
       _enum: ['Fee', 'Misc', 'All']
+    # Early runtimes encoded lock withdraw reasons as bitflags; decode as scalar mask
+    WithdrawReasons: u8
     Multiplier: u128
 
     # Authorship
@@ -357,8 +360,8 @@ global:
       reward: Balance
 
     # Session
-    T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId)
-    T::ValidatorId: AccountId
+    T::Keys: (T::AccountId, T::AccountId, T::AccountId, T::AccountId, T::AccountId)
+    T::ValidatorId: T::AccountId
     KeyTypeId: u32
 
     # Grandpa
@@ -450,6 +453,10 @@ global:
         - SuperMajorityApprove
         - SuperMajorityAgainst
         - SimpleMajority
+    ReferendumInfo<T::BlockNumber, T::Hash>:
+      _enum:
+        Ongoing: ReferendumStatus<BlockNumber, Hash, Balance>
+        Finished: ReferendumInfoFinished<BlockNumber>
     ReferendumInfoFinished<BlockNumber>:
       approved: bool
       end: BlockNumber
@@ -711,7 +718,7 @@ global:
     OpenTip<AccountId, Balance, BlockNumber, Hash>:
       reason: Hash
       who: AccountId
-      finder: AccountId
+      finder: Option<AccountId>
       deposit: Balance
       closes: Option<BlockNumber>
       tips: Vec<(AccountId, Balance)>
@@ -764,6 +771,20 @@ global:
 
     WeakBoundedVec<Item, N>: Vec<Item>
     BoundedVec<Item, N>: Vec<Item>
+    Linkage<Item>:
+      previous: Option<Item>
+      next: Option<Item>
+
+    # Society pallet bids
+    Bid<AccountId, Balance>:
+      who: AccountId
+      kind: BidKind<AccountId, Balance>
+      value: Balance
+    BidKind<AccountId, Balance>:
+      _enum:
+        Deposit: Balance
+        Vouch: (AccountId, Balance)
+        VouchDeposit: (AccountId, Balance)
 
     Balance: u128
     BalanceOf<T>: Balance
@@ -947,9 +968,15 @@ global:
     hardcoded::ExtrinsicAddress: AccountId32
     hardcoded::ExtrinsicSignature: Sr25519Signature
     hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeAssetTxPayment, CheckBlockGasLimit)'
-
+    # Legacy linked-map storage encodes linkage alongside the value; when
+    # frame-decode sees the historic `is_linked` flag it appends a
+    # `hardcoded::Linked` component to the storage value type. This models the
+    # `Linkage<T::AccountId>` shape used by those maps.
+    hardcoded::Linked:
+      previous: Option<AccountId>
+      next: Option<AccountId>
     # Hardcoded types for old metadatas that don't know about them.
-
+    StrikeCount: u32
     # signed exts
     ChargeAssetTxPayment:
       tip: Compact<Balance>
@@ -981,7 +1008,66 @@ global:
     DisallowSigned: []
 
     Box<Proposal>: Call
+    VestingSchedule<T::Balance, T::BlockNumber>:
+      locked: T::Balance
+      per_block: T::Balance
+      starting_block: T::BlockNumber
+    VestingSchedule<Balance, BlockNumber>:
+      locked: Balance
+      per_block: Balance
+      starting_block: BlockNumber
+    BalanceLock<Balance, BlockNumber>:
+      id: LockIdentifier
+      amount: Balance
+      reasons: Reasons
 forSpec:
+  - range: [0, null]
+    types:
+      ReferendumInfo<T::BlockNumber, T::Hash>:
+        end: BlockNumber
+        proposal_hash: Hash
+        threshold: VoteThreshold
+        delay: BlockNumber
+  - range: [1000, null]
+    types:
+      Weight: u32
+      # Slots pallet aliases used in early Kusama events (e.g. NewLeasePeriod)
+      LeasePeriod: LeasePeriodOf<T>
+  - range: [1020, null]
+    types:
+      EraPoints:
+        total: u32
+        individual: Vec<u32>
+  - range: [1000, null]
+    types:
+      BalanceLock<T::Balance, T::BlockNumber>:
+        id: LockIdentifier
+        amount: T::Balance
+        until: BlockNumber
+        reasons: WithdrawReasons
+      # Early Kusama staking ledger did not include `claimed_rewards`
+      StakingLedger<AccountId, Balance>:
+        stash: AccountId
+        total: Compact<Balance>
+        active: Compact<Balance>
+        unlocking: Vec<UnlockChunk<Balance>>
+      # Legacy linked-map storage for staking (Validators, Nominators) is
+      # modeled via an extra `hardcoded::Linked` component on the storage
+      # value type, so the value types themselves stay the same as in newer
+      # runtimes.
+      ValidatorPrefs:
+        commission: Compact<Perbill>
+      Nominations<AccountId>:
+        targets: Vec<AccountId>
+        submitted_in: EraIndex
+        suppressed: bool
+  - range: [1000, 1044]
+    types:
+      # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
+      slashing::SlashingSpans:
+        span_index: slashing::SpanIndex
+        last_start: EraIndex
+        prior: Vec<EraIndex>
   - range: [1019, 1045]
     types:
       LookupSource:
@@ -996,12 +1082,20 @@ forSpec:
   - range: [1032, 1042]
     types:
       # Spec 1032 specific overrides
-      Index: u64
+      Index: u32
       hardcoded::ExtrinsicAddress: LookupSource
       hardcoded::ExtrinsicSignature: MultiSignature
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
+  - range: [1042, 1050]
+    types:
+      OpenTip<T::AccountId, BalanceOf<T>, T::BlockNumber, T::Hash>:
+        reason: T::Hash
+        who: T::AccountId
+        finder: Option<(T::AccountId, BalanceOf<T>)>
+        closes: Option<T::BlockNumber>
+        tips: Vec<(T::AccountId, BalanceOf<T>)>
   - range: [1028, 1028]
     types:
       # Spec 1028: legacy Address for dest and signer
@@ -1084,7 +1178,7 @@ forSpec:
     types:
       # Society pallet's Judgement for this specific runtime version
       Judgement: u8
-  - range: [2008, null]
+  - range: [2005, null]
     types:
       # Council.close uses Compact<Weight> for proposal_weight_bound; by this spec Weight is u64.
       Weight: u64
@@ -1092,6 +1186,10 @@ forSpec:
     types:
       Address: AccountId32
       LookupSource: AccountId32
+  - range: [2025, null]
+    types:
+      # From this spec, `RefCount` was upgraded to `u32` (see `UpgradedToU32RefCount` flag in metadata).
+      RefCount: u32
   - range: [9000, null]
     types:
       # ParasInherent (relay-chain) types needed to decode spec >= 9000
@@ -1229,6 +1327,23 @@ forSpec:
       ValidatorPrefs:
         commission: Compact<Perbill>
         blocked: bool
+      # AccountInfo upgraded to dual refcount (consumers + providers) at spec 2028
+      AccountInfo<Index, AccountData>:
+        nonce: Index
+        consumers: RefCount
+        providers: RefCount
+        data: AccountData
+  - range: [2030, null]
+    types:
+      # AccountInfo upgraded to triple refcount (consumers + providers + sufficients)
+      # By this spec, the runtime encodes an additional `sufficients: RefCount`
+      # field, which would otherwise appear as 4 leftover bytes when decoding.
+      AccountInfo<Index, AccountData>:
+        nonce: Index
+        consumers: RefCount
+        providers: RefCount
+        sufficients: RefCount
+        data: AccountData
   - range: [9010, null]
     types:
       # Witness as defined in metadata (two Compact<u32> fields)
