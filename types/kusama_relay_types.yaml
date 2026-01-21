@@ -581,6 +581,25 @@ global:
     WinningData<T>: '[Option<(AccountId, ParaId, Balance)>; 36]'
     WinningData: '[Option<(AccountId, ParaId, Balance)>; 36]'
 
+    # Crowdloan
+    FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>:
+      depositor: T::AccountId
+      verifier: Option<MultiSigner>
+      deposit: BalanceOf<T>
+      raised: BalanceOf<T>
+      end: T::BlockNumber
+      cap: BalanceOf<T>
+      last_contribution: LastContribution<T::BlockNumber>
+      first_period: LeasePeriodOf<T>
+      last_period: LeasePeriodOf<T>
+      trie_index: TrieIndex
+    LastContribution<BlockNumber>:
+      _enum:
+        Never: []
+        PreEnding: u32
+        Ending: BlockNumber
+    TrieIndex: u32
+
     # Utility
     Timepoint<BlockNumber>:
       height: BlockNumber
