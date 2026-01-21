@@ -324,8 +324,7 @@ impl TestBlocks {
                 let block = &results_map[&idx];
                 eprintln!(
                     "[progress] blocks={tested_blocks}/{total_blocks} extrinsics={extrinsics_tested} failures={failures_total} spec={} block={}",
-                    block.spec_version,
-                    block.block_number
+                    block.spec_version, block.block_number
                 );
                 last_log = Instant::now();
             }

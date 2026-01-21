@@ -46,10 +46,10 @@ pub const KUSAMA_ASSETHUB_SPEC_MARKERS: &[u64] = &[
 /// V14 starts: Block 9,625,129 (spec 9111).
 pub const KUSAMA_RELAY_SPEC_MARKERS: &[u64] = &[
     0, 26668, 38244, 54248, 59658, 67650, 82191, 83237, 101503, 203466, 295787, 461692, 504329,
-    569326, 587686, 653183, 693487, 901442, 1375086, 1445458, 1472960, 1475648, 1491596,
-    1574408, 2064961, 2201991, 2671528, 2704202, 2728002, 2832534, 2962294, 3240000, 3274408,
-    3323565, 3534175, 3860281, 4143129, 4401242, 4841367, 5961600, 6137912, 6561855, 7100891,
-    7468792, 7668600, 7812476, 8010981, 8073833, 8555825, 8945245, 9611377,
+    569326, 587686, 653183, 693487, 901442, 1375086, 1445458, 1472960, 1475648, 1491596, 1574408,
+    2064961, 2201991, 2671528, 2704202, 2728002, 2832534, 2962294, 3240000, 3274408, 3323565,
+    3534175, 3860281, 4143129, 4401242, 4841367, 5961600, 6137912, 6561855, 7100891, 7468792,
+    7668600, 7812476, 8010981, 8073833, 8555825, 8945245, 9611377,
 ];
 
 pub fn debug_enabled() -> bool {
@@ -112,10 +112,7 @@ pub fn max_values_per_block(tier: TestTier) -> usize {
 }
 
 /// Expand markers into blocks: for each marker, emit marker + 0..blocks_per_marker.
-pub fn expand_markers(
-    markers: &[u64],
-    blocks_per_marker: usize,
-) -> impl Iterator<Item = u64> + '_ {
+pub fn expand_markers(markers: &[u64], blocks_per_marker: usize) -> impl Iterator<Item = u64> + '_ {
     markers
         .iter()
         .flat_map(move |&b| (0..blocks_per_marker).map(move |i| b + i as u64))
