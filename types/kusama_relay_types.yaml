@@ -578,9 +578,8 @@ global:
     VestingSchedule<T::Balance, T::BlockNumber>: VestingInfo<Balance, BlockNumber>
 
     # Auctions
-    Bidder<AccountId, Balance>: (AccountId, Balance)
-    WinningData<T>: Vec<Option<Bidder<AccountId, Balance>>>
-    WinningData: Vec<Option<Bidder<AccountId, Balance>>>
+    WinningData<T>: '[Option<(AccountId, ParaId, Balance)>; 36]'
+    WinningData: '[Option<(AccountId, ParaId, Balance)>; 36]'
 
     # Utility
     Timepoint<BlockNumber>:
