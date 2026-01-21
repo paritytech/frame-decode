@@ -283,38 +283,54 @@ impl TestBlocks {
             .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
         let mut tested_blocks = 0usize;
         let mut extrinsics_tested = 0usize;
+        let mut failures_total = 0usize;
         let mut last_log = Instant::now();
         let log_every = Duration::from_secs(30);
         while let Some((idx, result)) = rx.recv().await {
             tested_blocks += 1;
             extrinsics_tested += result.extrinsics.len();
+            failures_total += result.failure_count();
             results_map.insert(idx, result);
 
+            let block = &results_map[&idx];
+            let failure_count = block.failure_count();
+
+            if failure_count > 0 {
+                for (ext_idx, ext) in block.extrinsics.iter().enumerate() {
+                    if let ExtrinsicTestResult::Failure { error, .. } = ext {
+                        eprintln!(
+                            "[FAILURE] block={} spec={} extrinsic={} error={}",
+                            block.block_number, block.spec_version, ext_idx, error
+                        );
+                    }
+                }
+            }
+
             if debug_enabled {
-                let is_new_spec = debug_seen_specs.insert(results_map[&idx].spec_version);
-                let has_failures = results_map[&idx].failure_count() > 0;
-                if is_new_spec || has_failures {
-                    let block = &results_map[&idx];
+                let is_new_spec = debug_seen_specs.insert(block.spec_version);
+                if is_new_spec || failure_count > 0 {
                     eprintln!(
                         "[debug-progress] block={} hash={:?} spec_version={} extrinsics={} failures={}",
                         block.block_number,
                         block.block_hash,
                         block.spec_version,
                         block.extrinsics.len(),
-                        block.failure_count(),
+                        failure_count,
                     );
                 }
             }
 
             if last_log.elapsed() >= log_every {
+                let block = &results_map[&idx];
                 eprintln!(
-                    "[progress] blocks tested={tested_blocks}/{total_blocks} extrinsics={extrinsics_tested}"
+                    "[progress] blocks={tested_blocks}/{total_blocks} extrinsics={extrinsics_tested} failures={failures_total} spec={} block={}",
+                    block.spec_version,
+                    block.block_number
                 );
                 last_log = Instant::now();
             }
         }
 
-        // Sort results back into order
         let mut sorted_indices: Vec<_> = results_map.keys().copied().collect();
         sorted_indices.sort_unstable();
 

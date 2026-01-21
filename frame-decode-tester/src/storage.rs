@@ -397,18 +397,39 @@ impl TestStorage {
             .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
         let mut tested_blocks = 0usize;
         let mut values_tested = 0usize;
+        let mut failures_total = 0usize;
         let mut last_log = Instant::now();
         let log_every = Duration::from_secs(30);
         while let Some((idx, result)) = rx.recv().await {
             tested_blocks += 1;
             values_tested += result.value_count();
+            failures_total += result.failure_count();
             results_map.insert(idx, result);
 
+            let block = &results_map[&idx];
+            let failure_count = block.failure_count();
+
+            if failure_count > 0 {
+                for item in &block.items {
+                    for value in &item.values {
+                        if let StorageValueTestResult::Failure { key, error, .. } = value {
+                            eprintln!(
+                                "[FAILURE] block={} spec={} {}.{} key={} error={}",
+                                block.block_number,
+                                block.spec_version,
+                                item.pallet_name,
+                                item.storage_entry,
+                                key,
+                                error
+                            );
+                        }
+                    }
+                }
+            }
+
             if debug_enabled {
-                let is_new_spec = debug_seen_specs.insert(results_map[&idx].spec_version);
-                let has_failures = results_map[&idx].failure_count() > 0;
-                if is_new_spec || has_failures {
-                    let block = &results_map[&idx];
+                let is_new_spec = debug_seen_specs.insert(block.spec_version);
+                if is_new_spec || failure_count > 0 {
                     eprintln!(
                         "[debug-progress] block={} hash={:?} spec_version={} items={} values={} failures={}",
                         block.block_number,
@@ -416,14 +437,17 @@ impl TestStorage {
                         block.spec_version,
                         block.items.len(),
                         block.value_count(),
-                        block.failure_count(),
+                        failure_count,
                     );
                 }
             }
 
             if last_log.elapsed() >= log_every {
+                let block = &results_map[&idx];
                 eprintln!(
-                    "[progress] storage blocks tested={tested_blocks}/{total_blocks} values={values_tested}"
+                    "[progress] blocks={tested_blocks}/{total_blocks} values={values_tested} failures={failures_total} spec={} block={}",
+                    block.spec_version,
+                    block.block_number
                 );
                 last_log = Instant::now();
             }
