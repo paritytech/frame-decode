@@ -175,12 +175,12 @@ jobs:
           filters: |
             kusama_assethub:
               - 'types/kusama_assethub_types.yaml'
-              - 'frame-decode-tester/tests/kusama-assethub-*.rs'
+              - 'frame-decode-tester/tests/kusama_assethub_*.rs'
               - 'frame-decode-tester/src/**'
               - 'frame-decode-tester/Cargo.toml'
             kusama_relay:
               - 'types/kusama_relay_types.yaml'
-              - 'frame-decode-tester/tests/kusama-relay-*.rs'
+              - 'frame-decode-tester/tests/kusama_relay_*.rs'
 
       - name: Install Rust stable toolchain
         if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true'
@@ -199,10 +199,10 @@ jobs:
         run: |
           cargo test -p frame-decode-tester \
             --features "kusama-assethub kusama-relay" \
-            --test kusama-assethub-historic-block \
-            --test kusama-assethub-historic-storage \
-            --test kusama-relay-historic-block \
-            --test kusama-relay-historic-storage \
+            --test kusama_assethub_historic_block \
+            --test kusama_assethub_historic_storage \
+            --test kusama_relay_historic_block \
+            --test kusama_relay_historic_storage \
             -- --nocapture
         env:
           FRAME_DECODE_TIER: deep

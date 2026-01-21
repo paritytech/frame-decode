@@ -18,20 +18,38 @@ impl TestTier {
 }
 
 pub const KUSAMA_ASSETHUB_RPC_URLS: &[&str] = &[
-    // official one first.
     // https://docs.polkadot.com/smart-contracts/connect/#__tabbed_1_2
     "wss://kusama-asset-hub-rpc.polkadot.io",
     // https://www.dwellir.com/public-rpc-endpoints
-    // Backup public RPCs:
     "wss://asset-hub-kusama-rpc.n.dwellir.com",
 ];
 
 pub const KUSAMA_RELAY_RPC_URLS: &[&str] = &[
-    // official one first.
     // https://docs.polkadot.com/getting-started/networks/#kusama-network
     "wss://kusama-rpc.polkadot.io",
     // https://www.dwellir.com/public-rpc-endpoints
     "wss://kusama-rpc.n.dwellir.com",
+];
+
+/// Kusama AssetHub spec version change markers (pre-V14 metadata).
+/// V14 metadata starts at block 1,057,370 (spec 504).
+pub const KUSAMA_ASSETHUB_SPEC_MARKERS: &[u64] = &[
+    66686,  // spec 1
+    406583, // spec 2
+    647941, // spec 3
+    955744, // spec 4
+    963005, // spec 5 = LAST PRE-V14 SPEC
+];
+
+/// Kusama Relay Chain spec version change markers (pre-V14 only).
+/// Pre-V14 range: Block 1 to Block 9,625,128 (spec 1020 to 9100).
+/// V14 starts: Block 9,625,129 (spec 9111).
+pub const KUSAMA_RELAY_SPEC_MARKERS: &[u64] = &[
+    0, 26668, 38244, 54248, 59658, 67650, 82191, 83237, 101503, 203466, 295787, 461692, 504329,
+    569326, 587686, 653183, 693487, 901442, 1375086, 1445458, 1472960, 1475648, 1491596,
+    1574408, 2064961, 2201991, 2671528, 2704202, 2728002, 2832534, 2962294, 3240000, 3274408,
+    3323565, 3534175, 3860281, 4143129, 4401242, 4841367, 5961600, 6137912, 6561855, 7100891,
+    7468792, 7668600, 7812476, 8010981, 8073833, 8555825, 8945245, 9611377,
 ];
 
 pub fn debug_enabled() -> bool {
@@ -40,21 +58,22 @@ pub fn debug_enabled() -> bool {
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
-pub fn connections_for_blocks(tier: TestTier) -> usize {
+pub fn connections_for_extrinsics(tier: TestTier) -> usize {
     match tier {
-        TestTier::Pr => 2,
-        TestTier::Deep => 4,
+        TestTier::Pr => 4,
+        TestTier::Deep => 10,
     }
 }
 
 pub fn connections_for_storage(tier: TestTier) -> usize {
     match tier {
-        TestTier::Pr => 1,
-        TestTier::Deep => 2,
+        TestTier::Pr => 2,
+        TestTier::Deep => 5,
     }
 }
 
-pub fn extra_block_samples_per_window(tier: TestTier) -> usize {
+/// How many blocks to test around each spec-change marker for extrinsic decoding.
+pub fn extrinsic_blocks_per_marker(tier: TestTier) -> usize {
     match tier {
         // Keep PR tier fast.
         TestTier::Pr => 10,
@@ -63,11 +82,10 @@ pub fn extra_block_samples_per_window(tier: TestTier) -> usize {
     }
 }
 
+/// How many blocks to test around each spec-change marker for storage decoding.
 pub fn storage_blocks_per_marker(tier: TestTier) -> usize {
     match tier {
-        // Storage is expensive; keep PR minimal.
-        TestTier::Pr => 1, // just first item `b`
-        // Deep tier: test b,b+1,b+2 around runtime transition.
+        TestTier::Pr => 1,
         TestTier::Deep => 5,
     }
 }
@@ -93,51 +111,12 @@ pub fn max_values_per_block(tier: TestTier) -> usize {
     }
 }
 
-pub fn sample_blocks_in_window(start: u64, end_exclusive: u64, samples: usize) -> Vec<u64> {
-    if samples == 0 {
-        return Vec::new();
-    }
-    if end_exclusive <= start + 1 {
-        return Vec::new();
-    }
-
-    let len = end_exclusive - start;
-    // Evenly spaced samples, deterministic.
-    let step = (len / samples as u64).max(1);
-    let mut out = Vec::with_capacity(samples);
-    let mut n = start;
-    while n < end_exclusive && out.len() < samples {
-        out.push(n);
-        n = n.saturating_add(step);
-    }
-    out
-}
-
-pub fn expand_markers(markers: &[u64], blocks_per_marker: usize) -> Vec<u64> {
-    let mut out = Vec::with_capacity(markers.len() * blocks_per_marker);
-    for &b in markers {
-        for i in 0..blocks_per_marker {
-            out.push(b + i as u64);
-        }
-    }
-    out.sort_unstable();
-    out.dedup();
-    out
-}
-
-pub fn blocks_for_spec_windows(markers: &[u64], extra_samples_per_window: usize) -> Vec<u64> {
-    // Sample only windows we can define (marker[i]..marker[i+1]).
-    let mut out = Vec::new();
-    for w in markers.windows(2) {
-        let start = w[0];
-        let end = w[1];
-        out.extend(sample_blocks_in_window(
-            start,
-            end,
-            extra_samples_per_window,
-        ));
-    }
-    out.sort_unstable();
-    out.dedup();
-    out
+/// Expand markers into blocks: for each marker, emit marker + 0..blocks_per_marker.
+pub fn expand_markers(
+    markers: &[u64],
+    blocks_per_marker: usize,
+) -> impl Iterator<Item = u64> + '_ {
+    markers
+        .iter()
+        .flat_map(move |&b| (0..blocks_per_marker).map(move |i| b + i as u64))
 }

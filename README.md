@@ -214,11 +214,11 @@ reasonable (multiple URLs + modest concurrency).
 ### Current test coverage
 
 - **Kusama Asset Hub**
-  - `kusama-assethub-historic-block`: decodes extrinsics across blocks around runtime upgrades.
-  - `kusama-assethub-historic-storage`: decodes storage values across the same block set.
+  - `kusama_assethub_historic_block`: decodes extrinsics across blocks around runtime upgrades.
+  - `kusama_assethub_historic_storage`: decodes storage values across the same block set.
 - **Kusama Relay**
-  - `kusama-relay-historic-block`: decodes extrinsics across blocks around runtime upgrades.
-  - `kusama-relay-historic-storage`: decodes storage values across the same block set.
+  - `kusama_relay_historic_block`: decodes extrinsics across blocks around runtime upgrades.
+  - `kusama_relay_historic_storage`: decodes storage values across the same block set.
 
 The block list is based on “spec version change markers” (first block under a new runtime spec), and we
 currently test **3 consecutive blocks per marker**: `b, b+1, b+2`. For historic coverage we cap markers
@@ -261,8 +261,8 @@ These help guide tuning of concurrency and sampling parameters.
 
 ```bash
 cargo test -p frame-decode-tester --features kusama-assethub \
-  --test kusama-assethub-historic-block \
-  --test kusama-assethub-historic-storage \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
   -- --nocapture
 ```
 
@@ -270,8 +270,8 @@ cargo test -p frame-decode-tester --features kusama-assethub \
 
 ```bash
 FRAME_DECODE_TIER=deep cargo test -p frame-decode-tester --features kusama-assethub \
-  --test kusama-assethub-historic-block \
-  --test kusama-assethub-historic-storage \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
   -- --nocapture
 ```
 
@@ -282,8 +282,8 @@ few sample block/spec-version lines:
 
 ```bash
 FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester --features kusama-assethub \
-  --test kusama-assethub-historic-block \
-  --test kusama-assethub-historic-storage \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
   -- --nocapture
 ```
 
@@ -291,10 +291,10 @@ FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester
 
 ```bash
 FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester --features "kusama-assethub kusama-relay" \
-  --test kusama-assethub-historic-block \
-  --test kusama-assethub-historic-storage \
-  --test kusama-relay-historic-block \
-  --test kusama-relay-historic-storage \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
+  --test kusama_relay_historic_block \
+  --test kusama_relay_historic_storage \
   -- --nocapture
 ```
 

@@ -17,9 +17,9 @@
 mod common;
 
 use common::{
-    KUSAMA_ASSETHUB_RPC_URLS, TestTier, connections_for_storage, debug_enabled,
-    discover_max_items_per_block, expand_markers, max_keys_per_item, max_values_per_block,
-    storage_blocks_per_marker,
+    KUSAMA_ASSETHUB_RPC_URLS, KUSAMA_ASSETHUB_SPEC_MARKERS, TestTier, connections_for_storage,
+    debug_enabled, discover_max_items_per_block, expand_markers, max_keys_per_item,
+    max_values_per_block, storage_blocks_per_marker,
 };
 use frame_decode_tester::{ChainTypes, StorageValueTestResult, TestStorage};
 use std::time::Instant;
@@ -56,22 +56,13 @@ fn failure_summary(tester: &TestStorage) -> String {
 async fn test_kusama_asset_hub_historic_storage() {
     let tier = TestTier::from_env();
     let connections = connections_for_storage(tier);
-    let blocks_per_marker = storage_blocks_per_marker(tier);
+    let bpm = storage_blocks_per_marker(tier);
     let max_keys = max_keys_per_item(tier);
     let discover_max = discover_max_items_per_block(tier);
     let max_values = max_values_per_block(tier);
 
-    // Kusama AssetHub spec version change markers (pre-V14 metadata)
-    // V14 metadata starts at block 1,057,370 (spec 504)
-    let markers = [
-        66686,  // spec 1
-        406583, // spec 2
-        647941, // spec 3
-        955744, // spec 4
-        963005, // spec 5 = LAST PRE-V14 SPEC
-                // V14 metadata starts at block 1,057,370 (spec 504)
-    ];
-    let blocks = expand_markers(&markers, blocks_per_marker);
+    let markers = KUSAMA_ASSETHUB_SPEC_MARKERS;
+    let blocks: Vec<u64> = expand_markers(markers, bpm).collect();
     let expected_blocks = blocks.len();
 
     let started = Instant::now();
@@ -81,10 +72,6 @@ async fn test_kusama_asset_hub_historic_storage() {
         .test_blocks(blocks.iter().copied())
         .connections(connections)
         .discover_storage_entries(discover_max)
-        .always_include_storage_item("System", "Number")
-        .always_include_storage_item("Timestamp", "Now")
-        // Skip known huge or noisy entries.
-        .skip_storage_item("System", "Events")
         .max_keys_per_item(max_keys)
         .max_values_per_block(max_values)
         .run()
@@ -104,19 +91,11 @@ async fn test_kusama_asset_hub_historic_storage() {
     );
 
     if debug_enabled() {
-        eprintln!(
-            "[debug] tier={tier:?} connections={connections} urls={} markers={} blocks_per_marker={blocks_per_marker} discover_max_items_per_block={discover_max} max_keys_per_item={max_keys} max_values_per_block={max_values} blocks={expected_blocks} blocks_tested={} values_tested={} failures={}",
-            KUSAMA_ASSETHUB_RPC_URLS.len(),
-            markers.len(),
-            tester.block_count(),
-            tester.value_count(),
-            tester.failure_count(),
-        );
         for block in tester.results().iter() {
             eprintln!(
                 "[debug] block={} kind={} hash={:?} spec_version={} items={} values={}",
                 block.block_number,
-                label_for_block(block.block_number, &markers, blocks_per_marker),
+                label_for_block(block.block_number, &markers, bpm),
                 block.block_hash,
                 block.spec_version,
                 block.items.len(),

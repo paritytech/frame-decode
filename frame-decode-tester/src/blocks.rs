@@ -227,13 +227,13 @@ impl TestBlocks {
     /// Execute the block tests.
     async fn execute(mut self) -> Result<TestBlocks, Error> {
         let historic_types = Arc::new(self.chain_types.load());
-        let urls = Arc::new(self.urls.clone());
+        let urls = Arc::new(std::mem::take(&mut self.urls));
         let num_connections = self.connections.min(self.blocks.len());
         let total_blocks = self.blocks.len();
 
         // Create a shared index into the blocks list
         let next_block_idx = Arc::new(AtomicU64::new(0));
-        let blocks = Arc::new(self.blocks.clone());
+        let blocks = Arc::new(std::mem::take(&mut self.blocks));
 
         // Channel for collecting results
         let (tx, mut rx) = mpsc::channel::<(usize, BlockTestResult)>(num_connections * 2);
