@@ -12,6 +12,8 @@ default = []
 kusama-assethub = []
 # Enable tests that validate Kusama relay chain historic blocks.
 kusama-relay = []
+# Enable tests that validate Polkadot relay chain historic blocks.
+polkadot-relay = []
 
 [dependencies]
 frame-decode = { path = "..", features = ["legacy", "legacy-types", "error-tracing"] }

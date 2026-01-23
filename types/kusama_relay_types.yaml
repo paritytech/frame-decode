@@ -257,6 +257,9 @@ global:
     ActiveEraInfo:
       index: EraIndex
       start: Option<Moment>
+    ActiveEraInfo<MomentOf<T>>:
+      index: EraIndex
+      start: Option<Moment>
     Forcing:       
       _enum: ['NotForcing', 'ForceNew', 'ForceNone', 'ForceAlways']
     StakingLedger<AccountId, Balance>:
@@ -413,6 +416,10 @@ global:
     # Democracy
     PropIndex: u32
     ReferendumIndex: u32
+    ProxyState<T::AccountId>:
+      _enum:
+        Open: T::AccountId
+        Active: T::AccountId
     AccountVote<Balance>:
       _enum:
         Standard:
@@ -485,12 +492,22 @@ global:
       _enum:
         Missing: BlockNumber
         Available: PreimageStatusAvailable<AccountId, Balance, BlockNumber>
+    PreimageStatus<T::AccountId, BalanceOf<T>, T::BlockNumber>:
+      _enum:
+        Missing: T::BlockNumber
+        Available: PreimageStatusAvailable<T::AccountId, BalanceOf<T>, T::BlockNumber>
     PreimageStatusAvailable<AccountId, Balance, BlockNumber>:
       data: Bytes
       provider: AccountId
       deposit: Balance
       since: BlockNumber
       expiry: Option<BlockNumber>
+    PreimageStatusAvailable<T::AccountId, BalanceOf<T>, T::BlockNumber>:
+      data: Bytes
+      provider: T::AccountId
+      deposit: BalanceOf<T>
+      since: T::BlockNumber
+      expiry: Option<T::BlockNumber>
 
     # Council
     MemberCount: u32
@@ -560,6 +577,7 @@ global:
       manager: AccountId
       deposit: Balance
       locked: bool
+    ParaInfo<T::AccountId, BalanceOf<T>>: ParaInfo
     CollatorId: H256
 
     # Claims
@@ -580,6 +598,154 @@ global:
     # Auctions
     WinningData<T>: '[Option<(AccountId, ParaId, Balance)>; 36]'
     WinningData: '[Option<(AccountId, ParaId, Balance)>; 36]'
+
+    # Gilt
+    GiltBid<BalanceOf<T>, T::AccountId>:
+      amount: BalanceOf<T>
+      who: T::AccountId
+
+    # Paras (for events)
+    CandidateReceipt<Hash>:
+      descriptor: CandidateDescriptor
+      commitments_hash: Hash
+    CandidateReceipt<T::Hash>:
+      descriptor: CandidateDescriptor
+      commitments_hash: T::Hash
+    CoreIndex: u32
+    GroupIndex: u32
+
+    # Dmp (Downward Message Passing)
+    InboundDownwardMessage<T::BlockNumber>:
+      sent_at: T::BlockNumber
+      msg: Vec<u8>
+
+    # Hrmp
+    HrmpChannel:
+      max_capacity: u32
+      max_total_size: u32
+      max_message_size: u32
+      msg_count: u32
+      total_size: u32
+      mqc_head: Option<Hash>
+      sender_deposit: Balance
+      recipient_deposit: Balance
+
+    # ParaSessionInfo
+    SessionInfo:
+      validators: Vec<ValidatorId>
+      discovery_keys: Vec<AuthorityDiscoveryId>
+      assignment_keys: Vec<AssignmentId>
+      validator_groups: Vec<Vec<ValidatorIndex>>
+      n_cores: u32
+      zeroth_delay_tranche_width: u32
+      relay_vrf_modulo_samples: u32
+      n_delay_tranches: u32
+      no_show_slots: u32
+      needed_approvals: u32
+    AuthorityDiscoveryId: AccountId32
+    AssignmentId: AccountId32
+
+    # Configuration
+    # HostConfiguration at specs 9100+ (without pvf fields)
+    HostConfiguration<T::BlockNumber>:
+      max_code_size: u32
+      max_head_data_size: u32
+      max_upward_queue_count: u32
+      max_upward_queue_size: u32
+      max_upward_message_size: u32
+      max_upward_message_num_per_candidate: u32
+      hrmp_max_message_num_per_candidate: u32
+      validation_upgrade_cooldown: T::BlockNumber
+      validation_upgrade_delay: T::BlockNumber
+      max_pov_size: u32
+      max_downward_message_size: u32
+      ump_service_total_weight: Weight
+      hrmp_max_parachain_outbound_channels: u32
+      hrmp_max_parathread_outbound_channels: u32
+      hrmp_sender_deposit: Balance
+      hrmp_recipient_deposit: Balance
+      hrmp_channel_max_capacity: u32
+      hrmp_channel_max_total_size: u32
+      hrmp_max_parachain_inbound_channels: u32
+      hrmp_max_parathread_inbound_channels: u32
+      hrmp_channel_max_message_size: u32
+      code_retention_period: T::BlockNumber
+      parathread_cores: u32
+      parathread_retries: u32
+      group_rotation_frequency: T::BlockNumber
+      chain_availability_period: T::BlockNumber
+      thread_availability_period: T::BlockNumber
+      scheduling_lookahead: u32
+      max_validators_per_core: Option<u32>
+      max_validators: Option<u32>
+      dispute_period: SessionIndex
+      dispute_post_conclusion_acceptance_period: T::BlockNumber
+      dispute_max_spam_slots: u32
+      dispute_conclusion_by_time_out_period: T::BlockNumber
+      no_show_slots: u32
+      n_delay_tranches: u32
+      zeroth_delay_tranche_width: u32
+      needed_approvals: u32
+      relay_vrf_modulo_samples: u32
+      ump_max_individual_weight: Weight
+
+    # ParaInclusion
+    AvailabilityBitfieldRecord<T::BlockNumber>:
+      bitfield: BitVec
+      submitted_at: T::BlockNumber
+    BitVec: Vec<u8>
+    CandidatePendingAvailability<T::Hash, T::BlockNumber>:
+      core: CoreIndex
+      hash: CandidateHash
+      descriptor: CandidateDescriptor
+      availability_votes: BitVec
+      backers: BitVec
+      relay_parent_number: T::BlockNumber
+      backed_in_number: T::BlockNumber
+      backing_group: GroupIndex
+    CandidateHash: Hash
+
+    # ParaScheduler
+    CoreOccupied:
+      _enum:
+        Parathread: ParathreadEntry
+        Parachain: []
+    ParathreadEntry:
+      claim: ParathreadClaim
+      retries: u32
+    ParathreadClaim: (ParaId, CollatorId)
+    ParathreadClaimQueue:
+      queue: Vec<QueuedParathread>
+      next_core_offset: u32
+    QueuedParathread:
+      claim: ParathreadEntry
+      core_offset: u32
+    CoreAssignment:
+      core: CoreIndex
+      para_id: ParaId
+      kind: AssignmentKind
+      group_idx: GroupIndex
+    AssignmentKind:
+      _enum:
+        Parachain: []
+        Parathread: (CollatorId, u32)
+
+    # Paras
+    ParaLifecycle:
+      _enum:
+        - Onboarding
+        - Parathread
+        - Parachain
+        - UpgradingParathread
+        - DowngradingParachain
+        - OffboardingParathread
+        - OffboardingParachain
+    ParaPastCodeMeta<T::BlockNumber>:
+      upgrade_times: Vec<ReplacementTimes<T::BlockNumber>>
+      last_pruned: Option<T::BlockNumber>
+    ReplacementTimes<N>:
+      expected_at: N
+      activated_at: N
 
     # Crowdloan
     FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>:
@@ -804,6 +970,23 @@ global:
     Linkage<Item>:
       previous: Option<Item>
       next: Option<Item>
+
+    # Recovery
+    RecoveryConfig<T::BlockNumber, BalanceOf<T>, T::AccountId>:
+      delay_period: T::BlockNumber
+      deposit: BalanceOf<T>
+      friends: Vec<T::AccountId>
+      threshold: u16
+    ActiveRecovery<T::BlockNumber, BalanceOf<T>, T::AccountId>:
+      created: T::BlockNumber
+      deposit: BalanceOf<T>
+      friends: Vec<T::AccountId>
+
+    # Society pallet
+    VouchingStatus:
+      _enum:
+        - Vouching
+        - Banned
 
     # Society pallet bids
     Bid<AccountId, Balance>:
@@ -1058,6 +1241,10 @@ forSpec:
         proposal_hash: Hash
         threshold: VoteThreshold
         delay: BlockNumber
+  - range: [0, 1055]
+    types:
+      # Early Kusama Multiplier was Fixed64 (8 bytes), not FixedU128 (16 bytes)
+      Multiplier: u64
   - range: [1000, null]
     types:
       Weight: u32
@@ -1068,6 +1255,37 @@ forSpec:
       EraPoints:
         total: u32
         individual: Vec<u32>
+  - range: [1000, 1050]
+    types:
+      # Specs 1000-1050: Early Kusama staking ledger WITHOUT claimed_rewards
+      # The claimed_rewards field was added via lazy migration at block 1377831 (late in spec 1050).
+      # Since most of spec 1050 is BEFORE the migration, we include it in this range.
+      StakingLedger<AccountId, Balance>:
+        stash: AccountId
+        total: Compact<Balance>
+        active: Compact<Balance>
+        unlocking: Vec<UnlockChunk<Balance>>
+      StakingLedger<T::AccountId, BalanceOf<T>>:
+        stash: T::AccountId
+        total: Compact<BalanceOf<T>>
+        active: Compact<BalanceOf<T>>
+        unlocking: Vec<UnlockChunk<BalanceOf<T>>>
+  - range: [1051, 2004]
+    types:
+      # Specs 1051-2004: Kusama staking ledger WITH claimed_rewards.
+      # Some heterogeneous storage may still exist due to lazy migration.
+      StakingLedger<AccountId, Balance>:
+        stash: AccountId
+        total: Compact<Balance>
+        active: Compact<Balance>
+        unlocking: Vec<UnlockChunk<Balance>>
+        claimed_rewards: Vec<EraIndex>
+      StakingLedger<T::AccountId, BalanceOf<T>>:
+        stash: T::AccountId
+        total: Compact<BalanceOf<T>>
+        active: Compact<BalanceOf<T>>
+        unlocking: Vec<UnlockChunk<BalanceOf<T>>>
+        claimed_rewards: Vec<EraIndex>
   - range: [1000, null]
     types:
       BalanceLock<T::Balance, T::BlockNumber>:
@@ -1075,12 +1293,6 @@ forSpec:
         amount: T::Balance
         until: BlockNumber
         reasons: WithdrawReasons
-      # Early Kusama staking ledger did not include `claimed_rewards`
-      StakingLedger<AccountId, Balance>:
-        stash: AccountId
-        total: Compact<Balance>
-        active: Compact<Balance>
-        unlocking: Vec<UnlockChunk<Balance>>
       # Legacy linked-map storage for staking (Validators, Nominators) is
       # modeled via an extra `hardcoded::Linked` component on the storage
       # value type, so the value types themselves stay the same as in newer
@@ -1111,6 +1323,16 @@ forSpec:
         until: BlockNumber
       BalanceLock<Balance, BlockNumber>: BalanceLock<Balance>
       BalanceLock<T::Balance, T::BlockNumber>: BalanceLock<Balance>
+  - range: [1046, 1055]
+    types:
+      # Specs 1046-1055: Reasons was still u8 bitflag, BalanceLock without until field
+      # Note: Some very early locks (before ~block 1380000) still have the until field,
+      # but most locks at these specs don't. Heterogeneous storage - some failures expected.
+      Reasons: u8
+      BalanceLock<T::Balance>:
+        id: LockIdentifier
+        amount: Balance
+        reasons: Reasons
   - range: [1020, null]
     types:
       # Early Kusama runtime uses ChargeTransactionPayment (no assetId) in signed extensions
@@ -1126,14 +1348,62 @@ forSpec:
       hardcoded::ExtrinsicSignedExtensions: '(CheckVersion, CheckGenesis, CheckEra, CheckNonce, CheckWeight, ChargeTransactionPayment)'
       CheckVersion: []
       CheckGenesis: []
-  - range: [1042, 1050]
+  - range: [1039, 1041]
     types:
+      # Specs 1039-1041: Early OpenTip with simple Option<AccountId> finder, no deposit/finders_fee
+      OpenTip<T::AccountId, BalanceOf<T>, T::BlockNumber, T::Hash>:
+        reason: T::Hash
+        who: T::AccountId
+        finder: Option<T::AccountId>
+        closes: Option<T::BlockNumber>
+        tips: Vec<(T::AccountId, BalanceOf<T>)>
+      OpenTip<AccountId, Balance, BlockNumber, Hash>:
+        reason: Hash
+        who: AccountId
+        finder: Option<AccountId>
+        closes: Option<BlockNumber>
+        tips: Vec<(AccountId, Balance)>
+  - range: [1055, 1058]
+    types:
+      # Specs 1055-1058: Preimages stored as tuple (data, provider, deposit, since)
+      # Heterogeneous storage at spec 1058: early blocks use tuple, later blocks use enum.
+      # Tuple format covers more data, so we use it (7 errors at later blocks are unavoidable).
+      PreimageStatus<T::AccountId, BalanceOf<T>, T::BlockNumber>: '(Bytes, T::AccountId, BalanceOf<T>, T::BlockNumber)'
+      PreimageStatus<AccountId, Balance, BlockNumber>: '(Bytes, AccountId, Balance, BlockNumber)'
+  - range: [1042, 2012]
+    types:
+      # OpenTip with finder as tuple, has closes, no deposit/finders_fee fields
       OpenTip<T::AccountId, BalanceOf<T>, T::BlockNumber, T::Hash>:
         reason: T::Hash
         who: T::AccountId
         finder: Option<(T::AccountId, BalanceOf<T>)>
         closes: Option<T::BlockNumber>
         tips: Vec<(T::AccountId, BalanceOf<T>)>
+      OpenTip<AccountId, Balance, BlockNumber, Hash>:
+        reason: Hash
+        who: AccountId
+        finder: Option<(AccountId, Balance)>
+        closes: Option<BlockNumber>
+        tips: Vec<(AccountId, Balance)>
+  - range: [2013, 2027]
+    types:
+      # Specs 2013-2027: finder is required AccountId (not Option), has deposit and finders_fee
+      OpenTip<T::AccountId, BalanceOf<T>, T::BlockNumber, T::Hash>:
+        reason: T::Hash
+        who: T::AccountId
+        finder: T::AccountId
+        deposit: BalanceOf<T>
+        closes: Option<T::BlockNumber>
+        tips: Vec<(T::AccountId, BalanceOf<T>)>
+        finders_fee: bool
+      OpenTip<AccountId, Balance, BlockNumber, Hash>:
+        reason: Hash
+        who: AccountId
+        finder: AccountId
+        deposit: Balance
+        closes: Option<BlockNumber>
+        tips: Vec<(AccountId, Balance)>
+        finders_fee: bool
   - range: [1028, 1028]
     types:
       # Spec 1028: legacy Address for dest and signer

@@ -31,6 +31,9 @@ pub const KUSAMA_RELAY_RPC_URLS: &[&str] = &[
     "wss://kusama-rpc.n.dwellir.com",
 ];
 
+pub const POLKADOT_RELAY_RPC_URLS: &[&str] =
+    &["wss://rpc.polkadot.io", "wss://polkadot-rpc.n.dwellir.com"];
+
 /// Kusama AssetHub spec version change markers (pre-V14 metadata).
 /// V14 metadata starts at block 1,057,370 (spec 504).
 pub const KUSAMA_ASSETHUB_SPEC_MARKERS: &[u64] = &[
@@ -50,6 +53,15 @@ pub const KUSAMA_RELAY_SPEC_MARKERS: &[u64] = &[
     2064961, 2201991, 2671528, 2704202, 2728002, 2832534, 2962294, 3240000, 3274408, 3323565,
     3534175, 3860281, 4143129, 4401242, 4841367, 5961600, 6137912, 6561855, 7100891, 7468792,
     7668600, 7812476, 8010981, 8073833, 8555825, 8945245, 9611377,
+];
+
+/// Polkadot Relay Chain spec version change markers (pre-V14 only).
+/// Pre-V14 range: Block 0 to Block 7,229,126 (spec 0 to 9100).
+/// V14 starts: Block 7,229,127 (spec 9110).
+pub const POLKADOT_RELAY_SPEC_MARKERS: &[u64] = &[
+    0, 29231, 188836, 199405, 214264, 244358, 303079, 314201, 342400, 443963, 528470, 687751,
+    746085, 787923, 799302, 1205128, 1603423, 1733218, 2005673, 2436698, 3613564, 3899547, 4345767,
+    4876134, 5661442, 6321619, 6713249, 7217907,
 ];
 
 pub fn debug_enabled() -> bool {
