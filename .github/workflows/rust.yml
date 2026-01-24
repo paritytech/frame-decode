@@ -216,6 +216,7 @@ jobs:
             --test kusama_relay_historic_block \
             --test polkadot_relay_historic_block \
             --test polkadot_relay_historic_storage \
+            --no-fail-fast \
             -- --nocapture
         env:
           FRAME_DECODE_TIER: deep

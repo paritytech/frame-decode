@@ -718,6 +718,10 @@ global:
           query_id: u64
         ClearOrigin: []
 
+    # DmpQueue types
+    MessageId: '[u8; 32]'
+    relay_chain::Hash: H256
+
     # xcm::v0::Outcome used by events (e.g., PolkadotXcm, XcmpQueue, DmpQueue)
     Outcome:
       _enum:

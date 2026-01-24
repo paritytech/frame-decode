@@ -1259,7 +1259,6 @@ forSpec:
     types:
       # Specs 1000-1050: Early Kusama staking ledger WITHOUT claimed_rewards
       # The claimed_rewards field was added via lazy migration at block 1377831 (late in spec 1050).
-      # Since most of spec 1050 is BEFORE the migration, we include it in this range.
       StakingLedger<AccountId, Balance>:
         stash: AccountId
         total: Compact<Balance>
@@ -1273,7 +1272,9 @@ forSpec:
   - range: [1051, 2004]
     types:
       # Specs 1051-2004: Kusama staking ledger WITH claimed_rewards.
-      # Some heterogeneous storage may still exist due to lazy migration.
+      # HETEROGENEOUS STORAGE: ~33 unmigrated ledgers at specs 1051-1055 will fail.
+      # Tested: extending range to 1055 causes MORE failures (ledgers WITH claimed_rewards).
+      # This range correctly decodes the majority of ledgers.
       StakingLedger<AccountId, Balance>:
         stash: AccountId
         total: Compact<Balance>
