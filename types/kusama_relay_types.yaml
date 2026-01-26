@@ -1304,9 +1304,10 @@ forSpec:
         targets: Vec<AccountId>
         submitted_in: EraIndex
         suppressed: bool
-  - range: [1000, 1044]
+  - range: [1000, 1045]
     types:
       # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
+      # Extended to 1045 to fix "4 leftover bytes" errors at blocks 901443-901446
       slashing::SlashingSpans:
         span_index: slashing::SpanIndex
         last_start: EraIndex
