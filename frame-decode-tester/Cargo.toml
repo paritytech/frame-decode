@@ -27,7 +27,7 @@ scale-value = "0.18.0"
 subxt = "0.41.0"
 subxt-rpcs = "0.41.0"
 tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
-thiserror = "1"
+thiserror = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros"] }
