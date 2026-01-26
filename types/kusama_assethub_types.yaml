@@ -534,6 +534,7 @@ global:
     ParaId: u32
     HeadData: Bytes
     ValidationCode: Bytes
+    relay_chain::BlockNumber: BlockNumber
     relay_chain::v1::BlockNumber: BlockNumber
     RelayChainBlockNumber: u32
 
@@ -716,6 +717,10 @@ global:
           dest: MultiLocation
           query_id: u64
         ClearOrigin: []
+
+    # DmpQueue types
+    MessageId: '[u8; 32]'
+    relay_chain::Hash: H256
 
     # xcm::v0::Outcome used by events (e.g., PolkadotXcm, XcmpQueue, DmpQueue)
     Outcome:

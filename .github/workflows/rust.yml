@@ -156,6 +156,75 @@ jobs:
           command: test
           args: --examples --workspace
 
+  decode-tester:
+    name: Check Block Decoding
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for paths-filter to compare commits
+
+      - name: Check which type files changed
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          # Make diffing deterministic and easy to reproduce with act tool
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          ref: ${{ github.sha }}
+          filters: |
+            kusama_assethub:
+              - 'types/kusama_assethub_types.yaml'
+              - 'frame-decode-tester/tests/kusama_assethub_*.rs'
+              - 'frame-decode-tester/src/**'
+              - 'frame-decode-tester/Cargo.toml'
+            kusama_relay:
+              - 'types/kusama_relay_types.yaml'
+              - 'frame-decode-tester/tests/kusama_relay_*.rs'
+            polkadot_relay:
+              - 'types/polkadot_relay_types.yaml'
+              - 'frame-decode-tester/tests/polkadot_relay_*.rs'
+
+      - name: Install Rust stable toolchain
+        if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true' || steps.changes.outputs.polkadot_relay == 'true'
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Rust Cache
+        if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true' || steps.changes.outputs.polkadot_relay == 'true'
+        uses: Swatinem/rust-cache@v1.3.0
+
+      - name: Run Kusama Relay storage decode tests (PR tier)
+        if: steps.changes.outputs.kusama_relay == 'true'
+        run: |
+          cargo test -p frame-decode-tester \
+            --features "kusama-relay" \
+            --test kusama_relay_historic_storage \
+            -- --nocapture
+        # Runs in PR tier (default) - faster for quick feedback
+
+      - name: Run decode tests (Deep tier)
+        if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true' || steps.changes.outputs.polkadot_relay == 'true'
+        run: |
+          cargo test -p frame-decode-tester \
+            --features "kusama-assethub kusama-relay polkadot-relay" \
+            --test kusama_assethub_historic_block \
+            --test kusama_assethub_historic_storage \
+            --test kusama_relay_historic_block \
+            --test polkadot_relay_historic_block \
+            --test polkadot_relay_historic_storage \
+            --no-fail-fast \
+            -- --nocapture
+        env:
+          FRAME_DECODE_TIER: deep
+
+      - name: Skip decode tests (no relevant changes)
+        if: steps.changes.outputs.kusama_assethub != 'true' && steps.changes.outputs.kusama_relay != 'true' && steps.changes.outputs.polkadot_relay != 'true'
+        run: echo "No relevant type files changed; skipping decode tester tests."
+
   clippy:
     name: Cargo clippy
     runs-on: ubuntu-latest

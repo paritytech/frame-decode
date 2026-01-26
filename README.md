@@ -195,3 +195,118 @@ for (_key, val) in storage_keyval_hex {
     ).unwrap();
 }
 ```
+
+## `frame-decode-tester` (CI decoding tests)
+
+This repo includes an integration-test crate, `frame-decode-tester`, which validates that `frame-decode`
+can decode **historic extrinsics** and **historic storage values** against live chains.
+
+### What these tests do
+
+- **Historic block decoding**: fetches the block body (extrinsics) for selected historic blocks and attempts
+  to decode each extrinsic into `(pallet.call, args)` using chain metadata + the historic type registry.
+- **Historic storage decoding**: for selected historic blocks, fetches keys under one or more pallet/storage
+  prefixes and attempts to decode the corresponding values.
+
+These tests use **live public RPC endpoints**, so they include retry/backoff and are designed to keep RPC load
+reasonable (multiple URLs + modest concurrency).
+
+### Current test coverage
+
+- **Kusama Asset Hub**
+  - `kusama_assethub_historic_block`: decodes extrinsics across blocks around runtime upgrades.
+  - `kusama_assethub_historic_storage`: decodes storage values across the same block set.
+- **Kusama Relay**
+  - `kusama_relay_historic_block`: decodes extrinsics across blocks around runtime upgrades.
+  - `kusama_relay_historic_storage`: decodes storage values across the same block set.
+
+The block list is based on “spec version change markers” (first block under a new runtime spec), and we
+currently test **3 consecutive blocks per marker**: `b, b+1, b+2`. For historic coverage we cap markers
+to **pre-V14 transitions** (V14+ metadata embeds types).
+
+### Test tiers (PR vs deep)
+
+Tests support a tier switch via `FRAME_DECODE_TIER`:
+
+- **Default / PR tier**: `FRAME_DECODE_TIER` unset (or anything except `deep`) → PR mode.
+- **Deep tier**: `FRAME_DECODE_TIER=deep` → deeper settings where supported.
+
+The default is intentionally PR tier so local runs are predictable even if the env var is missing.
+
+**Note:** tiers control **sampling sizes / storage breadth** (e.g. how many blocks between spec changes, how many keys per entry, etc.) to target ~5 min (PR) vs ~hour long (deep) runs.
+
+### How these run in CI
+
+GitHub Actions workflow: `.github/workflows/rust.yml`
+
+The `decode-tester` CI job is gated using `dorny/paths-filter` and only runs when relevant files change, e.g.:
+- `types/kusama_assethub_types.yaml`
+- `frame-decode-tester/src/**`
+- `frame-decode-tester/tests/kusama-assethub-*.rs`
+- `frame-decode-tester/Cargo.toml`
+
+When the gate is triggered, CI runs the decode tests in **deep tier** by default to ensure maximum coverage before merge.
+
+### Benchmark/throughput reporting
+
+Each test run emits a `METRIC` line summarizing throughput:
+- `METRIC decode_blocks ... secs=... blocks_per_s=... extrinsics_per_s=...`
+- `METRIC decode_storage ... secs=... blocks_per_s=... values_per_s=...`
+
+These help guide tuning of concurrency and sampling parameters.
+
+### How to run locally
+
+#### Run Kusama Asset Hub decode tests (PR tier / default)
+
+```bash
+cargo test -p frame-decode-tester --features kusama-assethub \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
+  -- --nocapture
+```
+
+#### Run Kusama Asset Hub decode tests (deep tier)
+
+```bash
+FRAME_DECODE_TIER=deep cargo test -p frame-decode-tester --features kusama-assethub \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
+  -- --nocapture
+```
+
+#### Enable debug logs
+
+Set `FRAME_DECODE_TEST_DEBUG=1` (or `true`) to print a short per-run summary (tier, concurrency, counts) and a
+few sample block/spec-version lines:
+
+```bash
+FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester --features kusama-assethub \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
+  -- --nocapture
+```
+
+#### Run all Kusama historic tests (Asset Hub + Relay)
+
+```bash
+FRAME_DECODE_TEST_DEBUG=1 FRAME_DECODE_TIER=pr cargo test -p frame-decode-tester --features "kusama-assethub kusama-relay" \
+  --test kusama_assethub_historic_block \
+  --test kusama_assethub_historic_storage \
+  --test kusama_relay_historic_block \
+  --test kusama_relay_historic_storage \
+  -- --nocapture
+```
+
+### RPC endpoints + rate limiting notes
+
+Public RPC endpoints may rate-limit (e.g. HTTP 429 during WebSocket connection establishment). To improve
+stability, tests typically:
+- use a small list of RPC URLs and spread work across them
+- keep concurrency modest (especially for storage tests)
+- retry with backoff on transient RPC failures
+
+If you see flakiness, try rerunning with PR tier defaults and/or reducing concurrency.
+
+Storage decoding is particularly RPC-heavy (key enumeration + per-key value fetch). For this reason, the
+storage tester includes per-request retry/backoff and can fail over to another RPC URL on transient errors.
