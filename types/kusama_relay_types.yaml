@@ -1571,6 +1571,53 @@ forSpec:
         backed_candidates: Vec<BackedCandidate>
         disputes: Vec<DisputeStatementSet>
         parent_header: T::Header
+  - range: [9090, 9099]
+    types:
+      # HostConfiguration at spec 9090: max_validators fields were u32, not Option<u32>
+      # Also has pvf_checking_enabled: bool at the end
+      HostConfiguration<T::BlockNumber>:
+        max_code_size: u32
+        max_head_data_size: u32
+        max_upward_queue_count: u32
+        max_upward_queue_size: u32
+        max_upward_message_size: u32
+        max_upward_message_num_per_candidate: u32
+        hrmp_max_message_num_per_candidate: u32
+        validation_upgrade_cooldown: T::BlockNumber
+        validation_upgrade_delay: T::BlockNumber
+        max_pov_size: u32
+        max_downward_message_size: u32
+        ump_service_total_weight: Weight
+        hrmp_max_parachain_outbound_channels: u32
+        hrmp_max_parathread_outbound_channels: u32
+        hrmp_sender_deposit: Balance
+        hrmp_recipient_deposit: Balance
+        hrmp_channel_max_capacity: u32
+        hrmp_channel_max_total_size: u32
+        hrmp_max_parachain_inbound_channels: u32
+        hrmp_max_parathread_inbound_channels: u32
+        hrmp_channel_max_message_size: u32
+        code_retention_period: T::BlockNumber
+        parathread_cores: u32
+        parathread_retries: u32
+        group_rotation_frequency: T::BlockNumber
+        chain_availability_period: T::BlockNumber
+        thread_availability_period: T::BlockNumber
+        scheduling_lookahead: u32
+        max_validators_per_core: u32
+        max_validators: u32
+        dispute_period: SessionIndex
+        dispute_post_conclusion_acceptance_period: T::BlockNumber
+        dispute_max_spam_slots: u32
+        dispute_conclusion_by_time_out_period: T::BlockNumber
+        no_show_slots: u32
+        n_delay_tranches: u32
+        zeroth_delay_tranche_width: u32
+        needed_approvals: u32
+        relay_vrf_modulo_samples: u32
+        pvf_checking_enabled: bool
+        pvf_voting_ttl: SessionIndex
+        async_backing_params_enabled: bool
   - range: [9080, null]
     types:
       # Dispute statements mapping for spec 9080
