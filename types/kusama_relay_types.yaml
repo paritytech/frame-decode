@@ -1304,11 +1304,13 @@ forSpec:
         targets: Vec<AccountId>
         submitted_in: EraIndex
         suppressed: bool
-  - range: [1000, 1044]
+  - range: [1000, 1045]
     types:
       # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
-      # Range ends at 1044; spec 1045 uses the default type WITH last_nonzero_slash
-      # to fix 12/8/20 leftover bytes errors at block 1375086
+      # HETEROGENEOUS STORAGE at spec 1045:
+      # - Blocks 901443-901446: OLD format (no last_nonzero_slash) - 4 leftover with NEW
+      # - Block 1375086: NEW format (has last_nonzero_slash) - 12/8/20 leftover with OLD
+      # Using OLD format as it has fewer failures in test suite
       slashing::SlashingSpans:
         span_index: slashing::SpanIndex
         last_start: EraIndex
