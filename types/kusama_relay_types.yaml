@@ -1304,10 +1304,11 @@ forSpec:
         targets: Vec<AccountId>
         submitted_in: EraIndex
         suppressed: bool
-  - range: [1000, 1045]
+  - range: [1000, 1044]
     types:
       # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
-      # Extended to 1045 to fix "4 leftover bytes" errors at blocks 901443-901446
+      # Range ends at 1044; spec 1045 uses the default type WITH last_nonzero_slash
+      # to fix 12/8/20 leftover bytes errors at block 1375086
       slashing::SlashingSpans:
         span_index: slashing::SpanIndex
         last_start: EraIndex
@@ -1328,8 +1329,9 @@ forSpec:
   - range: [1046, 1055]
     types:
       # Specs 1046-1055: Reasons was still u8 bitflag, BalanceLock without until field
-      # Note: Some very early locks (before ~block 1380000) still have the until field,
-      # but most locks at these specs don't. Heterogeneous storage - some failures expected.
+      # HETEROGENEOUS STORAGE: Locks created BEFORE ~block 1380000 have `until` field,
+      # locks created AFTER don't. No YAML fix possible - using format without `until`
+      # which matches the majority of locks at these specs.
       Reasons: u8
       BalanceLock<T::Balance>:
         id: LockIdentifier
@@ -1620,6 +1622,8 @@ forSpec:
         async_backing_params_enabled: bool
   - range: [9080, null]
     types:
+      # Session keys upgraded to 6-tuple from spec 9080
+      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
       # Dispute statements mapping for spec 9080
       # Use DisputeStatement with distinct Valid/Invalid kinds
       Statement:
@@ -1680,6 +1684,8 @@ forSpec:
     types:
       Address: MultiAddress<AccountId32, u32>
       LookupSource: MultiAddress<AccountId32, u32>
+      # Session keys: Most validators have 6 keys from spec 2028+, but some older
+      # validators registered with only 5 keys. HETEROGENEOUS STORAGE - no YAML fix.
       T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
       ValidatorPrefs:
         commission: Compact<Perbill>
