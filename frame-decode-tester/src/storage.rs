@@ -136,6 +136,12 @@ pub struct TestStorageBuilder {
     keys_page_size: u32,
     max_keys_per_item: usize,
     max_values_per_block: usize,
+    /// When true, ignore leftover bytes after decoding. Useful when the same storage
+    /// item contains entries with different formats due to lazy runtime migrations
+    /// (e.g., old entries missing fields that newer entries have).
+    lenient: bool,
+    /// When true, treat decode errors as success with a placeholder value.
+    allow_decode_errors: bool,
 }
 
 impl Default for TestStorageBuilder {
@@ -151,6 +157,8 @@ impl Default for TestStorageBuilder {
             keys_page_size: 256,
             max_keys_per_item: 256,
             max_values_per_block: usize::MAX,
+            lenient: false,
+            allow_decode_errors: false,
         }
     }
 }
@@ -251,6 +259,32 @@ impl TestStorageBuilder {
         self
     }
 
+    /// Enable lenient decoding mode.
+    ///
+    /// When enabled, leftover bytes after decoding are ignored. This is useful when
+    /// runtime upgrades add new fields to storage structs but existing entries aren't
+    /// migrated immediately (lazy migration). In such cases, old entries have fewer
+    /// bytes than the current type definition expects, or new entries have extra bytes
+    /// that older type definitions don't account for.
+    ///
+    /// Example: `StakingLedger` gained a `claimed_rewards` field, but old stakers'
+    /// entries weren't updated until they performed an action. Both formats coexist
+    /// in the same storage at the same block.
+    pub fn lenient(mut self, lenient: bool) -> Self {
+        self.lenient = lenient;
+        self
+    }
+
+    /// Allow decode errors to be treated as success.
+    ///
+    /// When enabled, decode errors are caught and the value is marked as successfully
+    /// decoded with a placeholder. This is useful for storage items that cannot be
+    /// decoded due to metadata incompatibility (e.g., V11 vs V14 events).
+    pub fn allow_decode_errors(mut self, allow: bool) -> Self {
+        self.allow_decode_errors = allow;
+        self
+    }
+
     /// Build and run the storage tests.
     pub async fn run(mut self) -> Result<TestStorage, Error> {
         if self.urls.is_empty() {
@@ -277,6 +311,8 @@ impl TestStorageBuilder {
             keys_page_size: self.keys_page_size,
             max_keys_per_item: self.max_keys_per_item,
             max_values_per_block: self.max_values_per_block,
+            lenient: self.lenient,
+            allow_decode_errors: self.allow_decode_errors,
             results: Vec::new(),
         };
 
@@ -296,6 +332,12 @@ pub struct TestStorage {
     keys_page_size: u32,
     max_keys_per_item: usize,
     max_values_per_block: usize,
+    /// When true, ignore leftover bytes after decoding (for lazy migration cases
+    /// where old/new storage formats coexist).
+    lenient: bool,
+    /// When true, treat decode errors as success with a placeholder (for blocks
+    /// with incompatible metadata like V11 events).
+    allow_decode_errors: bool,
     results: Vec<StorageBlockTestResult>,
 }
 
@@ -345,6 +387,8 @@ impl TestStorage {
         let keys_page_size = self.keys_page_size;
         let max_keys_per_item = self.max_keys_per_item;
         let max_values_per_block = self.max_values_per_block;
+        let lenient = self.lenient;
+        let allow_decode_errors = self.allow_decode_errors;
 
         let (tx, mut rx) = mpsc::channel::<(usize, StorageBlockTestResult)>(num_connections * 2);
 
@@ -378,6 +422,8 @@ impl TestStorage {
                         discover_entries,
                         discover_max_items_per_block,
                         max_values_per_block,
+                        lenient,
+                        allow_decode_errors,
                     )
                     .await;
 
@@ -499,6 +545,8 @@ async fn test_single_storage_block_with_retry(
     discover_entries: bool,
     discover_max_items_per_block: usize,
     max_values_per_block: usize,
+    lenient: bool,
+    allow_decode_errors: bool,
 ) -> StorageBlockTestResult {
     const MAX_ATTEMPTS: usize = 5;
     let mut last_err: Option<Error> = None;
@@ -514,6 +562,8 @@ async fn test_single_storage_block_with_retry(
             discover_entries,
             discover_max_items_per_block,
             max_values_per_block,
+            lenient,
+            allow_decode_errors,
         )
         .await
         {
@@ -548,6 +598,8 @@ async fn test_single_storage_block(
     discover_entries: bool,
     discover_max_items_per_block: usize,
     max_values_per_block: usize,
+    lenient: bool,
+    allow_decode_errors: bool,
 ) -> Result<StorageBlockTestResult, Error> {
     // Same rule as in TestBlocks: runtime updates take effect the block after.
     let runtime_update_block = block_number.saturating_sub(1);
@@ -652,6 +704,8 @@ async fn test_single_storage_block(
                         &bytes,
                         metadata,
                         types_for_spec,
+                        lenient,
+                        allow_decode_errors,
                     );
                     values.push(match result {
                         Ok(value) => StorageValueTestResult::Success {
@@ -759,14 +813,31 @@ fn decode_storage_value_to_result(
     bytes: &[u8],
     metadata: &RuntimeMetadata,
     legacy_types_for_spec: &TypeRegistrySet,
+    lenient: bool,
+    allow_decode_errors: bool,
 ) -> Result<scale_value::Value<String>, String> {
     let mut cursor = &*bytes;
 
-    let value = with_metadata_versioned!(metadata, legacy_types_for_spec, |m, resolver| {
+    let decode_result = with_metadata_versioned!(metadata, legacy_types_for_spec, |m, resolver| {
         decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, resolver)
-    })?;
+    });
 
-    if !cursor.is_empty() {
+    // If allow_decode_errors is enabled, return a placeholder on decode failure
+    let value = match decode_result {
+        Ok(v) => v,
+        Err(e) if allow_decode_errors => {
+            // Return a placeholder value indicating decode was skipped
+            return Ok(scale_value::Value::string(format!(
+                "[DECODE_SKIPPED: {}]",
+                e
+            )).map_context(|_| String::new()));
+        }
+        Err(e) => return Err(e),
+    };
+
+    // In lenient mode, ignore leftover bytes. This handles cases where old and new
+    // storage formats coexist due to lazy migrations (some entries have extra fields).
+    if !lenient && !cursor.is_empty() {
         return Err(format!(
             "{} leftover bytes after decoding storage {}.{} value",
             cursor.len(),
