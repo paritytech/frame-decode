@@ -827,10 +827,10 @@ fn decode_storage_value_to_result(
         Ok(v) => v,
         Err(e) if allow_decode_errors => {
             // Return a placeholder value indicating decode was skipped
-            return Ok(scale_value::Value::string(format!(
-                "[DECODE_SKIPPED: {}]",
-                e
-            )).map_context(|_| String::new()));
+            return Ok(
+                scale_value::Value::string(format!("[DECODE_SKIPPED: {}]", e))
+                    .map_context(|_| String::new()),
+            );
         }
         Err(e) => return Err(e),
     };
