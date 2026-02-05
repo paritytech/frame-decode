@@ -717,11 +717,12 @@ async fn test_single_storage_block(
                 Ok(Some(bytes)) => {
                     let metadata = state.current_metadata.as_ref().unwrap();
                     let types_for_spec = state.current_types_for_spec.as_ref().unwrap();
-                    
+
                     // Check if any ignore rules match this item/block
-                    let leftover_rule = ignore_leftover_rules.iter()
+                    let leftover_rule = ignore_leftover_rules
+                        .iter()
                         .find(|r| r.matches(&item.pallet_name, &item.storage_entry, block_number));
-                    
+
                     let result = decode_storage_value_to_result(
                         &item.pallet_name,
                         &item.storage_entry,
@@ -851,7 +852,11 @@ fn decode_storage_value_to_result(
         if let Some(rule) = leftover_rule {
             eprintln!(
                 "[IgnoreRule] {}.{} at block {}: {} leftover bytes ignored - {}",
-                pallet_name, storage_entry, block_number, cursor.len(), rule.reason
+                pallet_name,
+                storage_entry,
+                block_number,
+                cursor.len(),
+                rule.reason
             );
         } else {
             return Err(format!(
