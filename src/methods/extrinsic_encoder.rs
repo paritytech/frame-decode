@@ -49,14 +49,37 @@ pub enum ExtrinsicEncodeError {
     CannotFindGoodExtensionVersion
 }
 
-/// This is used when it is possible to provide some type
-pub enum BytesOr<'a, T> {
-    Bytes(&'a [u8]),
-    Value(&'a T)
-}
-
 //// V4
 
+/// Encode a V4 unsigned extrinsic (also known as an inherent).
+///
+/// This is the same as [`encode_v4_unsigned_to`], but returns the encoded extrinsic as a `Vec<u8>`,
+/// rather than accepting a mutable output buffer.
+///
+/// # Example
+///
+/// ```rust
+/// use frame_decode::extrinsics::encode_v4_unsigned;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// // Encode a call to Timestamp.set with an argument.
+/// // The call_data type must implement `scale_encode::EncodeAsFields`.
+/// let call_data = scale_value::value!({
+///     now: 1234567890u64,
+/// });
+///
+/// let encoded = encode_v4_unsigned(
+///     "Timestamp",
+///     "set",
+///     &call_data,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// ```
 pub fn encode_v4_unsigned<CallData, Info, Resolver>(
     pallet_name: &str,
     call_name: &str,
@@ -81,6 +104,36 @@ where
     Ok(out)
 }
 
+/// Encode a V4 unsigned extrinsic (also known as an inherent) to a provided output buffer.
+///
+/// This is the same as [`encode_v4_unsigned`], but writes the encoded extrinsic to the provided
+/// `Vec<u8>` rather than returning a new one.
+///
+/// # Example
+///
+/// ```rust
+/// use frame_decode::extrinsics::encode_v4_unsigned_to;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// // Encode a call to Timestamp.set with an argument.
+/// let call_data = scale_value::value!({
+///     now: 1234567890u64,
+/// });
+///
+/// let mut encoded = Vec::new();
+/// encode_v4_unsigned_to(
+///     "Timestamp",
+///     "set",
+///     &call_data,
+///     &metadata,
+///     &metadata.types,
+///     &mut encoded,
+/// ).unwrap();
+/// ```
 pub fn encode_v4_unsigned_to<CallData, Info, Resolver>(
     pallet_name: &str,
     call_name: &str,
@@ -88,7 +141,7 @@ pub fn encode_v4_unsigned_to<CallData, Info, Resolver>(
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
-) -> Result<(), ExtrinsicEncodeError> 
+) -> Result<(), ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -98,7 +151,7 @@ where
         .extrinsic_call_info_by_name(pallet_name, call_name)
         .map_err(|i| i.into_owned())
         .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
-    
+
     encode_v4_unsigned_with_info_to(
         call_data,
         type_resolver,
@@ -107,6 +160,12 @@ where
     )
 }
 
+/// Encode a V4 unsigned extrinsic (also known as an inherent) to a provided output buffer,
+/// using pre-computed call information.
+///
+/// Unlike [`encode_v4_unsigned_to`], which obtains the call info internally given the pallet and call names,
+/// this function takes the call info as an argument. This is useful if you already have the call info available,
+/// for example if you are encoding multiple extrinsics for the same call.
 pub fn encode_v4_unsigned_with_info_to<CallData, Resolver>(
     call_data: &CallData,
     type_resolver: &Resolver,
@@ -116,7 +175,7 @@ pub fn encode_v4_unsigned_with_info_to<CallData, Resolver>(
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver,
-{   
+{
     encode_unsigned_at_version_with_info_to(
         call_data,
         &call_info,
@@ -126,6 +185,43 @@ where
     )
 }
 
+/// Encode a V4 signed extrinsic, ready to submit.
+///
+/// A signed V4 extrinsic includes an address, signature, and transaction extensions (such as
+/// nonce and tip) alongside the call data. The signature should be computed over the signer
+/// payload, which can be obtained via [`encode_v4_signer_payload`].
+///
+/// This is the same as [`encode_v4_signed_to`], but returns the encoded extrinsic as a `Vec<u8>`,
+/// rather than accepting a mutable output buffer.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v4_signed, TransactionExtensions};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// // The call data, address, signature, and transaction extensions must implement
+/// // the appropriate scale_encode traits.
+/// let call_data = /* ... */;
+/// let address = /* your address type */;
+/// let signature = /* your signature type */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let encoded = encode_v4_signed(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     &transaction_extensions,
+///     &address,
+///     &signature,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// ```
 pub fn encode_v4_signed<CallData, Info, Resolver, Exts, Address, Signature>(
     pallet_name: &str,
     call_name: &str,
@@ -135,7 +231,7 @@ pub fn encode_v4_signed<CallData, Info, Resolver, Exts, Address, Signature>(
     signature: &Signature,
     info: &Info,
     type_resolver: &Resolver,
-) -> Result<Vec<u8>, ExtrinsicEncodeError> 
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -159,6 +255,43 @@ where
     Ok(out)
 }
 
+/// Encode a V4 signed extrinsic to a provided output buffer.
+///
+/// A signed extrinsic includes an address, signature, and transaction extensions (such as
+/// nonce and tip) alongside the call data. The signature should be computed over the signer
+/// payload, which can be obtained via [`encode_v4_signer_payload`].
+///
+/// This is the same as [`encode_v4_signed`], but writes the encoded extrinsic to the provided
+/// `Vec<u8>` rather than returning a new one.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v4_signed_to, TransactionExtensions};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let address = /* your address type */;
+/// let signature = /* your signature type */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let mut encoded = Vec::new();
+/// encode_v4_signed_to(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     &transaction_extensions,
+///     &address,
+///     &signature,
+///     &metadata,
+///     &metadata.types,
+///     &mut encoded,
+/// ).unwrap();
+/// ```
 pub fn encode_v4_signed_to<CallData, Info, Resolver, Exts, Address, Signature>(
     pallet_name: &str,
     call_name: &str,
@@ -206,6 +339,11 @@ where
     )
 }
 
+/// Encode a V4 signed extrinsic to a provided output buffer, using pre-computed type information.
+///
+/// Unlike [`encode_v4_signed_to`], which obtains the call, signature, and extension info internally
+/// given the pallet and call names, this function takes these as arguments. This is useful if you
+/// already have this information available, for example if you are encoding multiple extrinsics.
 pub fn encode_v4_signed_with_info_to<CallData, Resolver, Exts, Address, Signature>(
     call_data: &CallData,
     transaction_extensions: &Exts,
@@ -255,6 +393,42 @@ where
     Ok(())
 }
 
+/// Encode the signer payload for a V4 signed extrinsic.
+///
+/// The signer payload is the data that should be signed to produce the signature for
+/// a signed extrinsic. It consists of the encoded call data, the transaction extension
+/// values, and the transaction extension implicit data. If the resulting payload exceeds
+/// 256 bytes, it is hashed using Blake2-256.
+///
+/// Use this function to obtain the bytes that should be signed, then pass the resulting
+/// signature to [`encode_v4_signed`] to construct the final extrinsic.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v4_signer_payload, TransactionExtensions};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// // Get the payload to sign
+/// let signer_payload = encode_v4_signer_payload(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+///
+/// // Sign the payload with your signing key, then use encode_v4_signed
+/// // to construct the final extrinsic.
+/// ```
 pub fn encode_v4_signer_payload<CallData, Info, Resolver, Exts>(
     pallet_name: &str,
     call_name: &str,
@@ -262,7 +436,7 @@ pub fn encode_v4_signer_payload<CallData, Info, Resolver, Exts>(
     transaction_extensions: &Exts,
     info: &Info,
     type_resolver: &Resolver,
-) -> Result<Vec<u8>, ExtrinsicEncodeError> 
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -289,13 +463,22 @@ where
     )    
 }
 
+/// Encode the signer payload for a V4 signed extrinsic, using pre-computed type information.
+///
+/// Unlike [`encode_v4_signer_payload`], which obtains the call and extension info internally
+/// given the pallet and call names, this function takes these as arguments. This is useful if you
+/// already have this information available.
+///
+/// The signer payload consists of the encoded call data, the transaction extension values,
+/// and the transaction extension implicit data. If the resulting payload exceeds 256 bytes,
+/// it is hashed using Blake2-256.
 pub fn encode_v4_signer_payload_with_info<CallData, Resolver, Exts>(
     call_data: &CallData,
     transaction_extensions: &Exts,
     type_resolver: &Resolver,
     call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
     ext_info: &ExtrinsicExtensionInfo<Resolver::TypeId>,
-) -> Result<Vec<u8>, ExtrinsicEncodeError> 
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver,
@@ -332,13 +515,45 @@ where
 
 //// V5
 
+/// Encode a V5 bare extrinsic (also known as an inherent), ready to submit.
+///
+/// V5 bare extrinsics contain only call data with no transaction extensions or signature.
+/// They are functionally equivalent to V4 unsigned extrinsics and are typically used for
+/// inherents (data provided by block authors).
+///
+/// This is the same as [`encode_v5_bare_to`], but returns the encoded extrinsic as a `Vec<u8>`,
+/// rather than accepting a mutable output buffer.
+///
+/// # Example
+///
+/// ```rust
+/// use frame_decode::extrinsics::encode_v5_bare;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// // Encode a call to Timestamp.set with an argument.
+/// let call_data = scale_value::value!({
+///     now: 1234567890u64,
+/// });
+///
+/// let encoded = encode_v5_bare(
+///     "Timestamp",
+///     "set",
+///     &call_data,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// ```
 pub fn encode_v5_bare<CallData, Info, Resolver>(
     pallet_name: &str,
     call_name: &str,
     call_data: &CallData,
     info: &Info,
     type_resolver: &Resolver,
-) -> Result<Vec<u8>, ExtrinsicEncodeError> 
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -356,6 +571,36 @@ where
     Ok(out)
 }
 
+/// Encode a V5 bare extrinsic (also known as an inherent) to a provided output buffer.
+///
+/// This is the same as [`encode_v5_bare`], but writes the encoded extrinsic to the provided
+/// `Vec<u8>` rather than returning a new one.
+///
+/// # Example
+///
+/// ```rust
+/// use frame_decode::extrinsics::encode_v5_bare_to;
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+/// let RuntimeMetadata::V14(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// // Encode a call to Timestamp.set with an argument.
+/// let call_data = scale_value::value!({
+///     now: 1234567890u64,
+/// });
+///
+/// let mut encoded = Vec::new();
+/// encode_v5_bare_to(
+///     "Timestamp",
+///     "set",
+///     &call_data,
+///     &metadata,
+///     &metadata.types,
+///     &mut encoded,
+/// ).unwrap();
+/// ```
 pub fn encode_v5_bare_to<CallData, Info, Resolver>(
     pallet_name: &str,
     call_name: &str,
@@ -363,7 +608,7 @@ pub fn encode_v5_bare_to<CallData, Info, Resolver>(
     info: &Info,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
-) -> Result<(), ExtrinsicEncodeError> 
+) -> Result<(), ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -373,7 +618,7 @@ where
         .extrinsic_call_info_by_name(pallet_name, call_name)
         .map_err(|i| i.into_owned())
         .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
-    
+
     encode_v5_bare_with_info_to(
         call_data,
         type_resolver,
@@ -382,6 +627,12 @@ where
     )
 }
 
+/// Encode a V5 bare extrinsic (also known as an inherent) to a provided output buffer,
+/// using pre-computed call information.
+///
+/// Unlike [`encode_v5_bare_to`], which obtains the call info internally given the pallet and call names,
+/// this function takes the call info as an argument. This is useful if you already have the call info available,
+/// for example if you are encoding multiple extrinsics for the same call.
 pub fn encode_v5_bare_with_info_to<CallData, Resolver>(
     call_data: &CallData,
     type_resolver: &Resolver,
@@ -391,7 +642,7 @@ pub fn encode_v5_bare_with_info_to<CallData, Resolver>(
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver,
-{   
+{
     encode_unsigned_at_version_with_info_to(
         call_data,
         &call_info,
@@ -401,6 +652,49 @@ where
     )
 }
 
+/// Determine the best transaction extension version to use for a V5 general extrinsic.
+///
+/// V5 general extrinsics support multiple versions of transaction extensions. This function
+/// iterates through the available extension versions and returns the first version for which
+/// all required extension data is provided.
+///
+/// Use this function to determine which `transaction_extension_version` to pass to
+/// [`encode_v5_general`] or [`encode_v5_general_to`].
+///
+/// # Errors
+///
+/// Returns [`ExtrinsicEncodeError::CannotFindGoodExtensionVersion`] if no extension version
+/// can be found for which all required data is available.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{best_v5_general_transaction_extension_version, encode_v5_general};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata.scale").unwrap();
+/// let RuntimeMetadata::V16(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// // Find the best extension version for your provided extensions
+/// let ext_version = best_v5_general_transaction_extension_version(
+///     &transaction_extensions,
+///     &metadata,
+/// ).unwrap();
+///
+/// // Use this version when encoding the extrinsic
+/// let encoded = encode_v5_general(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     ext_version,
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// ```
 pub fn best_v5_general_transaction_extension_version<Exts, Info, Resolver>(
     transaction_extensions: &Exts,
     info: &Info,
@@ -437,6 +731,46 @@ where
     Err(ExtrinsicEncodeError::CannotFindGoodExtensionVersion)
 }
 
+/// Encode a V5 general extrinsic, ready to submit.
+///
+/// V5 general extrinsics include transaction extensions but no separate signature field.
+/// Instead, the signature (if needed) is provided as part of one of the transaction extensions.
+/// This is the new extrinsic format introduced in newer Substrate runtimes.
+///
+/// Use [`best_v5_general_transaction_extension_version`] to determine which extension version
+/// to use based on the extensions you have available.
+///
+/// This is the same as [`encode_v5_general_to`], but returns the encoded extrinsic as a `Vec<u8>`,
+/// rather than accepting a mutable output buffer.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v5_general, best_v5_general_transaction_extension_version};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata.scale").unwrap();
+/// let RuntimeMetadata::V16(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let ext_version = best_v5_general_transaction_extension_version(
+///     &transaction_extensions,
+///     &metadata,
+/// ).unwrap();
+///
+/// let encoded = encode_v5_general(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     ext_version,
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// ```
 pub fn encode_v5_general<CallData, Info, Resolver, Exts>(
     pallet_name: &str,
     call_name: &str,
@@ -466,6 +800,44 @@ where
     Ok(out)
 }
 
+/// Encode a V5 general extrinsic to a provided output buffer.
+///
+/// V5 general extrinsics include transaction extensions but no separate signature field.
+/// Instead, the signature (if needed) is provided as part of one of the transaction extensions.
+///
+/// This is the same as [`encode_v5_general`], but writes the encoded extrinsic to the provided
+/// `Vec<u8>` rather than returning a new one.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v5_general_to, best_v5_general_transaction_extension_version};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata.scale").unwrap();
+/// let RuntimeMetadata::V16(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let ext_version = best_v5_general_transaction_extension_version(
+///     &transaction_extensions,
+///     &metadata,
+/// ).unwrap();
+///
+/// let mut encoded = Vec::new();
+/// encode_v5_general_to(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     ext_version,
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+///     &mut encoded,
+/// ).unwrap();
+/// ```
 pub fn encode_v5_general_to<CallData, Info, Resolver, Exts>(
     pallet_name: &str,
     call_name: &str,
@@ -503,6 +875,11 @@ where
     )
 }
 
+/// Encode a V5 general extrinsic to a provided output buffer, using pre-computed type information.
+///
+/// Unlike [`encode_v5_general_to`], which obtains the call and extension info internally
+/// given the pallet and call names, this function takes these as arguments. This is useful if you
+/// already have this information available, for example if you are encoding multiple extrinsics.
 pub fn encode_v5_general_with_info_to<CallData, Resolver, Exts>(
     call_data: &CallData,
     transaction_extension_version: u8,
@@ -542,6 +919,51 @@ where
     Ok(())
 }
 
+/// Encode the signer payload for a V5 general extrinsic.
+///
+/// The signer payload is the data that should be signed to produce the signature for
+/// a general extrinsic. It consists of the encoded call data, the transaction extension
+/// values (for the signer payload), and the transaction extension implicit data.
+///
+/// Unlike [`encode_v4_signer_payload`], which conditionally hashes the payload if it exceeds
+/// 256 bytes, V5 signer payloads are always hashed using Blake2-256, returning a fixed 32-byte
+/// array.
+///
+/// Use this function to obtain the bytes that should be signed, then include the resulting
+/// signature in the appropriate transaction extension when calling [`encode_v5_general`].
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v5_signer_payload, best_v5_general_transaction_extension_version};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata.scale").unwrap();
+/// let RuntimeMetadata::V16(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let ext_version = best_v5_general_transaction_extension_version(
+///     &transaction_extensions,
+///     &metadata,
+/// ).unwrap();
+///
+/// // Get the 32-byte payload hash to sign
+/// let signer_payload = encode_v5_signer_payload(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     ext_version,
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+///
+/// // Sign the payload with your signing key, then include the signature
+/// // in your transaction extensions when calling encode_v5_general.
+/// ```
 pub fn encode_v5_signer_payload<CallData, Info, Resolver, Exts>(
     pallet_name: &str,
     call_name: &str,
@@ -550,7 +972,7 @@ pub fn encode_v5_signer_payload<CallData, Info, Resolver, Exts>(
     transaction_extensions: &Exts,
     info: &Info,
     type_resolver: &Resolver,
-) -> Result<[u8; 32], ExtrinsicEncodeError> 
+) -> Result<[u8; 32], ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -577,13 +999,22 @@ where
     )    
 }
 
+/// Encode the signer payload for a V5 general extrinsic, using pre-computed type information.
+///
+/// Unlike [`encode_v5_signer_payload`], which obtains the call and extension info internally
+/// given the pallet and call names, this function takes these as arguments. This is useful if you
+/// already have this information available.
+///
+/// The signer payload consists of the encoded call data, the transaction extension values
+/// (for the signer payload), and the transaction extension implicit data. The result is always
+/// hashed using Blake2-256, returning a fixed 32-byte array.
 pub fn encode_v5_signer_payload_with_info<CallData, Resolver, Exts>(
     call_data: &CallData,
     transaction_extensions: &Exts,
     type_resolver: &Resolver,
     call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
     ext_info: &ExtrinsicExtensionInfo<Resolver::TypeId>,
-) -> Result<[u8; 32], ExtrinsicEncodeError> 
+) -> Result<[u8; 32], ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver,

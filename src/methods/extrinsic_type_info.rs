@@ -77,8 +77,16 @@ pub enum ExtrinsicInfoError<'a> {
     PalletNotFound {
         index: u8,
     },
+    PalletNotFoundByName {
+        name: Cow<'a, str>,
+    },
     CallNotFound {
         index: u8,
+        pallet_index: u8,
+        pallet_name: Cow<'a, str>,
+    },
+    CallNotFoundByName {
+        call_name: Cow<'a, str>,
         pallet_index: u8,
         pallet_name: Cow<'a, str>,
     },
@@ -118,6 +126,9 @@ impl core::fmt::Display for ExtrinsicInfoError<'_> {
             ExtrinsicInfoError::PalletNotFound { index } => {
                 write!(f, "Pallet with index {index} not found")
             }
+            ExtrinsicInfoError::PalletNotFoundByName { name } => {
+                write!(f, "Pallet with name '{name}' not found")
+            }
             ExtrinsicInfoError::CallNotFound {
                 index,
                 pallet_index,
@@ -126,6 +137,16 @@ impl core::fmt::Display for ExtrinsicInfoError<'_> {
                 write!(
                     f,
                     "Call with index {index} not found in pallet '{pallet_name}' (pallet index {pallet_index})."
+                )
+            }
+            ExtrinsicInfoError::CallNotFoundByName {
+                call_name,
+                pallet_index,
+                pallet_name,
+            } => {
+                write!(
+                    f,
+                    "Call with name '{call_name}' not found in pallet '{pallet_name}' (pallet index {pallet_index})."
                 )
             }
             #[cfg(feature = "legacy")]
@@ -187,12 +208,26 @@ impl ExtrinsicInfoError<'_> {
             ExtrinsicInfoError::PalletNotFound { index } => {
                 ExtrinsicInfoError::PalletNotFound { index }
             }
+            ExtrinsicInfoError::PalletNotFoundByName { name } => {
+                ExtrinsicInfoError::PalletNotFoundByName {
+                    name: Cow::Owned(name.into_owned()),
+                }
+            }
             ExtrinsicInfoError::CallNotFound {
                 index,
                 pallet_index,
                 pallet_name,
             } => ExtrinsicInfoError::CallNotFound {
                 index,
+                pallet_index,
+                pallet_name: Cow::Owned(pallet_name.into_owned()),
+            },
+            ExtrinsicInfoError::CallNotFoundByName {
+                call_name,
+                pallet_index,
+                pallet_name,
+            } => ExtrinsicInfoError::CallNotFoundByName {
+                call_name: Cow::Owned(call_name.into_owned()),
                 pallet_index,
                 pallet_name: Cow::Owned(pallet_name.into_owned()),
             },
@@ -280,7 +315,87 @@ pub struct ExtrinsicExtensionInfo<'info, TypeId> {
     pub extension_ids: Vec<ExtrinsicInfoArg<'info, TypeId>>,
 }
 
-macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
+macro_rules! impl_call_info_by_name_body_for_v14_to_v16 {
+    ($self:ident, $pallet_name:ident, $call_name:ident) => {{
+        use alloc::string::ToString;
+
+        let pallet = $self
+            .pallets
+            .iter()
+            .find(|p| p.name == $pallet_name)
+            .ok_or_else(|| ExtrinsicInfoError::PalletNotFoundByName {
+                name: Cow::Owned($pallet_name.to_string()),
+            })?;
+
+        let pallet_index = pallet.index;
+
+        let calls_id = pallet
+            .calls
+            .as_ref()
+            .ok_or_else(|| ExtrinsicInfoError::CallNotFoundByName {
+                call_name: Cow::Owned($call_name.to_string()),
+                pallet_index,
+                pallet_name: Cow::Borrowed(&pallet.name),
+            })?
+            .ty
+            .id;
+
+        let calls_ty =
+            $self
+                .types
+                .resolve(calls_id)
+                .ok_or_else(|| ExtrinsicInfoError::CallsTypeNotFound {
+                    id: calls_id,
+                    pallet_index,
+                    pallet_name: Cow::Borrowed(&pallet.name),
+                })?;
+
+        let calls_enum = match &calls_ty.type_def {
+            scale_info::TypeDef::Variant(v) => v,
+            _ => {
+                return Err(ExtrinsicInfoError::CallsTypeShouldBeVariant {
+                    id: calls_id,
+                    pallet_index,
+                    pallet_name: Cow::Borrowed(&pallet.name),
+                });
+            }
+        };
+
+        let call_variant = calls_enum
+            .variants
+            .iter()
+            .find(|v| v.name == $call_name)
+            .ok_or_else(|| ExtrinsicInfoError::CallNotFoundByName {
+                call_name: Cow::Owned($call_name.to_string()),
+                pallet_index,
+                pallet_name: Cow::Borrowed(&pallet.name),
+            })?;
+
+        let args = call_variant
+            .fields
+            .iter()
+            .map(|f| {
+                let id = f.ty.id;
+                let name = f
+                    .name
+                    .as_ref()
+                    .map(|n| Cow::Borrowed(&**n))
+                    .unwrap_or(Cow::Owned(String::new()));
+                ExtrinsicInfoArg { id, name }
+            })
+            .collect();
+
+        Ok(ExtrinsicCallInfo {
+            pallet_index,
+            call_index: call_variant.index,
+            pallet_name: Cow::Borrowed(&pallet.name),
+            call_name: Cow::Borrowed(&call_variant.name),
+            args,
+        })
+    }};
+}
+
+macro_rules! impl_call_info_by_index_body_for_v14_to_v16 {
     ($self:ident, $pallet_index:ident, $call_index:ident) => {{
         let pallet = $self
             .pallets
@@ -348,7 +463,9 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
             })
             .collect();
 
-        Ok(ExtrinsicCallInfoByIndex {
+        Ok(ExtrinsicCallInfo {
+            pallet_index: $pallet_index,
+            call_index: $call_index,
             pallet_name: Cow::Borrowed(pallet_name),
             call_name: Cow::Borrowed(&call_variant.name),
             args,
@@ -362,8 +479,15 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-        impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_info_by_index_body_for_v14_to_v16!(self, pallet_index, call_index)
+    }
+    fn extrinsic_call_info_by_name(
+        &self,
+        pallet_name: &str,
+        call_name: &str,
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_info_by_name_body_for_v14_to_v16!(self, pallet_name, call_name)
     }
     fn extrinsic_signature_info(
         &self,
@@ -393,6 +517,11 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
 
         Ok(ExtrinsicExtensionInfo { extension_ids })
     }
+    fn extrinsic_extension_version_info(
+        &self,
+    ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
+        Ok(core::iter::empty())
+    }
 }
 
 impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
@@ -401,8 +530,15 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-        impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_info_by_index_body_for_v14_to_v16!(self, pallet_index, call_index)
+    }
+    fn extrinsic_call_info_by_name(
+        &self,
+        pallet_name: &str,
+        call_name: &str,
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_info_by_name_body_for_v14_to_v16!(self, pallet_name, call_name)
     }
     fn extrinsic_signature_info(
         &self,
@@ -430,6 +566,11 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
 
         Ok(ExtrinsicExtensionInfo { extension_ids })
     }
+    fn extrinsic_extension_version_info(
+        &self,
+    ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
+        Ok(core::iter::empty())
+    }
 }
 
 impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
@@ -438,8 +579,15 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-        impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_info_by_index_body_for_v14_to_v16!(self, pallet_index, call_index)
+    }
+    fn extrinsic_call_info_by_name(
+        &self,
+        pallet_name: &str,
+        call_name: &str,
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        impl_call_info_by_name_body_for_v14_to_v16!(self, pallet_name, call_name)
     }
     fn extrinsic_signature_info(
         &self,
@@ -484,6 +632,11 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
             .collect();
 
         Ok(ExtrinsicExtensionInfo { extension_ids })
+    }
+    fn extrinsic_extension_version_info(
+        &self,
+    ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
+        Ok(self.extrinsic.transaction_extensions_by_version.keys().copied())
     }
 }
 
@@ -557,7 +710,10 @@ fn err_if_bad_extension_version<'a>(
 
 #[cfg(feature = "legacy")]
 const _: () = {
-    macro_rules! impl_extrinsic_info_body_for_v8_to_v11 {
+    use crate::utils::as_decoded;
+    use scale_info_legacy::LookupName;
+
+    macro_rules! impl_extrinsic_info_by_index_body_for_v8_to_v11 {
         ($self:ident, $pallet_index:ident, $call_index:ident) => {{
             let modules = as_decoded(&$self.modules);
 
@@ -609,7 +765,82 @@ const _: () = {
                 })
                 .collect::<Result<_, ExtrinsicInfoError>>()?;
 
-            Ok(ExtrinsicCallInfoByIndex {
+            Ok(ExtrinsicCallInfo {
+                pallet_index: $pallet_index,
+                call_index: $call_index,
+                pallet_name: Cow::Borrowed(m_name),
+                call_name: Cow::Borrowed(c_name),
+                args,
+            })
+        }};
+    }
+
+    macro_rules! impl_extrinsic_info_by_name_body_for_v8_to_v11 {
+        ($self:ident, $pallet_name_arg:ident, $call_name_arg:ident) => {{
+            use alloc::string::ToString;
+
+            let modules = as_decoded(&$self.modules);
+
+            let (pallet_index, m) = modules
+                .iter()
+                .filter(|m| m.calls.is_some())
+                .enumerate()
+                .find(|(_, m)| {
+                    let name: &str = as_decoded(&m.name).as_ref();
+                    name == $pallet_name_arg
+                })
+                .ok_or_else(|| ExtrinsicInfoError::PalletNotFoundByName {
+                    name: Cow::Owned($pallet_name_arg.to_string()),
+                })?;
+
+            let pallet_index = pallet_index as u8;
+
+            // as_ref to work when scale-info returns `&static str`
+            // instead of `String` in no-std mode.
+            let m_name: &str = as_decoded(&m.name).as_ref();
+
+            let calls = m
+                .calls
+                .as_ref()
+                .ok_or_else(|| ExtrinsicInfoError::CallNotFoundByName {
+                    call_name: Cow::Owned($call_name_arg.to_string()),
+                    pallet_index,
+                    pallet_name: Cow::Borrowed(m_name),
+                })?;
+
+            let calls = as_decoded(calls);
+
+            let (call_index, call) = calls.iter().enumerate().find(|(_, c)| {
+                let name: &str = as_decoded(&c.name).as_ref();
+                name == $call_name_arg
+            }).ok_or_else(|| {
+                ExtrinsicInfoError::CallNotFoundByName {
+                    call_name: Cow::Owned($call_name_arg.to_string()),
+                    pallet_index,
+                    pallet_name: Cow::Borrowed(m_name),
+                }
+            })?;
+
+            let c_name: &str = as_decoded(&call.name).as_ref();
+
+            let args = as_decoded(&call.arguments);
+
+            let args = args
+                .iter()
+                .map(|a| {
+                    let ty: &str = as_decoded(&a.ty).as_ref();
+                    let id = parse_lookup_name(ty)?.in_pallet(m_name);
+                    let name: &str = as_decoded(&a.name).as_ref();
+                    Ok(ExtrinsicInfoArg {
+                        id,
+                        name: Cow::Borrowed(name),
+                    })
+                })
+                .collect::<Result<_, ExtrinsicInfoError>>()?;
+
+            Ok(ExtrinsicCallInfo {
+                pallet_index,
+                call_index: call_index as u8,
                 pallet_name: Cow::Borrowed(m_name),
                 call_name: Cow::Borrowed(c_name),
                 args,
@@ -625,8 +856,15 @@ const _: () = {
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-                    impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
+                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                    impl_extrinsic_info_by_index_body_for_v8_to_v11!(self, pallet_index, call_index)
+                }
+                fn extrinsic_call_info_by_name(
+                    &self,
+                    pallet_name: &str,
+                    call_name: &str,
+                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                    impl_extrinsic_info_by_name_body_for_v8_to_v11!(self, pallet_name, call_name)
                 }
                 fn extrinsic_signature_info(
                     &self,
@@ -649,6 +887,11 @@ const _: () = {
                         }]),
                     })
                 }
+                fn extrinsic_extension_version_info(
+                    &self,
+                ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
+                    Ok(core::iter::empty())
+                }
             }
         };
     }
@@ -663,8 +906,15 @@ const _: () = {
             &self,
             pallet_index: u8,
             call_index: u8,
-        ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
-            impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
+        ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+            impl_extrinsic_info_by_index_body_for_v8_to_v11!(self, pallet_index, call_index)
+        }
+        fn extrinsic_call_info_by_name(
+            &self,
+            pallet_name: &str,
+            call_name: &str,
+        ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+            impl_extrinsic_info_by_name_body_for_v8_to_v11!(self, pallet_name, call_name)
         }
         fn extrinsic_signature_info(
             &self,
@@ -699,6 +949,11 @@ const _: () = {
 
             Ok(ExtrinsicExtensionInfo { extension_ids })
         }
+        fn extrinsic_extension_version_info(
+            &self,
+        ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
+            Ok(core::iter::empty())
+        }
     }
 
     macro_rules! impl_for_v12_to_v13 {
@@ -709,7 +964,7 @@ const _: () = {
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
                     let modules = as_decoded(&self.modules);
 
                     let m = modules
@@ -759,7 +1014,81 @@ const _: () = {
                         })
                         .collect::<Result<_, ExtrinsicInfoError>>()?;
 
-                    Ok(ExtrinsicCallInfoByIndex {
+                    Ok(ExtrinsicCallInfo {
+                        pallet_index,
+                        call_index,
+                        pallet_name: Cow::Borrowed(m_name),
+                        call_name: Cow::Borrowed(c_name),
+                        args,
+                    })
+                }
+                fn extrinsic_call_info_by_name(
+                    &self,
+                    pallet_name: &str,
+                    call_name: &str,
+                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                    use alloc::string::ToString;
+
+                    let modules = as_decoded(&self.modules);
+
+                    let m = modules
+                        .iter()
+                        .find(|m| {
+                            let name: &str = as_decoded(&m.name).as_ref();
+                            name == pallet_name
+                        })
+                        .ok_or_else(|| ExtrinsicInfoError::PalletNotFoundByName {
+                            name: Cow::Owned(pallet_name.to_string()),
+                        })?;
+
+                    let pallet_index = m.index;
+
+                    // as_ref to work when scale-info returns `&static str`
+                    // instead of `String` in no-std mode.
+                    let m_name: &str = as_decoded(&m.name).as_ref();
+
+                    let calls =
+                        m.calls
+                            .as_ref()
+                            .ok_or_else(|| ExtrinsicInfoError::CallNotFoundByName {
+                                call_name: Cow::Owned(call_name.to_string()),
+                                pallet_index,
+                                pallet_name: Cow::Borrowed(m_name),
+                            })?;
+
+                    let calls = as_decoded(calls);
+
+                    let (call_index, call) = calls.iter().enumerate().find(|(_, c)| {
+                        let name: &str = as_decoded(&c.name).as_ref();
+                        name == call_name
+                    }).ok_or_else(|| {
+                        ExtrinsicInfoError::CallNotFoundByName {
+                            call_name: Cow::Owned(call_name.to_string()),
+                            pallet_index,
+                            pallet_name: Cow::Borrowed(m_name),
+                        }
+                    })?;
+
+                    let c_name: &str = as_decoded(&call.name).as_ref();
+
+                    let args = as_decoded(&call.arguments);
+
+                    let args = args
+                        .iter()
+                        .map(|a| {
+                            let ty: &str = as_decoded(&a.ty).as_ref();
+                            let id = parse_lookup_name(ty)?.in_pallet(m_name);
+                            let name: &str = as_decoded(&a.name).as_ref();
+                            Ok(ExtrinsicInfoArg {
+                                id,
+                                name: Cow::Borrowed(name),
+                            })
+                        })
+                        .collect::<Result<_, ExtrinsicInfoError>>()?;
+
+                    Ok(ExtrinsicCallInfo {
+                        pallet_index,
+                        call_index: call_index as u8,
                         pallet_name: Cow::Borrowed(m_name),
                         call_name: Cow::Borrowed(c_name),
                         args,
@@ -797,6 +1126,11 @@ const _: () = {
                         .collect::<Result<Vec<_>, _>>()?;
 
                     Ok(ExtrinsicExtensionInfo { extension_ids })
+                }
+                fn extrinsic_extension_version_info(
+                    &self,
+                ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
+                    Ok(core::iter::empty())
                 }
             }
         };

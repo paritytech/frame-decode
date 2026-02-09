@@ -71,11 +71,15 @@ pub trait TransactionExtensions<Resolver: TypeResolver> {
 /// This error will be returned if any of the methods in [`TransactionExtensions`] fail.
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionExtensionsError {
+    /// The requested transaction extension could not be found.
     #[error("Cannot encode transaction extension '{0}': This extension could not be found")]
     NotFound(String),
+    /// An error occurred while encoding the transaction extension.
     #[error("Cannot encode transaction extension '{extension_name}': {error}")]
     Other {
+        /// The name of the extension that failed to encode.
         extension_name: String,
+        /// The underlying error.
         error: TransactionExtensionError,
     }
 }
