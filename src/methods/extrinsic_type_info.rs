@@ -14,33 +14,59 @@
 // limitations under the License.
 
 use alloc::borrow::Cow;
-use alloc::string::String;
+//use alloc::string::String;
 use alloc::vec::Vec;
 use core::write;
 
-#[cfg(feature = "legacy")]
-use {crate::utils::as_decoded, scale_info_legacy::LookupName};
+// #[cfg(feature = "legacy")]
+// use {crate::utils::as_decoded, scale_info_legacy::LookupName};
 
-/// This is implemented for all metadatas exposed from `frame_metadata` and is responsible for extracting the
-/// type IDs that we need in order to decode extrinsics.
+/// Implementations of this are responsible for handing back the information we need to
+/// encode and decode extrinsics. This is expected to be implemented for runtime metadata
+/// types or derivatives thereof where needed.
 pub trait ExtrinsicTypeInfo {
     /// The type of type IDs that we are using to obtain type information.
     type TypeId;
-    /// Get the information about the call data of a given extrinsic.
-    fn extrinsic_call_info(
+
+    /// Get the information about the call data of a given extrinsic, given u8 indexes.
+    fn extrinsic_call_info_by_index(
         &self,
         pallet_index: u8,
         call_index: u8,
     ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
-    /// Get the information needed to decode the extrinsic signature bytes.
+
+    /// Get the information about the call data of a given extrinsic, given pallet and call name.
+    fn extrinsic_call_info_by_name(
+        &self,
+        pallet_name: &str,
+        call_name: &str,
+    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
+
+    /// Get the information needed to decode or encode the extrinsic signature bytes.
     fn extrinsic_signature_info(
         &self,
     ) -> Result<ExtrinsicSignatureInfo<Self::TypeId>, ExtrinsicInfoError<'_>>;
+
     /// Get the information needed to decode the transaction extensions.
     fn extrinsic_extension_info(
         &self,
         extension_version: Option<u8>,
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
+
+    /// Get the available transaction extension versions. Prior to runtimes supporting
+    /// V5 extrinsics this should not return any entries. In runtimes supporting V5 extrinsics, 
+    /// 1 or more versions should be returned.
+    /// 
+    /// Versions should be returned in order from highest to lowest preference of
+    /// whether they should be used for encoding extrinsics. The highest will be tried first,
+    /// but if the relevant transaction extension information is not given then we will fall
+    /// back to the next version until we find one we can satisfy.
+    /// 
+    /// All versions returned here should be passable to [`ExtrinsicTypeInfo::extrinsic_extension_info`]
+    /// and return valid extensions information from that.
+    fn extrinsic_extension_version_info(
+        &self,
+    ) -> Result<impl Iterator<Item=u8>, ExtrinsicInfoError<'_>>;
 }
 
 /// An error returned trying to access extrinsic type information.
@@ -223,9 +249,13 @@ pub struct ExtrinsicInfoArg<'info, TypeId> {
     pub id: TypeId,
 }
 
-/// Extrinsic call data information.
+/// Extrinsic call data information given pallet and call names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicCallInfo<'info, TypeId> {
+    /// Index of the pallet.
+    pub pallet_index: u8,
+    /// Index of the call.
+    pub call_index: u8,
     /// Name of the pallet.
     pub pallet_name: Cow<'info, str>,
     /// Name of the call.
@@ -318,7 +348,7 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
             })
             .collect();
 
-        Ok(ExtrinsicCallInfo {
+        Ok(ExtrinsicCallInfoByIndex {
             pallet_name: Cow::Borrowed(pallet_name),
             call_name: Cow::Borrowed(&call_variant.name),
             args,
@@ -328,11 +358,11 @@ macro_rules! impl_call_arg_ids_body_for_v14_to_v16 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
     type TypeId = u32;
-    fn extrinsic_call_info(
+    fn extrinsic_call_info_by_index(
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn extrinsic_signature_info(
@@ -367,11 +397,11 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
     type TypeId = u32;
-    fn extrinsic_call_info(
+    fn extrinsic_call_info_by_index(
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn extrinsic_signature_info(
@@ -404,11 +434,11 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
 
 impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
     type TypeId = u32;
-    fn extrinsic_call_info(
+    fn extrinsic_call_info_by_index(
         &self,
         pallet_index: u8,
         call_index: u8,
-    ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+    ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
         impl_call_arg_ids_body_for_v14_to_v16!(self, pallet_index, call_index)
     }
     fn extrinsic_signature_info(
@@ -579,7 +609,7 @@ const _: () = {
                 })
                 .collect::<Result<_, ExtrinsicInfoError>>()?;
 
-            Ok(ExtrinsicCallInfo {
+            Ok(ExtrinsicCallInfoByIndex {
                 pallet_name: Cow::Borrowed(m_name),
                 call_name: Cow::Borrowed(c_name),
                 args,
@@ -591,11 +621,11 @@ const _: () = {
         ($path:path) => {
             impl ExtrinsicTypeInfo for $path {
                 type TypeId = LookupName;
-                fn extrinsic_call_info(
+                fn extrinsic_call_info_by_index(
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
                     impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
                 }
                 fn extrinsic_signature_info(
@@ -629,11 +659,11 @@ const _: () = {
 
     impl ExtrinsicTypeInfo for frame_metadata::v11::RuntimeMetadataV11 {
         type TypeId = LookupName;
-        fn extrinsic_call_info(
+        fn extrinsic_call_info_by_index(
             &self,
             pallet_index: u8,
             call_index: u8,
-        ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+        ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
             impl_extrinsic_info_body_for_v8_to_v11!(self, pallet_index, call_index)
         }
         fn extrinsic_signature_info(
@@ -675,11 +705,11 @@ const _: () = {
         ($path:path) => {
             impl ExtrinsicTypeInfo for $path {
                 type TypeId = LookupName;
-                fn extrinsic_call_info(
+                fn extrinsic_call_info_by_index(
                     &self,
                     pallet_index: u8,
                     call_index: u8,
-                ) -> Result<ExtrinsicCallInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
+                ) -> Result<ExtrinsicCallInfoByIndex<'_, Self::TypeId>, ExtrinsicInfoError<'_>> {
                     let modules = as_decoded(&self.modules);
 
                     let m = modules
@@ -729,7 +759,7 @@ const _: () = {
                         })
                         .collect::<Result<_, ExtrinsicInfoError>>()?;
 
-                    Ok(ExtrinsicCallInfo {
+                    Ok(ExtrinsicCallInfoByIndex {
                         pallet_name: Cow::Borrowed(m_name),
                         call_name: Cow::Borrowed(c_name),
                         args,
