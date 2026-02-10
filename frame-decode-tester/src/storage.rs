@@ -48,7 +48,7 @@ impl StorageItem {
 
 /// A rule to ignore specific decode issues for a storage item within a block range.
 #[derive(Debug, Clone)]
-pub struct IgnoreRule {
+pub struct IgnoreLeftoverBytesRule {
     /// Pallet name to match.
     pub pallet_name: String,
     /// Storage entry name to match.
@@ -59,7 +59,7 @@ pub struct IgnoreRule {
     pub reason: String,
 }
 
-impl IgnoreRule {
+impl IgnoreLeftoverBytesRule {
     /// Check if this rule matches the given pallet, storage entry, and block number.
     pub fn matches(&self, pallet: &str, entry: &str, block: u64) -> bool {
         if self.pallet_name != pallet || self.storage_entry != entry {
@@ -163,7 +163,7 @@ pub struct TestStorageBuilder {
     max_keys_per_item: usize,
     max_values_per_block: usize,
     /// Rules for ignoring leftover bytes after decoding specific storage items.
-    ignore_leftover_bytes_rules: Vec<IgnoreRule>,
+    ignore_leftover_bytes_rules: Vec<IgnoreLeftoverBytesRule>,
 }
 
 impl Default for TestStorageBuilder {
@@ -304,7 +304,7 @@ impl TestStorageBuilder {
         blocks: Option<std::ops::Range<u64>>,
         reason: impl Into<String>,
     ) -> Self {
-        self.ignore_leftover_bytes_rules.push(IgnoreRule {
+        self.ignore_leftover_bytes_rules.push(IgnoreLeftoverBytesRule {
             pallet_name: pallet.into(),
             storage_entry: entry.into(),
             block_range: blocks,
@@ -360,7 +360,7 @@ pub struct TestStorage {
     max_keys_per_item: usize,
     max_values_per_block: usize,
     /// Rules for ignoring leftover bytes after decoding specific storage items.
-    ignore_leftover_bytes_rules: Vec<IgnoreRule>,
+    ignore_leftover_bytes_rules: Vec<IgnoreLeftoverBytesRule>,
     results: Vec<StorageBlockTestResult>,
 }
 
@@ -567,7 +567,7 @@ async fn test_single_storage_block_with_retry(
     discover_entries: bool,
     discover_max_items_per_block: usize,
     max_values_per_block: usize,
-    ignore_leftover_rules: &[IgnoreRule],
+    ignore_leftover_rules: &[IgnoreLeftoverBytesRule],
 ) -> StorageBlockTestResult {
     const MAX_ATTEMPTS: usize = 5;
     let mut last_err: Option<Error> = None;
@@ -618,7 +618,7 @@ async fn test_single_storage_block(
     discover_entries: bool,
     discover_max_items_per_block: usize,
     max_values_per_block: usize,
-    ignore_leftover_rules: &[IgnoreRule],
+    ignore_leftover_rules: &[IgnoreLeftoverBytesRule],
 ) -> Result<StorageBlockTestResult, Error> {
     // Same rule as in TestBlocks: runtime updates take effect the block after.
     let runtime_update_block = block_number.saturating_sub(1);
@@ -839,7 +839,7 @@ fn decode_storage_value_to_result(
     bytes: &[u8],
     metadata: &RuntimeMetadata,
     legacy_types_for_spec: &TypeRegistrySet,
-    leftover_rule: Option<&IgnoreRule>,
+    leftover_rule: Option<&IgnoreLeftoverBytesRule>,
 ) -> Result<scale_value::Value<String>, String> {
     let mut cursor = &*bytes;
 
@@ -851,7 +851,7 @@ fn decode_storage_value_to_result(
     if !cursor.is_empty() {
         if let Some(rule) = leftover_rule {
             eprintln!(
-                "[IgnoreRule] {}.{} at block {}: {} leftover bytes ignored - {}",
+                "[IgnoreLeftoverBytesRule] {}.{} at block {}: {} leftover bytes ignored - {}",
                 pallet_name,
                 storage_entry,
                 block_number,
