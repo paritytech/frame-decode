@@ -93,7 +93,7 @@ impl<Resolver: TypeResolver> TransactionExtensions<Resolver>
     for [&dyn TransactionExtension<Resolver>]
 {
     fn contains_extension(&self, name: &str) -> bool {
-        self.iter().find(|e| e.extension_name() == name).is_some()
+        self.iter().any(|e| e.extension_name() == name)
     }
 
     fn encode_extension_value_to(

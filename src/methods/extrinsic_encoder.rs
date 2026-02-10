@@ -49,8 +49,6 @@ pub enum ExtrinsicEncodeError {
     CannotFindGoodExtensionVersion,
 }
 
-//// V4
-
 /// Encode a V4 unsigned extrinsic (also known as an inherent).
 ///
 /// This is the same as [`encode_v4_unsigned_to`], but returns the encoded extrinsic as a `Vec<u8>`,
@@ -173,7 +171,7 @@ where
 {
     encode_unsigned_at_version_with_info_to(
         call_data,
-        &call_info,
+        call_info,
         type_resolver,
         TransactionVersion::V4,
         out,
@@ -217,6 +215,7 @@ where
 ///     &metadata.types,
 /// ).unwrap();
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub fn encode_v4_signed<CallData, Info, Resolver, Exts, Address, Signature>(
     pallet_name: &str,
     call_name: &str,
@@ -287,6 +286,7 @@ where
 ///     &mut encoded,
 /// ).unwrap();
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub fn encode_v4_signed_to<CallData, Info, Resolver, Exts, Address, Signature>(
     pallet_name: &str,
     call_name: &str,
@@ -339,6 +339,7 @@ where
 /// Unlike [`encode_v4_signed_to`], which obtains the call, signature, and extension info internally
 /// given the pallet and call names, this function takes these as arguments. This is useful if you
 /// already have this information available, for example if you are encoding multiple extrinsics.
+#[allow(clippy::too_many_arguments)]
 pub fn encode_v4_signed_with_info_to<CallData, Resolver, Exts, Address, Signature>(
     call_data: &CallData,
     transaction_extensions: &Exts,
@@ -485,7 +486,7 @@ where
     let mut out = Vec::new();
 
     // First encode call data
-    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)?;
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
         transaction_extensions
@@ -510,8 +511,6 @@ where
 
     Ok(out)
 }
-
-//// V5
 
 /// Encode a V5 bare extrinsic (also known as an inherent), ready to submit.
 ///
@@ -638,7 +637,7 @@ where
 {
     encode_unsigned_at_version_with_info_to(
         call_data,
-        &call_info,
+        call_info,
         type_resolver,
         TransactionVersion::V5,
         out,
@@ -832,6 +831,7 @@ where
 ///     &mut encoded,
 /// ).unwrap();
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub fn encode_v5_general_to<CallData, Info, Resolver, Exts>(
     pallet_name: &str,
     call_name: &str,
@@ -858,7 +858,7 @@ where
         .map_err(|i| i.into_owned())
         .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
 
-    return encode_v5_general_with_info_to(
+    encode_v5_general_with_info_to(
         call_data,
         transaction_extension_version,
         transaction_extensions,
@@ -866,7 +866,7 @@ where
         &call_info,
         &ext_info,
         out,
-    );
+    )
 }
 
 /// Encode a V5 general extrinsic to a provided output buffer, using pre-computed type information.
@@ -1012,7 +1012,7 @@ where
     let mut out = Vec::new();
 
     // First encode call data
-    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)?;
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
