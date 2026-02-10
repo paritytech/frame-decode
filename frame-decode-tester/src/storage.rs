@@ -304,12 +304,13 @@ impl TestStorageBuilder {
         blocks: Option<std::ops::Range<u64>>,
         reason: impl Into<String>,
     ) -> Self {
-        self.ignore_leftover_bytes_rules.push(IgnoreLeftoverBytesRule {
-            pallet_name: pallet.into(),
-            storage_entry: entry.into(),
-            block_range: blocks,
-            reason: reason.into(),
-        });
+        self.ignore_leftover_bytes_rules
+            .push(IgnoreLeftoverBytesRule {
+                pallet_name: pallet.into(),
+                storage_entry: entry.into(),
+                block_range: blocks,
+                reason: reason.into(),
+            });
         self
     }
 
