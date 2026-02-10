@@ -384,8 +384,7 @@ where
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
     // And now the actual call data, ie the arguments we're passing to the call
-    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)
-        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
 
     // Now, encoding these inner bytes prefixes the compact length to the beginning:
     encoded_inner.encode_to(out);
@@ -486,8 +485,7 @@ where
     let mut out = Vec::new();
 
     // First encode call data
-    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)
-        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)?;
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
         transaction_extensions
@@ -903,8 +901,7 @@ where
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
     // And now the actual call data, ie the arguments we're passing to the call
-    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)
-        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
 
     // Now, encoding these inner bytes prefixes the compact length to the beginning:
     encoded_inner.encode_to(out);
@@ -1015,8 +1012,7 @@ where
     let mut out = Vec::new();
 
     // First encode call data
-    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)
-        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
@@ -1041,6 +1037,100 @@ where
     Ok(sp_crypto_hashing::blake2_256(&out))
 }
 
+/// Encode the call data for an extrinsic.
+///
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+pub fn encode_call_data<CallData, Info, Resolver>(
+    pallet_name: &str,
+    call_name: &str,
+    call_data: &CallData,
+    info: &Info,
+    type_resolver: &Resolver,
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
+where
+    CallData: EncodeAsFields,
+    Resolver: TypeResolver<TypeId = Info::TypeId>,
+    Info: ExtrinsicTypeInfo,
+{
+    let mut out = Vec::new();
+    encode_call_data_to(
+        pallet_name,
+        call_name,
+        call_data,
+        info,
+        type_resolver,
+        &mut out,
+    )?;
+    Ok(out)
+}
+
+/// Encode the call data for an extrinsic to the given Vec.
+///
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+pub fn encode_call_data_to<CallData, Info, Resolver>(
+    pallet_name: &str,
+    call_name: &str,
+    call_data: &CallData,
+    info: &Info,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), ExtrinsicEncodeError>
+where
+    CallData: EncodeAsFields,
+    Resolver: TypeResolver<TypeId = Info::TypeId>,
+    Info: ExtrinsicTypeInfo,
+{
+    let call_info = info
+        .extrinsic_call_info_by_name(pallet_name, call_name)
+        .map_err(|i| i.into_owned())
+        .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
+
+    encode_call_data_with_info_to(call_data, &call_info, type_resolver, out)
+}
+
+/// Encode the call data for an extrinsic, given some already-computed [`ExtrinsicCallInfo`].
+///
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+pub fn encode_call_data_with_info<CallData, Info, Resolver>(
+    call_data: &CallData,
+    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
+    type_resolver: &Resolver,
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
+where
+    Resolver: TypeResolver,
+    CallData: EncodeAsFields,
+{
+    let mut out = Vec::new();
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
+    Ok(out)
+}
+
+/// Encode the call data for an extrinsic, given some already-computed [`ExtrinsicCallInfo`],
+/// to the given Vec.
+///
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+pub fn encode_call_data_with_info_to<CallData, Resolver>(
+    call_data: &CallData,
+    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), ExtrinsicEncodeError>
+where
+    Resolver: TypeResolver,
+    CallData: EncodeAsFields,
+{
+    let mut fields = call_info.args.iter().map(|arg| Field {
+        name: Some(&*arg.name),
+        id: arg.id.clone(),
+    });
+
+    call_data
+        .encode_as_fields_to(&mut fields, type_resolver, out)
+        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+
+    Ok(())
+}
+
 // V4 unsigned and V5 bare extrinsics are basically encoded
 // in the same way; this helper can do either.
 fn encode_unsigned_at_version_with_info_to<CallData, Resolver>(
@@ -1063,8 +1153,7 @@ where
         call_info.pallet_index.encode_to(&mut out);
         call_info.call_index.encode_to(&mut out);
         // Then the arguments for the call:
-        encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)
-            .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+        encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
         out
     };
 
@@ -1078,25 +1167,4 @@ where
 enum TransactionVersion {
     V4 = 4u8,
     V5 = 5u8,
-}
-
-// Encoding call data is the same for any extrinsic; this method does this part.
-fn encode_call_data_with_info_to<Resolver, CallData>(
-    call_data: &CallData,
-    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
-    type_resolver: &Resolver,
-    out: &mut Vec<u8>,
-) -> Result<(), scale_encode::Error>
-where
-    Resolver: TypeResolver,
-    CallData: EncodeAsFields,
-{
-    let mut fields = call_info.args.iter().map(|arg| Field {
-        name: Some(&*arg.name),
-        id: arg.id.clone(),
-    });
-
-    call_data.encode_as_fields_to(&mut fields, type_resolver, out)?;
-
-    Ok(())
 }
