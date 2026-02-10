@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
 
 /// This can be implemented for anything which is a valid Substrate transaction extension.
@@ -26,16 +28,16 @@ pub trait TransactionExtension<Resolver: TypeResolver> {
     /// this should encode the value (ie the bytes that will appear in the
     /// transaction) to the provided `Vec`, or encode nothing and emit an error.
     fn encode_value_to(
-        &self, 
-        type_id: Resolver::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        &self,
+        type_id: Resolver::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionError>;
 
     /// Given type information for the expected transaction extension,
     /// this should encode the value that will be signed as a part of the
     /// signer payload.
-    /// 
+    ///
     /// This defaults to calling [`Self::encode_value_to`] if not implemented.
     /// In most cases this is fine, but for V5 extrinsics we can optionally provide
     /// the signature inside a transaction extension, and so that transaction would be
@@ -43,9 +45,9 @@ pub trait TransactionExtension<Resolver: TypeResolver> {
     /// method to encode nothing.
     fn encode_value_for_signer_payload_to(
         &self,
-        type_id: Resolver::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        type_id: Resolver::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionError> {
         self.encode_value_to(type_id, type_resolver, out)
     }
@@ -54,10 +56,10 @@ pub trait TransactionExtension<Resolver: TypeResolver> {
     /// this should encode the implicit (ie the bytes that will appear in the
     /// signer payload) to the provided `Vec`, or encode nothing and emit an error.
     fn encode_implicit_to(
-        &self, 
-        type_id: Resolver::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        &self,
+        type_id: Resolver::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionError>;
 }
 

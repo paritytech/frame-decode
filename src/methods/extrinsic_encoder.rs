@@ -13,22 +13,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod transaction_extensions;
 mod transaction_extension;
+mod transaction_extensions;
 
-use super::extrinsic_type_info::{ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicSignatureInfo, ExtrinsicTypeInfo, ExtrinsicInfoError};
-use scale_encode::{EncodeAsType, EncodeAsFields};
-use scale_type_resolver::{TypeResolver, Field};
+use super::extrinsic_type_info::{
+    ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoError, ExtrinsicSignatureInfo,
+    ExtrinsicTypeInfo,
+};
+use alloc::vec::Vec;
 use parity_scale_codec::Encode;
+use scale_encode::{EncodeAsFields, EncodeAsType};
+use scale_type_resolver::{Field, TypeResolver};
 
-pub use transaction_extension::{
-    TransactionExtension,
-    TransactionExtensionError,
-};
-pub use transaction_extensions::{
-    TransactionExtensions,
-    TransactionExtensionsError,
-};
+pub use transaction_extension::{TransactionExtension, TransactionExtensionError};
+pub use transaction_extensions::{TransactionExtensions, TransactionExtensionsError};
 
 /// An error returned trying to encode extrinsic call data.
 #[non_exhaustive]
@@ -45,8 +43,10 @@ pub enum ExtrinsicEncodeError {
     CannotEncodeSignature(scale_encode::Error),
     #[error("Extrinsic encoding failed: cannot encode transaction extensions: {0}")]
     TransactionExtensions(TransactionExtensionsError),
-    #[error("Extrinsic encoding failed: cannot find a transaction extension version which enough data was given for.")]
-    CannotFindGoodExtensionVersion
+    #[error(
+        "Extrinsic encoding failed: cannot find a transaction extension version which enough data was given for."
+    )]
+    CannotFindGoodExtensionVersion,
 }
 
 //// V4
@@ -86,7 +86,7 @@ pub fn encode_v4_unsigned<CallData, Info, Resolver>(
     call_data: &CallData,
     info: &Info,
     type_resolver: &Resolver,
-) -> Result<Vec<u8>, ExtrinsicEncodeError> 
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
 where
     CallData: EncodeAsFields,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
@@ -152,12 +152,7 @@ where
         .map_err(|i| i.into_owned())
         .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
 
-    encode_v4_unsigned_with_info_to(
-        call_data,
-        type_resolver,
-        &call_info,
-        out
-    )
+    encode_v4_unsigned_with_info_to(call_data, type_resolver, &call_info, out)
 }
 
 /// Encode a V4 unsigned extrinsic (also known as an inherent) to a provided output buffer,
@@ -181,7 +176,7 @@ where
         &call_info,
         type_resolver,
         TransactionVersion::V4,
-        out
+        out,
     )
 }
 
@@ -368,11 +363,19 @@ where
     (0b10000000 + 4u8).encode_to(&mut encoded_inner);
     // Who is this transaction from (corresponds to public key of signature)
     address
-        .encode_as_type_to(sig_info.address_id.clone(), type_resolver, &mut encoded_inner)
+        .encode_as_type_to(
+            sig_info.address_id.clone(),
+            type_resolver,
+            &mut encoded_inner,
+        )
         .map_err(ExtrinsicEncodeError::CannotEncodeAddress)?;
     // Signature for the above identity
     signature
-        .encode_as_type_to(sig_info.signature_id.clone(), type_resolver, &mut encoded_inner)
+        .encode_as_type_to(
+            sig_info.signature_id.clone(),
+            type_resolver,
+            &mut encoded_inner,
+        )
         .map_err(ExtrinsicEncodeError::CannotEncodeSignature)?;
     // Signed extensions (now Transaction Extensions)
     for ext in &ext_info.extension_ids {
@@ -381,12 +384,8 @@ where
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
     // And now the actual call data, ie the arguments we're passing to the call
-    encode_call_data_with_info_to(
-        call_data,
-        call_info,
-        type_resolver,
-        &mut encoded_inner
-    ).map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)
+        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
 
     // Now, encoding these inner bytes prefixes the compact length to the beginning:
     encoded_inner.encode_to(out);
@@ -460,7 +459,7 @@ where
         type_resolver,
         &call_info,
         &ext_info,
-    )    
+    )
 }
 
 /// Encode the signer payload for a V4 signed extrinsic, using pre-computed type information.
@@ -487,16 +486,17 @@ where
     let mut out = Vec::new();
 
     // First encode call data
-    encode_call_data_with_info_to(
-        call_data,
-        &call_info,
-        type_resolver,
-        &mut out
-    ).map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)
+        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
         transaction_extensions
-            .encode_extension_value_for_signer_payload_to(&ext.name, ext.id.clone(), type_resolver, &mut out)
+            .encode_extension_value_for_signer_payload_to(
+                &ext.name,
+                ext.id.clone(),
+                type_resolver,
+                &mut out,
+            )
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
@@ -619,12 +619,7 @@ where
         .map_err(|i| i.into_owned())
         .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
 
-    encode_v5_bare_with_info_to(
-        call_data,
-        type_resolver,
-        &call_info,
-        out
-    )
+    encode_v5_bare_with_info_to(call_data, type_resolver, &call_info, out)
 }
 
 /// Encode a V5 bare extrinsic (also known as an inherent) to a provided output buffer,
@@ -648,7 +643,7 @@ where
         &call_info,
         type_resolver,
         TransactionVersion::V5,
-        out
+        out,
     )
 }
 
@@ -717,14 +712,15 @@ where
             .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
 
         // Do we have all of the extension data for this version?
-        let have_data = ext_info.extension_ids.iter().all(|e| {
-            transaction_extensions.contains_extension(&e.name)
-        });
+        let have_data = ext_info
+            .extension_ids
+            .iter()
+            .all(|e| transaction_extensions.contains_extension(&e.name));
 
         // If we have all of the data we need, encode the extrinsic,
         // else loop and try the next extension version.
         if have_data {
-            return Ok(ext_version)
+            return Ok(ext_version);
         }
     }
 
@@ -872,7 +868,7 @@ where
         &call_info,
         &ext_info,
         out,
-    )
+    );
 }
 
 /// Encode a V5 general extrinsic to a provided output buffer, using pre-computed type information.
@@ -907,12 +903,8 @@ where
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
     // And now the actual call data, ie the arguments we're passing to the call
-    encode_call_data_with_info_to(
-        call_data,
-        call_info,
-        type_resolver,
-        &mut encoded_inner
-    ).map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)
+        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
 
     // Now, encoding these inner bytes prefixes the compact length to the beginning:
     encoded_inner.encode_to(out);
@@ -996,7 +988,7 @@ where
         type_resolver,
         &call_info,
         &ext_info,
-    )    
+    )
 }
 
 /// Encode the signer payload for a V5 general extrinsic, using pre-computed type information.
@@ -1023,17 +1015,18 @@ where
     let mut out = Vec::new();
 
     // First encode call data
-    encode_call_data_with_info_to(
-        call_data,
-        &call_info,
-        type_resolver,
-        &mut out
-    ).map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+    encode_call_data_with_info_to(call_data, &call_info, type_resolver, &mut out)
+        .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
         transaction_extensions
-            .encode_extension_value_for_signer_payload_to(&ext.name, ext.id.clone(), type_resolver, &mut out)
+            .encode_extension_value_for_signer_payload_to(
+                &ext.name,
+                ext.id.clone(),
+                type_resolver,
+                &mut out,
+            )
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
@@ -1048,7 +1041,7 @@ where
     Ok(sp_crypto_hashing::blake2_256(&out))
 }
 
-// V4 unsigned and V5 bare extrinsics are basically encoded 
+// V4 unsigned and V5 bare extrinsics are basically encoded
 // in the same way; this helper can do either.
 fn encode_unsigned_at_version_with_info_to<CallData, Resolver>(
     call_data: &CallData,
@@ -1056,7 +1049,7 @@ fn encode_unsigned_at_version_with_info_to<CallData, Resolver>(
     type_resolver: &Resolver,
     tx_version: TransactionVersion,
     out: &mut Vec<u8>,
-) -> Result<(), ExtrinsicEncodeError> 
+) -> Result<(), ExtrinsicEncodeError>
 where
     Resolver: TypeResolver,
     CallData: EncodeAsFields,
@@ -1070,15 +1063,11 @@ where
         call_info.pallet_index.encode_to(&mut out);
         call_info.call_index.encode_to(&mut out);
         // Then the arguments for the call:
-        encode_call_data_with_info_to(
-            call_data,
-            call_info,
-            type_resolver,
-            &mut out
-        ).map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
+        encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)
+            .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
         out
     };
-    
+
     // Encode the inner vec to prefix the compact length to it:
     inner.encode_to(out);
     Ok(())
@@ -1093,24 +1082,21 @@ enum TransactionVersion {
 
 // Encoding call data is the same for any extrinsic; this method does this part.
 fn encode_call_data_with_info_to<Resolver, CallData>(
-    call_data: &CallData, 
-    call_info: &ExtrinsicCallInfo<Resolver::TypeId>, 
+    call_data: &CallData,
+    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
     type_resolver: &Resolver,
     out: &mut Vec<u8>,
-) -> Result<(), scale_encode::Error> 
+) -> Result<(), scale_encode::Error>
 where
     Resolver: TypeResolver,
     CallData: EncodeAsFields,
 {
-    let mut fields = call_info.args.iter().map(|arg| {
-        Field {
-            name: Some(&*arg.name),
-            id: arg.id.clone()
-        }
+    let mut fields = call_info.args.iter().map(|arg| Field {
+        name: Some(&*arg.name),
+        id: arg.id.clone(),
     });
 
-    call_data
-        .encode_as_fields_to(&mut fields, type_resolver, out)?;
+    call_data.encode_as_fields_to(&mut fields, type_resolver, out)?;
 
     Ok(())
 }

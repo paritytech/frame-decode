@@ -13,15 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::transaction_extension::{TransactionExtension, TransactionExtensionError};
+use alloc::borrow::ToOwned;
+use alloc::string::String;
+use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
-use super::transaction_extension::{ TransactionExtension, TransactionExtensionError };
 
 /// This trait can be implemented for anything which represents a set of transaction extensions.
 /// It's implemented by default for tuples of items which implement [`TransactionExtension`],
 /// and for slices of `&dyn TransactionExtension`.
 pub trait TransactionExtensions<Resolver: TypeResolver> {
     /// Is a given transaction extension contained within this set?
-    fn contains_extension(&self, name: &str) -> bool; 
+    fn contains_extension(&self, name: &str) -> bool;
 
     /// This will be called given the name of each transaction extension we
     /// wish to obtain the encoded bytes to. Implementations are expected to
@@ -29,42 +32,42 @@ pub trait TransactionExtensions<Resolver: TypeResolver> {
     /// or return an error if no such bytes can be written.
     fn encode_extension_value_to(
         &self,
-        name: &str, 
-        type_id: Resolver::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        name: &str,
+        type_id: Resolver::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError>;
 
     /// This will be called given the name of each transaction extension we
     /// wish to obtain the encoded bytes to. Implementations are expected to
-    /// write the bytes that should be included in the **signer payload value 
-    /// section** to the given [`Vec`], or return an error if no such bytes can be 
+    /// write the bytes that should be included in the **signer payload value
+    /// section** to the given [`Vec`], or return an error if no such bytes can be
     /// written.
-    /// 
+    ///
     /// This defaults to calling [`Self::encode_extension_value_to`] if not implemented.
     /// In most cases this is fine, but for V5 extrinsics we can optionally provide
     /// the signature inside a transaction extension, and so that transaction would be
     /// unable to encode anything for the signer payload.
     fn encode_extension_value_for_signer_payload_to(
         &self,
-        name: &str, 
-        type_id: Resolver::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        name: &str,
+        type_id: Resolver::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError> {
         self.encode_extension_value_to(name, type_id, type_resolver, out)
     }
 
     /// This will be called given the name of each transaction extension we
     /// wish to obtain the encoded bytes to. Implementations are expected to
-    /// write the bytes that should be included in the **signer payload implicit** 
+    /// write the bytes that should be included in the **signer payload implicit**
     /// to the given [`Vec`], or return an error if no such bytes can be written.
     fn encode_extension_implicit_to(
         &self,
-        name: &str, 
-        type_id: Resolver::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        name: &str,
+        type_id: Resolver::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError>;
 }
 
@@ -81,27 +84,30 @@ pub enum TransactionExtensionsError {
         extension_name: String,
         /// The underlying error.
         error: TransactionExtensionError,
-    }
+    },
 }
 
 // `TransactionExtension` is object safe and so `TransactionExtensions` can be implemented
 // for slices of `&dyn TransactionExtension`s.
-impl <Resolver: TypeResolver> TransactionExtensions<Resolver> for [&dyn TransactionExtension<Resolver>] {
+impl<Resolver: TypeResolver> TransactionExtensions<Resolver>
+    for [&dyn TransactionExtension<Resolver>]
+{
     fn contains_extension(&self, name: &str) -> bool {
         self.iter().find(|e| e.extension_name() == name).is_some()
     }
 
     fn encode_extension_value_to(
         &self,
-        name: &str, 
-        type_id: <Resolver as TypeResolver>::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        name: &str,
+        type_id: <Resolver as TypeResolver>::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError> {
         let len = out.len();
         for ext in self {
             if ext.extension_name() == name {
-                return ext.encode_value_to(type_id, type_resolver, out)
+                return ext
+                    .encode_value_to(type_id, type_resolver, out)
                     .map_err(|e| {
                         // Protection: if we are returning an error then
                         // no bytes should have been encoded to the given
@@ -121,15 +127,16 @@ impl <Resolver: TypeResolver> TransactionExtensions<Resolver> for [&dyn Transact
 
     fn encode_extension_value_for_signer_payload_to(
         &self,
-        name: &str, 
-        type_id: <Resolver as TypeResolver>::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        name: &str,
+        type_id: <Resolver as TypeResolver>::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError> {
         let len = out.len();
         for ext in self {
             if ext.extension_name() == name {
-                return ext.encode_value_for_signer_payload_to(type_id, type_resolver, out)
+                return ext
+                    .encode_value_for_signer_payload_to(type_id, type_resolver, out)
                     .map_err(|e| {
                         // Protection: if we are returning an error then
                         // no bytes should have been encoded to the given
@@ -146,18 +153,19 @@ impl <Resolver: TypeResolver> TransactionExtensions<Resolver> for [&dyn Transact
         }
         Err(TransactionExtensionsError::NotFound(name.to_owned()))
     }
-    
+
     fn encode_extension_implicit_to(
         &self,
-        name: &str, 
-        type_id: <Resolver as TypeResolver>::TypeId, 
-        type_resolver: &Resolver, 
-        out: &mut Vec<u8>
+        name: &str,
+        type_id: <Resolver as TypeResolver>::TypeId,
+        type_resolver: &Resolver,
+        out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError> {
         let len = out.len();
         for ext in self {
             if ext.extension_name() == name {
-                return ext.encode_implicit_to(type_id, type_resolver, out)
+                return ext
+                    .encode_implicit_to(type_id, type_resolver, out)
                     .map_err(|e| {
                         // Protection: if we are returning an error then
                         // no bytes should have been encoded to the given
@@ -177,27 +185,27 @@ impl <Resolver: TypeResolver> TransactionExtensions<Resolver> for [&dyn Transact
 }
 
 // Empty tuples impl `TransactionExtensions`: if called they emit a not found error.
-impl <Resolver: TypeResolver> TransactionExtensions<Resolver> for () {
+impl<Resolver: TypeResolver> TransactionExtensions<Resolver> for () {
     fn contains_extension(&self, _name: &str) -> bool {
         false
     }
 
     fn encode_extension_value_to(
         &self,
-        name: &str, 
-        _type_id: <Resolver as TypeResolver>::TypeId, 
-        _type_resolver: &Resolver, 
-        _out: &mut Vec<u8>
+        name: &str,
+        _type_id: <Resolver as TypeResolver>::TypeId,
+        _type_resolver: &Resolver,
+        _out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError> {
         Err(TransactionExtensionsError::NotFound(name.to_owned()))
     }
 
     fn encode_extension_implicit_to(
         &self,
-        name: &str, 
-        _type_id: <Resolver as TypeResolver>::TypeId, 
-        _type_resolver: &Resolver, 
-        _out: &mut Vec<u8>
+        name: &str,
+        _type_id: <Resolver as TypeResolver>::TypeId,
+        _type_resolver: &Resolver,
+        _out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError> {
         Err(TransactionExtensionsError::NotFound(name.to_owned()))
     }
@@ -207,7 +215,7 @@ impl <Resolver: TypeResolver> TransactionExtensions<Resolver> for () {
 // search through the tuple items to find it and call the appropriate encode method.
 macro_rules! impl_tuples {
     ($($ident:ident $index:tt),*) => {
-        impl <Resolver: TypeResolver $(,$ident)*> TransactionExtensions<Resolver> for ($($ident,)*) 
+        impl <Resolver: TypeResolver $(,$ident)*> TransactionExtensions<Resolver> for ($($ident,)*)
         where
             $($ident: TransactionExtension<Resolver>,)*
         {
@@ -217,14 +225,14 @@ macro_rules! impl_tuples {
                         return true
                     }
                 )*
-                false         
+                false
             }
 
             fn encode_extension_value_to(
-                &self, 
-                name: &str, 
-                type_id: <Resolver as TypeResolver>::TypeId, 
-                type_resolver: &Resolver, 
+                &self,
+                name: &str,
+                type_id: <Resolver as TypeResolver>::TypeId,
+                type_resolver: &Resolver,
                 out: &mut Vec<u8>
             ) -> Result<(), TransactionExtensionsError> {
                 let len = out.len();
@@ -251,10 +259,10 @@ macro_rules! impl_tuples {
             }
 
             fn encode_extension_value_for_signer_payload_to(
-                &self, 
-                name: &str, 
-                type_id: <Resolver as TypeResolver>::TypeId, 
-                type_resolver: &Resolver, 
+                &self,
+                name: &str,
+                type_id: <Resolver as TypeResolver>::TypeId,
+                type_resolver: &Resolver,
                 out: &mut Vec<u8>
             ) -> Result<(), TransactionExtensionsError> {
                 let len = out.len();
@@ -281,10 +289,10 @@ macro_rules! impl_tuples {
             }
 
             fn encode_extension_implicit_to(
-                &self, 
-                name: &str, 
-                type_id: <Resolver as TypeResolver>::TypeId, 
-                type_resolver: &Resolver, 
+                &self,
+                name: &str,
+                type_id: <Resolver as TypeResolver>::TypeId,
+                type_resolver: &Resolver,
                 out: &mut Vec<u8>
             ) -> Result<(), TransactionExtensionsError> {
                 let len = out.len();

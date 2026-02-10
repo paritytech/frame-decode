@@ -14,12 +14,9 @@
 // limitations under the License.
 
 use alloc::borrow::Cow;
-//use alloc::string::String;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::write;
-
-// #[cfg(feature = "legacy")]
-// use {crate::utils::as_decoded, scale_info_legacy::LookupName};
 
 /// Implementations of this are responsible for handing back the information we need to
 /// encode and decode extrinsics. This is expected to be implemented for runtime metadata
@@ -54,19 +51,19 @@ pub trait ExtrinsicTypeInfo {
     ) -> Result<ExtrinsicExtensionInfo<'_, Self::TypeId>, ExtrinsicInfoError<'_>>;
 
     /// Get the available transaction extension versions. Prior to runtimes supporting
-    /// V5 extrinsics this should not return any entries. In runtimes supporting V5 extrinsics, 
+    /// V5 extrinsics this should not return any entries. In runtimes supporting V5 extrinsics,
     /// 1 or more versions should be returned.
-    /// 
+    ///
     /// Versions should be returned in order from highest to lowest preference of
     /// whether they should be used for encoding extrinsics. The highest will be tried first,
     /// but if the relevant transaction extension information is not given then we will fall
     /// back to the next version until we find one we can satisfy.
-    /// 
+    ///
     /// All versions returned here should be passable to [`ExtrinsicTypeInfo::extrinsic_extension_info`]
     /// and return valid extensions information from that.
     fn extrinsic_extension_version_info(
         &self,
-    ) -> Result<impl Iterator<Item=u8>, ExtrinsicInfoError<'_>>;
+    ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>>;
 }
 
 /// An error returned trying to access extrinsic type information.
@@ -636,7 +633,11 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
     fn extrinsic_extension_version_info(
         &self,
     ) -> Result<impl Iterator<Item = u8>, ExtrinsicInfoError<'_>> {
-        Ok(self.extrinsic.transaction_extensions_by_version.keys().copied())
+        Ok(self
+            .extrinsic
+            .transaction_extensions_by_version
+            .keys()
+            .copied())
     }
 }
 
@@ -810,16 +811,18 @@ const _: () = {
 
             let calls = as_decoded(calls);
 
-            let (call_index, call) = calls.iter().enumerate().find(|(_, c)| {
-                let name: &str = as_decoded(&c.name).as_ref();
-                name == $call_name_arg
-            }).ok_or_else(|| {
-                ExtrinsicInfoError::CallNotFoundByName {
+            let (call_index, call) = calls
+                .iter()
+                .enumerate()
+                .find(|(_, c)| {
+                    let name: &str = as_decoded(&c.name).as_ref();
+                    name == $call_name_arg
+                })
+                .ok_or_else(|| ExtrinsicInfoError::CallNotFoundByName {
                     call_name: Cow::Owned($call_name_arg.to_string()),
                     pallet_index,
                     pallet_name: Cow::Borrowed(m_name),
-                }
-            })?;
+                })?;
 
             let c_name: &str = as_decoded(&call.name).as_ref();
 
@@ -1058,16 +1061,18 @@ const _: () = {
 
                     let calls = as_decoded(calls);
 
-                    let (call_index, call) = calls.iter().enumerate().find(|(_, c)| {
-                        let name: &str = as_decoded(&c.name).as_ref();
-                        name == call_name
-                    }).ok_or_else(|| {
-                        ExtrinsicInfoError::CallNotFoundByName {
+                    let (call_index, call) = calls
+                        .iter()
+                        .enumerate()
+                        .find(|(_, c)| {
+                            let name: &str = as_decoded(&c.name).as_ref();
+                            name == call_name
+                        })
+                        .ok_or_else(|| ExtrinsicInfoError::CallNotFoundByName {
                             call_name: Cow::Owned(call_name.to_string()),
                             pallet_index,
                             pallet_name: Cow::Borrowed(m_name),
-                        }
-                    })?;
+                        })?;
 
                     let c_name: &str = as_decoded(&call.name).as_ref();
 
