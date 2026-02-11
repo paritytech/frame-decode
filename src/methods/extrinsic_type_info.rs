@@ -274,11 +274,13 @@ impl ExtrinsicInfoError<'_> {
 
 /// An argument with a name and type ID.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExtrinsicInfoArg<'info, TypeId> {
+pub struct ExtrinsicExtensionInfoArg<'info, TypeId> {
     /// Argument name.
     pub name: Cow<'info, str>,
     /// Argument type ID.
     pub id: TypeId,
+    /// The type ID for implicit arguments.
+    pub implicit_id: TypeId,
 }
 
 /// Extrinsic call data information given pallet and call names.
@@ -293,7 +295,16 @@ pub struct ExtrinsicCallInfo<'info, TypeId> {
     /// Name of the call.
     pub call_name: Cow<'info, str>,
     /// Names and types of each of the extrinsic arguments.
-    pub args: Vec<ExtrinsicInfoArg<'info, TypeId>>,
+    pub args: Vec<ExtrinsicCallInfoArg<'info, TypeId>>,
+}
+
+/// An argument in some extrinsic call data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtrinsicCallInfoArg<'info, TypeId> {
+    /// Argument name.
+    pub name: Cow<'info, str>,
+    /// Argument type ID.
+    pub id: TypeId,
 }
 
 /// Extrinsic signature information.
@@ -309,7 +320,7 @@ pub struct ExtrinsicSignatureInfo<TypeId> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtrinsicExtensionInfo<'info, TypeId> {
     /// Names and type IDs of the transaction extensions.
-    pub extension_ids: Vec<ExtrinsicInfoArg<'info, TypeId>>,
+    pub extension_ids: Vec<ExtrinsicExtensionInfoArg<'info, TypeId>>,
 }
 
 macro_rules! impl_call_info_by_name_body_for_v14_to_v16 {
@@ -378,7 +389,7 @@ macro_rules! impl_call_info_by_name_body_for_v14_to_v16 {
                     .as_ref()
                     .map(|n| Cow::Borrowed(&**n))
                     .unwrap_or(Cow::Owned(String::new()));
-                ExtrinsicInfoArg { id, name }
+                ExtrinsicCallInfoArg { id, name }
             })
             .collect();
 
@@ -456,7 +467,7 @@ macro_rules! impl_call_info_by_index_body_for_v14_to_v16 {
                     .as_ref()
                     .map(|n| Cow::Borrowed(&**n))
                     .unwrap_or(Cow::Owned(String::new()));
-                ExtrinsicInfoArg { id, name }
+                ExtrinsicCallInfoArg { id, name }
             })
             .collect();
 
@@ -506,8 +517,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v14::RuntimeMetadataV14 {
             .extrinsic
             .signed_extensions
             .iter()
-            .map(|e| ExtrinsicInfoArg {
+            .map(|e| ExtrinsicExtensionInfoArg {
                 id: e.ty.id,
+                implicit_id: e.additional_signed.id,
                 name: Cow::Borrowed(&e.identifier),
             })
             .collect();
@@ -555,8 +567,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v15::RuntimeMetadataV15 {
             .extrinsic
             .signed_extensions
             .iter()
-            .map(|e| ExtrinsicInfoArg {
+            .map(|e| ExtrinsicExtensionInfoArg {
                 id: e.ty.id,
+                implicit_id: e.additional_signed.id,
                 name: Cow::Borrowed(&e.identifier),
             })
             .collect();
@@ -621,8 +634,9 @@ impl ExtrinsicTypeInfo for frame_metadata::v16::RuntimeMetadataV16 {
                     .get(idx.0 as usize)
                     .expect("Index in transaction_extensions_by_version should exist in transaction_extensions");
 
-                ExtrinsicInfoArg {
+                ExtrinsicExtensionInfoArg {
                     id: ext.ty.id,
+                    implicit_id: ext.implicit.id,
                     name: Cow::Borrowed(&ext.identifier),
                 }
             })
@@ -712,6 +726,7 @@ fn err_if_bad_extension_version<'a>(
 #[cfg(feature = "legacy")]
 const _: () = {
     use crate::utils::as_decoded;
+    use alloc::format;
     use scale_info_legacy::LookupName;
 
     macro_rules! impl_extrinsic_info_by_index_body_for_v8_to_v11 {
@@ -759,7 +774,7 @@ const _: () = {
                     let ty = as_decoded(&a.ty);
                     let id = parse_lookup_name(ty)?.in_pallet(m_name);
                     let name = as_decoded(&a.name);
-                    Ok(ExtrinsicInfoArg {
+                    Ok(ExtrinsicCallInfoArg {
                         id,
                         name: Cow::Borrowed(name),
                     })
@@ -834,7 +849,7 @@ const _: () = {
                     let ty: &str = as_decoded(&a.ty).as_ref();
                     let id = parse_lookup_name(ty)?.in_pallet(m_name);
                     let name: &str = as_decoded(&a.name).as_ref();
-                    Ok(ExtrinsicInfoArg {
+                    Ok(ExtrinsicCallInfoArg {
                         id,
                         name: Cow::Borrowed(name),
                     })
@@ -884,9 +899,12 @@ const _: () = {
                     err_if_bad_extension_version(extension_version)?;
 
                     Ok(ExtrinsicExtensionInfo {
-                        extension_ids: Vec::from_iter([ExtrinsicInfoArg {
+                        extension_ids: Vec::from_iter([ExtrinsicExtensionInfoArg {
                             name: Cow::Borrowed("ExtrinsicSignedExtensions"),
                             id: parse_lookup_name("hardcoded::ExtrinsicSignedExtensions")?,
+                            implicit_id: parse_lookup_name(
+                                "hardcoded::ExtrinsicSignedExtensionsImplicit",
+                            )?,
                         }]),
                     })
                 }
@@ -942,9 +960,13 @@ const _: () = {
                 .map(|e| {
                     let signed_ext_name = as_decoded(e);
                     let signed_ext_id = parse_lookup_name(signed_ext_name)?;
+                    let signed_ext_implicit_id =
+                        parse_lookup_name(&format!("{signed_ext_name}Implicit"))
+                            .map_err(|e| e.into_owned())?;
 
-                    Ok(ExtrinsicInfoArg {
+                    Ok(ExtrinsicExtensionInfoArg {
                         id: signed_ext_id,
+                        implicit_id: signed_ext_implicit_id,
                         name: Cow::Borrowed(signed_ext_name),
                     })
                 })
@@ -1010,7 +1032,7 @@ const _: () = {
                             let ty = as_decoded(&a.ty);
                             let id = parse_lookup_name(ty)?.in_pallet(m_name);
                             let name = as_decoded(&a.name);
-                            Ok(ExtrinsicInfoArg {
+                            Ok(ExtrinsicCallInfoArg {
                                 id,
                                 name: Cow::Borrowed(name),
                             })
@@ -1084,7 +1106,7 @@ const _: () = {
                             let ty: &str = as_decoded(&a.ty).as_ref();
                             let id = parse_lookup_name(ty)?.in_pallet(m_name);
                             let name: &str = as_decoded(&a.name).as_ref();
-                            Ok(ExtrinsicInfoArg {
+                            Ok(ExtrinsicCallInfoArg {
                                 id,
                                 name: Cow::Borrowed(name),
                             })
@@ -1122,9 +1144,13 @@ const _: () = {
                         .map(|e| {
                             let signed_ext_name = as_decoded(e);
                             let signed_ext_id = parse_lookup_name(signed_ext_name)?;
+                            let signed_ext_implicit_id =
+                                parse_lookup_name(&format!("{signed_ext_name}Implicit"))
+                                    .map_err(|e| e.into_owned())?;
 
-                            Ok(ExtrinsicInfoArg {
+                            Ok(ExtrinsicExtensionInfoArg {
                                 id: signed_ext_id,
+                                implicit_id: signed_ext_implicit_id,
                                 name: Cow::Borrowed(signed_ext_name),
                             })
                         })

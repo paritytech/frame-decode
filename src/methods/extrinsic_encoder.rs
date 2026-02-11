@@ -896,9 +896,16 @@ where
     transaction_extension_version.encode_to(&mut encoded_inner);
     // Transaction Extensions next. These may include a signature/address.
     for ext in &ext_info.extension_ids {
-        transaction_extensions
-            .encode_extension_value_to(&ext.name, ext.id.clone(), type_resolver, &mut encoded_inner)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+        if !is_type_empty(ext.id.clone(), type_resolver) {
+            transaction_extensions
+                .encode_extension_value_to(
+                    &ext.name,
+                    ext.id.clone(),
+                    type_resolver,
+                    &mut encoded_inner,
+                )
+                .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+        }
     }
     // And now the actual call data, ie the arguments we're passing to the call
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
@@ -1016,21 +1023,30 @@ where
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for ext in &ext_info.extension_ids {
-        transaction_extensions
-            .encode_extension_value_for_signer_payload_to(
-                &ext.name,
-                ext.id.clone(),
-                type_resolver,
-                &mut out,
-            )
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+        if !is_type_empty(ext.id.clone(), type_resolver) {
+            transaction_extensions
+                .encode_extension_value_for_signer_payload_to(
+                    &ext.name,
+                    ext.id.clone(),
+                    type_resolver,
+                    &mut out,
+                )
+                .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+        }
     }
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
     for ext in &ext_info.extension_ids {
-        transaction_extensions
-            .encode_extension_implicit_to(&ext.name, ext.id.clone(), type_resolver, &mut out)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+        if !is_type_empty(ext.id.clone(), type_resolver) {
+            transaction_extensions
+                .encode_extension_implicit_to(
+                    &ext.name,
+                    ext.implicit_id.clone(),
+                    type_resolver,
+                    &mut out,
+                )
+                .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+        }
     }
 
     // Finally hash it (regardless of length).
@@ -1167,4 +1183,46 @@ where
 enum TransactionVersion {
     V4 = 4u8,
     V5 = 5u8,
+}
+
+/// Checks to see whether the type being given is empty, ie would require
+/// 0 bytes to encode. We use this to skip 0 byte trasnsaction extensions; ones
+/// that are mentioned in the metadata but only used in the node side and require
+/// no bytes to be given.
+fn is_type_empty<Resolver: TypeResolver>(type_id: Resolver::TypeId, types: &Resolver) -> bool {
+    struct IsEmptyVisitor<'r, R> {
+        types: &'r R,
+    }
+    impl<'r, R: TypeResolver> scale_type_resolver::ResolvedTypeVisitor<'r> for IsEmptyVisitor<'r, R> {
+        type TypeId = R::TypeId;
+        type Value = bool;
+
+        // The default ans safe assumption is that a type is _not_ empty.
+        fn visit_unhandled(self, _: scale_type_resolver::UnhandledKind) -> Self::Value {
+            false
+        }
+        // Arrays are empty if they are 0 length or the type inside is empty.
+        fn visit_array(self, type_id: Self::TypeId, len: usize) -> Self::Value {
+            len == 0 || is_type_empty(type_id, self.types)
+        }
+        // Composites are empty if all of their fields are empty.
+        fn visit_composite<Path, Fields>(self, _path: Path, mut fields: Fields) -> Self::Value
+        where
+            Path: scale_type_resolver::PathIter<'r>,
+            Fields: scale_decode::FieldIter<'r, Self::TypeId>,
+        {
+            fields.all(|f| is_type_empty(f.id, self.types))
+        }
+        // Tuples are empty if all of their fields are empty.
+        fn visit_tuple<TypeIds>(self, mut type_ids: TypeIds) -> Self::Value
+        where
+            TypeIds: ExactSizeIterator<Item = Self::TypeId>,
+        {
+            type_ids.all(|id| is_type_empty(id, self.types))
+        }
+    }
+
+    types
+        .resolve_type(type_id, IsEmptyVisitor { types })
+        .unwrap_or_default()
 }

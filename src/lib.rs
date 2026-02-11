@@ -52,8 +52,8 @@ pub mod extrinsics {
         encode_v5_signer_payload_with_info,
     };
     pub use crate::methods::extrinsic_type_info::{
-        ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
-        ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
+        ExtrinsicCallInfo, ExtrinsicCallInfoArg, ExtrinsicExtensionInfo, ExtrinsicExtensionInfoArg,
+        ExtrinsicInfoError, ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
     };
 }
 
