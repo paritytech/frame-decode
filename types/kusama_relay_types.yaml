@@ -514,7 +514,8 @@ global:
     <T as Trait<I>>::Proposal: builtin::Call
     <T as Config<I>>::Proposal: builtin::Call
     ProposalIndex: u32
-    Weight: u32 # Early Kusama used Weight V1 (u32)
+    # NOTE: Weight is u64 on Kusama since at least spec 1000. Override in forSpec below.
+    Weight: u32
 
     # ElectionsPhragmen
     DefunctVoter<Source>:
@@ -1247,7 +1248,9 @@ forSpec:
       Multiplier: u64
   - range: [1000, null]
     types:
-      Weight: u32
+      # Weight has been u64 since at least spec 1000 on Kusama.
+      # The u32 definition was incorrect and caused System.Events decoding failures.
+      Weight: u64
       # Slots pallet aliases used in early Kusama events (e.g. NewLeasePeriod)
       LeasePeriod: LeasePeriodOf<T>
   - range: [1020, null]
@@ -1492,10 +1495,8 @@ forSpec:
     types:
       # Society pallet's Judgement for this specific runtime version
       Judgement: u8
-  - range: [2005, null]
-    types:
-      # Council.close uses Compact<Weight> for proposal_weight_bound; by this spec Weight is u64.
-      Weight: u64
+  # Note: Weight: u64 is already defined in [1000, null] range above.
+  # The Council.close Compact<Weight> works correctly with u64.
   - range: [1046, null]
     types:
       Address: AccountId32
