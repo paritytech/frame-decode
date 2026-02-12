@@ -15,7 +15,6 @@
 
 mod transaction_extension;
 mod transaction_extensions;
-
 use super::extrinsic_type_info::{
     ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoError, ExtrinsicSignatureInfo,
     ExtrinsicTypeInfo,
@@ -360,8 +359,10 @@ where
 {
     // Encode the "inner" bytes
     let mut encoded_inner = Vec::new();
+
     // "is signed" + transaction protocol version (4)
     (0b10000000 + 4u8).encode_to(&mut encoded_inner);
+
     // Who is this transaction from (corresponds to public key of signature)
     address
         .encode_as_type_to(
@@ -370,6 +371,7 @@ where
             &mut encoded_inner,
         )
         .map_err(ExtrinsicEncodeError::CannotEncodeAddress)?;
+
     // Signature for the above identity
     signature
         .encode_as_type_to(
@@ -378,12 +380,19 @@ where
             &mut encoded_inner,
         )
         .map_err(ExtrinsicEncodeError::CannotEncodeSignature)?;
+
     // Signed extensions (now Transaction Extensions)
-    for ext in &ext_info.extension_ids {
+    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_value_to(&ext.name, ext.id.clone(), type_resolver, &mut encoded_inner)
+            .encode_extension_value_to(
+                name,
+                id,
+                type_resolver,
+                &mut encoded_inner,
+            )
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
+
     // And now the actual call data, ie the arguments we're passing to the call
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
 
@@ -487,23 +496,31 @@ where
 
     // First encode call data
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
+
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    for ext in &ext_info.extension_ids {
+    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_value_for_signer_payload_to(
-                &ext.name,
-                ext.id.clone(),
+                name,
+                id,
                 type_resolver,
                 &mut out,
             )
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
+
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    for ext in &ext_info.extension_ids {
+    for (name, id) in iter_nonempty_extention_implicits(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_implicit_to(&ext.name, ext.id.clone(), type_resolver, &mut out)
+            .encode_extension_implicit_to(
+                name,
+                id,
+                type_resolver,
+                &mut out,
+            )
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
+
     // Finally we need to hash it if it's too long
     if out.len() > 256 {
         out = sp_crypto_hashing::blake2_256(&out).to_vec();
@@ -690,11 +707,13 @@ where
 pub fn best_v5_general_transaction_extension_version<Exts, Info, Resolver>(
     transaction_extensions: &Exts,
     info: &Info,
+    type_resolver: &Resolver,
 ) -> Result<u8, ExtrinsicEncodeError>
 where
     Info: ExtrinsicTypeInfo,
     Exts: TransactionExtensions<Resolver>,
     Resolver: TypeResolver<TypeId = Info::TypeId>,
+    Info::TypeId: Clone,
 {
     let extension_versions = info
         .extrinsic_extension_version_info()
@@ -712,7 +731,11 @@ where
         let have_data = ext_info
             .extension_ids
             .iter()
-            .all(|e| transaction_extensions.contains_extension(&e.name));
+            .all(|e| {
+                let is_value_empty = is_type_empty(e.id.clone(), type_resolver);
+                let is_implicit_empty = is_type_empty(e.implicit_id.clone(), type_resolver);
+                (is_value_empty && is_implicit_empty) || transaction_extensions.contains_extension(&e.name)
+            });
 
         // If we have all of the data we need, encode the extrinsic,
         // else loop and try the next extension version.
@@ -890,23 +913,25 @@ where
 {
     // Encode the "inner" bytes
     let mut encoded_inner = Vec::new();
+
     // "is signed" + transaction protocol version (4)
     (0b01000000 + 5u8).encode_to(&mut encoded_inner);
+
     // Version of the transaction extensions.
     transaction_extension_version.encode_to(&mut encoded_inner);
-    // Transaction Extensions next. These may include a signature/address.
-    for ext in &ext_info.extension_ids {
-        if !is_type_empty(ext.id.clone(), type_resolver) {
-            transaction_extensions
-                .encode_extension_value_to(
-                    &ext.name,
-                    ext.id.clone(),
-                    type_resolver,
-                    &mut encoded_inner,
-                )
-                .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-        }
+
+    // Transaction Extensions next. These may include a signature/address
+    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
+        transaction_extensions
+            .encode_extension_value_to(
+                name,
+                id,
+                type_resolver,
+                &mut encoded_inner,
+            )
+            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
+
     // And now the actual call data, ie the arguments we're passing to the call
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
 
@@ -1022,31 +1047,27 @@ where
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    for ext in &ext_info.extension_ids {
-        if !is_type_empty(ext.id.clone(), type_resolver) {
-            transaction_extensions
-                .encode_extension_value_for_signer_payload_to(
-                    &ext.name,
-                    ext.id.clone(),
-                    type_resolver,
-                    &mut out,
-                )
-                .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-        }
+    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
+        transaction_extensions
+            .encode_extension_value_for_signer_payload_to(
+                name,
+                id,
+                type_resolver,
+                &mut out,
+            )
+            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    for ext in &ext_info.extension_ids {
-        if !is_type_empty(ext.id.clone(), type_resolver) {
-            transaction_extensions
-                .encode_extension_implicit_to(
-                    &ext.name,
-                    ext.implicit_id.clone(),
-                    type_resolver,
-                    &mut out,
-                )
-                .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-        }
+    for (name, id) in iter_nonempty_extention_implicits(ext_info, type_resolver) {
+        transaction_extensions
+            .encode_extension_implicit_to(
+                name,
+                id,
+                type_resolver,
+                &mut out,
+            )
+            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
     // Finally hash it (regardless of length).
@@ -1082,7 +1103,8 @@ where
 
 /// Encode the call data for an extrinsic to the given Vec.
 ///
-/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`], but
+/// with a byte for the pallet index and call index prepended.
 pub fn encode_call_data_to<CallData, Info, Resolver>(
     pallet_name: &str,
     call_name: &str,
@@ -1106,7 +1128,8 @@ where
 
 /// Encode the call data for an extrinsic, given some already-computed [`ExtrinsicCallInfo`].
 ///
-/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`], but
+/// with a byte for the pallet index and call index prepended.
 pub fn encode_call_data_with_info<CallData, Info, Resolver>(
     call_data: &CallData,
     call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
@@ -1124,22 +1147,27 @@ where
 /// Encode the call data for an extrinsic, given some already-computed [`ExtrinsicCallInfo`],
 /// to the given Vec.
 ///
-/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
+/// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`], but
+/// with a byte for the pallet index and call index prepended.
 pub fn encode_call_data_with_info_to<CallData, Resolver>(
     call_data: &CallData,
     call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
     type_resolver: &Resolver,
-    out: &mut Vec<u8>,
+    mut out: &mut Vec<u8>,
 ) -> Result<(), ExtrinsicEncodeError>
 where
     Resolver: TypeResolver,
     CallData: EncodeAsFields,
 {
+    // Pallet and call index to identify the call:
+    call_info.pallet_index.encode_to(&mut out);
+    call_info.call_index.encode_to(&mut out);
+
+    // Arguments to this call:
     let mut fields = call_info.args.iter().map(|arg| Field {
         name: Some(&*arg.name),
         id: arg.id.clone(),
     });
-
     call_data
         .encode_as_fields_to(&mut fields, type_resolver, out)
         .map_err(ExtrinsicEncodeError::CannotEncodeCallData)?;
@@ -1165,9 +1193,6 @@ where
         let mut out = Vec::new();
         // Transaction version (4):
         (tx_version as u8).encode_to(&mut out);
-        // Pallet and call index to identify the call:
-        call_info.pallet_index.encode_to(&mut out);
-        call_info.call_index.encode_to(&mut out);
         // Then the arguments for the call:
         encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
         out
@@ -1183,6 +1208,28 @@ where
 enum TransactionVersion {
     V4 = 4u8,
     V5 = 5u8,
+}
+
+/// Iterate over the non-empty extension implicit name/IDs
+fn iter_nonempty_extention_implicits<'exts, 'info, Resolver: TypeResolver>(
+    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>, 
+    types: &Resolver
+) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
+    extension_info.extension_ids
+        .iter()
+        .filter(|arg| !is_type_empty(arg.implicit_id.clone(), types))
+        .map(|arg| (&*arg.name, arg.implicit_id.clone()))
+}
+
+/// Iterate over the non-empty extension value name/IDs
+fn iter_nonempty_extention_values<'exts, 'info, Resolver: TypeResolver>(
+    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>, 
+    types: &Resolver
+) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
+    extension_info.extension_ids
+        .iter()
+        .filter(|arg| !is_type_empty(arg.id.clone(), types))
+        .map(|arg| (&*arg.name, arg.id.clone()))
 }
 
 /// Checks to see whether the type being given is empty, ie would require
