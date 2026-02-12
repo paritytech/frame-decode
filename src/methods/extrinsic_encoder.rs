@@ -43,7 +43,7 @@ pub enum ExtrinsicEncodeError {
     #[error("Extrinsic encoding failed: cannot encode transaction extensions: {0}")]
     TransactionExtensions(TransactionExtensionsError),
     #[error(
-        "Extrinsic encoding failed: cannot find a transaction extension version which enough data was given for."
+        "Extrinsic encoding failed: cannot find a transaction extensions version which relies only on the transaction extensions we were given."
     )]
     CannotFindGoodExtensionVersion,
 }
@@ -382,7 +382,7 @@ where
         .map_err(ExtrinsicEncodeError::CannotEncodeSignature)?;
 
     // Signed extensions (now Transaction Extensions)
-    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
+    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_value_to(name, id, type_resolver, &mut encoded_inner)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
@@ -493,14 +493,14 @@ where
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
+    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_value_for_signer_payload_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    for (name, id) in iter_nonempty_extention_implicits(ext_info, type_resolver) {
+    for (name, id) in iter_nonempty_extension_implicits(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_implicit_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
@@ -897,14 +897,14 @@ where
     // Encode the "inner" bytes
     let mut encoded_inner = Vec::new();
 
-    // "is signed" + transaction protocol version (4)
+    // "is signed" + transaction protocol version (5)
     (0b01000000 + 5u8).encode_to(&mut encoded_inner);
 
     // Version of the transaction extensions.
     transaction_extension_version.encode_to(&mut encoded_inner);
 
     // Transaction Extensions next. These may include a signature/address
-    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
+    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_value_to(name, id, type_resolver, &mut encoded_inner)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
@@ -1025,14 +1025,14 @@ where
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
+    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_value_for_signer_payload_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    for (name, id) in iter_nonempty_extention_implicits(ext_info, type_resolver) {
+    for (name, id) in iter_nonempty_extension_implicits(ext_info, type_resolver) {
         transaction_extensions
             .encode_extension_implicit_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
@@ -1179,7 +1179,7 @@ enum TransactionVersion {
 }
 
 /// Iterate over the non-empty extension implicit name/IDs
-fn iter_nonempty_extention_implicits<'exts, 'info, Resolver: TypeResolver>(
+fn iter_nonempty_extension_implicits<'exts, 'info, Resolver: TypeResolver>(
     extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>,
     types: &Resolver,
 ) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
@@ -1191,7 +1191,7 @@ fn iter_nonempty_extention_implicits<'exts, 'info, Resolver: TypeResolver>(
 }
 
 /// Iterate over the non-empty extension value name/IDs
-fn iter_nonempty_extention_values<'exts, 'info, Resolver: TypeResolver>(
+fn iter_nonempty_extension_values<'exts, 'info, Resolver: TypeResolver>(
     extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>,
     types: &Resolver,
 ) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
@@ -1203,7 +1203,7 @@ fn iter_nonempty_extention_values<'exts, 'info, Resolver: TypeResolver>(
 }
 
 /// Checks to see whether the type being given is empty, ie would require
-/// 0 bytes to encode. We use this to skip 0 byte trasnsaction extensions; ones
+/// 0 bytes to encode. We use this to skip 0 byte transaction extensions; ones
 /// that are mentioned in the metadata but only used in the node side and require
 /// no bytes to be given.
 fn is_type_empty<Resolver: TypeResolver>(type_id: Resolver::TypeId, types: &Resolver) -> bool {

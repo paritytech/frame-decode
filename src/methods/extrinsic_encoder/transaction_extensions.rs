@@ -146,9 +146,7 @@ macro_rules! impl_tuples {
                                 // Protection: if we are returning an error then
                                 // no bytes should have been encoded to the given
                                 // Vec. Ensure that this is true:
-                                while out.len() > len {
-                                    out.pop();
-                                }
+                                out.truncate(len);
                                 TransactionExtensionsError::Other {
                                     extension_name: name.to_owned(),
                                     error: e,
@@ -176,9 +174,7 @@ macro_rules! impl_tuples {
                                 // Protection: if we are returning an error then
                                 // no bytes should have been encoded to the given
                                 // Vec. Ensure that this is true:
-                                while out.len() > len {
-                                    out.pop();
-                                }
+                                out.truncate(len);
                                 TransactionExtensionsError::Other {
                                     extension_name: name.to_owned(),
                                     error: e,
@@ -206,9 +202,7 @@ macro_rules! impl_tuples {
                                 // Protection: if we are returning an error then
                                 // no bytes should have been encoded to the given
                                 // Vec. Ensure that this is true:
-                                while out.len() > len {
-                                    out.pop();
-                                }
+                                out.truncate(len);
                                 TransactionExtensionsError::Other {
                                     extension_name: name.to_owned(),
                                     error: e,
