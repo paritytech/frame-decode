@@ -22,7 +22,7 @@ use scale_type_resolver::TypeResolver;
 /// explicit `value` bytes to a transaction, or "implicit" bytes to a transaction signer payload.
 pub trait TransactionExtension<Resolver: TypeResolver> {
     /// The name of this transaction extension.
-    fn extension_name(&self) -> &'static str;
+    const NAME: &str;
 
     /// Given type information for the expected transaction extension,
     /// this should encode the value (ie the bytes that will appear in the

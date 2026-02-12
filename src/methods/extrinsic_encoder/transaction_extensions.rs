@@ -20,8 +20,7 @@ use alloc::vec::Vec;
 use scale_type_resolver::TypeResolver;
 
 /// This trait can be implemented for anything which represents a set of transaction extensions.
-/// It's implemented by default for tuples of items which implement [`TransactionExtension`],
-/// and for slices of `&dyn TransactionExtension`.
+/// It's implemented by default for tuples of items which implement [`TransactionExtension`].
 pub trait TransactionExtensions<Resolver: TypeResolver> {
     /// Is a given transaction extension contained within this set?
     fn contains_extension(&self, name: &str) -> bool;
@@ -87,103 +86,6 @@ pub enum TransactionExtensionsError {
     },
 }
 
-// `TransactionExtension` is object safe and so `TransactionExtensions` can be implemented
-// for slices of `&dyn TransactionExtension`s.
-impl<Resolver: TypeResolver> TransactionExtensions<Resolver>
-    for [&dyn TransactionExtension<Resolver>]
-{
-    fn contains_extension(&self, name: &str) -> bool {
-        self.iter().any(|e| e.extension_name() == name)
-    }
-
-    fn encode_extension_value_to(
-        &self,
-        name: &str,
-        type_id: <Resolver as TypeResolver>::TypeId,
-        type_resolver: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Result<(), TransactionExtensionsError> {
-        let len = out.len();
-        for ext in self {
-            if ext.extension_name() == name {
-                return ext
-                    .encode_value_to(type_id, type_resolver, out)
-                    .map_err(|e| {
-                        // Protection: if we are returning an error then
-                        // no bytes should have been encoded to the given
-                        // Vec. Ensure that this is true:
-                        while out.len() > len {
-                            out.pop();
-                        }
-                        TransactionExtensionsError::Other {
-                            extension_name: name.to_owned(),
-                            error: e,
-                        }
-                    });
-            }
-        }
-        Err(TransactionExtensionsError::NotFound(name.to_owned()))
-    }
-
-    fn encode_extension_value_for_signer_payload_to(
-        &self,
-        name: &str,
-        type_id: <Resolver as TypeResolver>::TypeId,
-        type_resolver: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Result<(), TransactionExtensionsError> {
-        let len = out.len();
-        for ext in self {
-            if ext.extension_name() == name {
-                return ext
-                    .encode_value_for_signer_payload_to(type_id, type_resolver, out)
-                    .map_err(|e| {
-                        // Protection: if we are returning an error then
-                        // no bytes should have been encoded to the given
-                        // Vec. Ensure that this is true:
-                        while out.len() > len {
-                            out.pop();
-                        }
-                        TransactionExtensionsError::Other {
-                            extension_name: name.to_owned(),
-                            error: e,
-                        }
-                    });
-            }
-        }
-        Err(TransactionExtensionsError::NotFound(name.to_owned()))
-    }
-
-    fn encode_extension_implicit_to(
-        &self,
-        name: &str,
-        type_id: <Resolver as TypeResolver>::TypeId,
-        type_resolver: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Result<(), TransactionExtensionsError> {
-        let len = out.len();
-        for ext in self {
-            if ext.extension_name() == name {
-                return ext
-                    .encode_implicit_to(type_id, type_resolver, out)
-                    .map_err(|e| {
-                        // Protection: if we are returning an error then
-                        // no bytes should have been encoded to the given
-                        // Vec. Ensure that this is true:
-                        while out.len() > len {
-                            out.pop();
-                        }
-                        TransactionExtensionsError::Other {
-                            extension_name: name.to_owned(),
-                            error: e,
-                        }
-                    });
-            }
-        }
-        Err(TransactionExtensionsError::NotFound(name.to_owned()))
-    }
-}
-
 // Empty tuples impl `TransactionExtensions`: if called they emit a not found error.
 impl<Resolver: TypeResolver> TransactionExtensions<Resolver> for () {
     fn contains_extension(&self, _name: &str) -> bool {
@@ -221,7 +123,7 @@ macro_rules! impl_tuples {
         {
             fn contains_extension(&self, name: &str) -> bool {
                 $(
-                    if self.$index.extension_name() == name {
+                    if $ident::NAME == name {
                         return true
                     }
                 )*
@@ -238,7 +140,7 @@ macro_rules! impl_tuples {
                 let len = out.len();
 
                 $(
-                    if self.$index.extension_name() == name {
+                    if $ident::NAME == name {
                         return self.$index.encode_value_to(type_id, type_resolver, out)
                             .map_err(|e| {
                                 // Protection: if we are returning an error then
@@ -268,7 +170,7 @@ macro_rules! impl_tuples {
                 let len = out.len();
 
                 $(
-                    if self.$index.extension_name() == name {
+                    if $ident::NAME == name {
                         return self.$index.encode_value_for_signer_payload_to(type_id, type_resolver, out)
                             .map_err(|e| {
                                 // Protection: if we are returning an error then
@@ -298,7 +200,7 @@ macro_rules! impl_tuples {
                 let len = out.len();
 
                 $(
-                    if self.$index.extension_name() == name {
+                    if $ident::NAME == name {
                         return self.$index.encode_implicit_to(type_id, type_resolver, out)
                             .map_err(|e| {
                                 // Protection: if we are returning an error then

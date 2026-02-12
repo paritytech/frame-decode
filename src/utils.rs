@@ -17,6 +17,7 @@ mod decodable_values;
 mod decode_with_error_tracing;
 mod either;
 mod encodable_values;
+#[cfg(feature = "legacy")]
 mod type_registry_from_metadata;
 
 pub use decodable_values::{DecodableValues, IntoDecodableValues};
@@ -24,6 +25,7 @@ pub use encodable_values::{EncodableValues, IntoEncodableValues};
 
 pub use decode_with_error_tracing::{DecodeErrorTrace, decode_with_error_tracing};
 pub use either::Either;
+
 #[cfg(feature = "legacy")]
 pub use type_registry_from_metadata::{
     ToTypeRegistry, type_registry_from_metadata, type_registry_from_metadata_any,
