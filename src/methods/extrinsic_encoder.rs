@@ -384,12 +384,7 @@ where
     // Signed extensions (now Transaction Extensions)
     for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_value_to(
-                name,
-                id,
-                type_resolver,
-                &mut encoded_inner,
-            )
+            .encode_extension_value_to(name, id, type_resolver, &mut encoded_inner)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
@@ -500,24 +495,14 @@ where
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_value_for_signer_payload_to(
-                name,
-                id,
-                type_resolver,
-                &mut out,
-            )
+            .encode_extension_value_for_signer_payload_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
     for (name, id) in iter_nonempty_extention_implicits(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_implicit_to(
-                name,
-                id,
-                type_resolver,
-                &mut out,
-            )
+            .encode_extension_implicit_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
@@ -728,14 +713,12 @@ where
             .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
 
         // Do we have all of the extension data for this version?
-        let have_data = ext_info
-            .extension_ids
-            .iter()
-            .all(|e| {
-                let is_value_empty = is_type_empty(e.id.clone(), type_resolver);
-                let is_implicit_empty = is_type_empty(e.implicit_id.clone(), type_resolver);
-                (is_value_empty && is_implicit_empty) || transaction_extensions.contains_extension(&e.name)
-            });
+        let have_data = ext_info.extension_ids.iter().all(|e| {
+            let is_value_empty = is_type_empty(e.id.clone(), type_resolver);
+            let is_implicit_empty = is_type_empty(e.implicit_id.clone(), type_resolver);
+            (is_value_empty && is_implicit_empty)
+                || transaction_extensions.contains_extension(&e.name)
+        });
 
         // If we have all of the data we need, encode the extrinsic,
         // else loop and try the next extension version.
@@ -923,12 +906,7 @@ where
     // Transaction Extensions next. These may include a signature/address
     for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_value_to(
-                name,
-                id,
-                type_resolver,
-                &mut encoded_inner,
-            )
+            .encode_extension_value_to(name, id, type_resolver, &mut encoded_inner)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
@@ -1049,24 +1027,14 @@ where
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
     for (name, id) in iter_nonempty_extention_values(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_value_for_signer_payload_to(
-                name,
-                id,
-                type_resolver,
-                &mut out,
-            )
+            .encode_extension_value_for_signer_payload_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
     for (name, id) in iter_nonempty_extention_implicits(ext_info, type_resolver) {
         transaction_extensions
-            .encode_extension_implicit_to(
-                name,
-                id,
-                type_resolver,
-                &mut out,
-            )
+            .encode_extension_implicit_to(name, id, type_resolver, &mut out)
             .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
     }
 
@@ -1212,10 +1180,11 @@ enum TransactionVersion {
 
 /// Iterate over the non-empty extension implicit name/IDs
 fn iter_nonempty_extention_implicits<'exts, 'info, Resolver: TypeResolver>(
-    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>, 
-    types: &Resolver
+    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>,
+    types: &Resolver,
 ) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
-    extension_info.extension_ids
+    extension_info
+        .extension_ids
         .iter()
         .filter(|arg| !is_type_empty(arg.implicit_id.clone(), types))
         .map(|arg| (&*arg.name, arg.implicit_id.clone()))
@@ -1223,10 +1192,11 @@ fn iter_nonempty_extention_implicits<'exts, 'info, Resolver: TypeResolver>(
 
 /// Iterate over the non-empty extension value name/IDs
 fn iter_nonempty_extention_values<'exts, 'info, Resolver: TypeResolver>(
-    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>, 
-    types: &Resolver
+    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>,
+    types: &Resolver,
 ) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
-    extension_info.extension_ids
+    extension_info
+        .extension_ids
         .iter()
         .filter(|arg| !is_type_empty(arg.id.clone(), types))
         .map(|arg| (&*arg.name, arg.id.clone()))
