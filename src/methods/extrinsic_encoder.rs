@@ -1121,15 +1121,15 @@ pub fn encode_call_data_with_info_to<CallData, Resolver>(
     call_data: &CallData,
     call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
     type_resolver: &Resolver,
-    mut out: &mut Vec<u8>,
+    out: &mut Vec<u8>,
 ) -> Result<(), ExtrinsicEncodeError>
 where
     Resolver: TypeResolver,
     CallData: EncodeAsFields,
 {
     // Pallet and call index to identify the call:
-    call_info.pallet_index.encode_to(&mut out);
-    call_info.call_index.encode_to(&mut out);
+    call_info.pallet_index.encode_to(out);
+    call_info.call_index.encode_to(out);
 
     // Arguments to this call:
     let mut fields = call_info.args.iter().map(|arg| Field {
