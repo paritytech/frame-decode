@@ -17,6 +17,7 @@ use super::Entry;
 use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -139,15 +140,34 @@ pub struct StorageInfo<'info, TypeId: Clone> {
     pub value_id: TypeId,
     /// Bytes representing the default value for this entry, if one exists.
     pub default_value: Option<Cow<'info, [u8]>>,
+    /// Are we using V9 metadata prior to a change which added a new storage hasher?
+    ///
+    /// See https://github.com/paritytech/substrate/commit/bbb363f4320b4a72e059c0fca96af42296d5a6bf#diff-aa7bc120d701816def0f2a5eb469212d2b7021d2fc9d3b284f843f3f8089e91a
+    /// Here a new hasher is added in the middle of the hashers enum. Thus, Metadata produced
+    /// by V9 runtimes prior to this change will not correctly decode into `frame-metadata`'s V9
+    /// which includes the change.
+    ///
+    /// On Kusama for instance, this should be set to true when using metadata from any spec
+    /// version below 1032 in order to enable decoding correctly from it.
+    pub use_old_v9_storage_hashers: bool,
 }
 
 impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
+    /// For older V9 metadatas, this needs toggling. See the docs on [`StorageInfo::use_old_v9_storage_hashers`].
+    pub fn use_use_old_v9_storage_hashers(self, b: bool) -> Self {
+        StorageInfo {
+            use_old_v9_storage_hashers: b,
+            ..self
+        }
+    }
+
     /// Take ownership of this [`StorageInfo`], turning any lifetimes to `'static`.
     pub fn into_owned(self) -> StorageInfo<'static, TypeId> {
         StorageInfo {
             keys: Cow::Owned(self.keys.into_owned()),
             value_id: self.value_id,
             default_value: self.default_value.map(|v| Cow::Owned(v.into_owned())),
+            use_old_v9_storage_hashers: self.use_old_v9_storage_hashers,
         }
     }
 
@@ -171,6 +191,7 @@ impl<'info, TypeId: Clone + 'static> StorageInfo<'info, TypeId> {
             keys: Cow::Owned(new_keys),
             value_id: new_value_id,
             default_value: self.default_value.map(|d| Cow::Owned(d.into_owned())),
+            use_old_v9_storage_hashers: false,
         })
     }
 }
@@ -253,6 +274,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                         keys: Cow::Owned(Vec::new()),
                         value_id: value.id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     }),
                     path::StorageEntryType::Map {
                         hashers,
@@ -278,6 +300,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                 }])),
                                 value_id,
                                 default_value,
+                                use_old_v9_storage_hashers: false,
                             })
                         } else if let scale_info::TypeDef::Tuple(tuple) = &key_ty.type_def {
                             // Else, if the key is a tuple, we expect a matching number of hashers
@@ -297,6 +320,7 @@ macro_rules! impl_storage_type_info_for_v14_to_v16 {
                                     keys,
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             } else {
                                 // Hasher and key mismatch
@@ -442,7 +466,7 @@ mod legacy {
     use scale_info_legacy::LookupName;
 
     macro_rules! impl_storage_type_info_for_v8_to_v12 {
-        ($path:path, $name:ident, $to_storage_hasher:ident) => {
+        ($path:path, $name:ident, $to_storage_hasher:ident, $is_linked_field:ident) => {
             const _: () = {
                 use $path as path;
                 impl StorageTypeInfo for path::$name {
@@ -494,14 +518,28 @@ mod legacy {
                                     keys: Cow::Owned(Vec::new()),
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             }
                             path::StorageEntryType::Map {
-                                hasher, key, value, ..
+                                hasher,
+                                key,
+                                value,
+                                $is_linked_field: is_linked,
+                                ..
                             } => {
+                                // is_linked is some weird field that only appears on single-maps (not DoubleMap etc)
+                                // and, if true, indicates that the value comes back with some trailing bytes pointing
+                                // at the previous and next linked entry. Thus, we need to modify our output type ID
+                                // to accomodate this.
+                                let value_id = if *is_linked {
+                                    decode_is_linked_lookup_name_or_err(value, pallet_name)?
+                                } else {
+                                    decode_lookup_name_or_err(value, pallet_name)?
+                                };
+
                                 let key_id = decode_lookup_name_or_err(key, pallet_name)?;
                                 let hasher = $to_storage_hasher(hasher);
-                                let value_id = decode_lookup_name_or_err(value, pallet_name)?;
                                 Ok(StorageInfo {
                                     keys: Cow::Owned(Vec::from_iter([StorageKeyInfo {
                                         hasher,
@@ -509,6 +547,7 @@ mod legacy {
                                     }])),
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             }
                             path::StorageEntryType::DoubleMap {
@@ -536,6 +575,7 @@ mod legacy {
                                     ])),
                                     value_id,
                                     default_value,
+                                    use_old_v9_storage_hashers: false,
                                 })
                             }
                         }
@@ -595,27 +635,32 @@ mod legacy {
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v8,
         RuntimeMetadataV8,
-        to_storage_hasher_v8
+        to_storage_hasher_v8,
+        is_linked
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v9,
         RuntimeMetadataV9,
-        to_storage_hasher_v9
+        to_storage_hasher_v9,
+        is_linked
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v10,
         RuntimeMetadataV10,
-        to_storage_hasher_v10
+        to_storage_hasher_v10,
+        is_linked
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v11,
         RuntimeMetadataV11,
-        to_storage_hasher_v11
+        to_storage_hasher_v11,
+        unused
     );
     impl_storage_type_info_for_v8_to_v12!(
         frame_metadata::v12,
         RuntimeMetadataV12,
-        to_storage_hasher_v12
+        to_storage_hasher_v12,
+        unused
     );
 
     impl StorageTypeInfo for frame_metadata::v13::RuntimeMetadataV13 {
@@ -668,6 +713,7 @@ mod legacy {
                         keys: Cow::Owned(Vec::new()),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::Map {
@@ -680,6 +726,7 @@ mod legacy {
                         keys: Cow::Owned(Vec::from_iter([StorageKeyInfo { hasher, key_id }])),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::DoubleMap {
@@ -707,6 +754,7 @@ mod legacy {
                         ])),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
                 frame_metadata::v13::StorageEntryType::NMap {
@@ -749,6 +797,7 @@ mod legacy {
                         keys: Cow::Owned(keys?),
                         value_id,
                         default_value,
+                        use_old_v9_storage_hashers: false,
                     })
                 }
             }
@@ -839,6 +888,17 @@ mod legacy {
         pallet_name: &str,
     ) -> Result<LookupName, StorageInfoError<'static>> {
         let ty = sanitize_type_name(as_decoded(s).as_ref());
+        lookup_name_or_err(&ty, pallet_name)
+    }
+
+    fn decode_is_linked_lookup_name_or_err<S: AsRef<str>>(
+        s: &DecodeDifferent<&str, S>,
+        pallet_name: &str,
+    ) -> Result<LookupName, StorageInfoError<'static>> {
+        let ty = sanitize_type_name(as_decoded(s).as_ref());
+        // Append a hardcoded::Linked type to the end, which we expect in the type definitions
+        // to be something like { previous: Option<AccountId>, next: Option<AccountId> }:
+        let ty = format!("({ty}, hardcoded::Linked)");
         lookup_name_or_err(&ty, pallet_name)
     }
 
