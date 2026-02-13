@@ -24,7 +24,6 @@
 ///
 /// - `builtin::module::event::$PALLET` - A variant containing the events in a specific pallet.
 /// - `builtin::module::call::$PALLET` - A variant containing the calls in a specific pallet.
-#[cfg(feature = "legacy")]
 pub fn type_registry_from_metadata<Md: ToTypeRegistry>(
     metadata: &Md,
 ) -> Result<scale_info_legacy::TypeRegistry, scale_info_legacy::lookup_name::ParseError> {
@@ -33,7 +32,6 @@ pub fn type_registry_from_metadata<Md: ToTypeRegistry>(
 
 /// This is like [`type_registry_from_metadata`], except it can be handed the outer [`frame_metadata::RuntimeMetadata`]
 /// enum and will extract types from it where appropriate (handing back no types for deprecated or modern metadata).
-#[cfg(feature = "legacy")]
 pub fn type_registry_from_metadata_any(
     metadata: &frame_metadata::RuntimeMetadata,
 ) -> Result<scale_info_legacy::TypeRegistry, scale_info_legacy::lookup_name::ParseError> {
@@ -59,7 +57,6 @@ pub fn type_registry_from_metadata_any(
     }
 }
 
-#[cfg(feature = "legacy")]
 /// This is used with the [`type_registry_from_metadata`] helper function to extract types from the
 /// metadata. It is not intended to be implemented on anything else.
 pub trait ToTypeRegistry: sealed::Sealed {
@@ -73,7 +70,6 @@ mod sealed {
     pub trait Sealed {}
 }
 
-#[cfg(feature = "legacy")]
 const _: () = {
     use super::as_decoded;
     use alloc::borrow::ToOwned;

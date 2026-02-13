@@ -17,7 +17,6 @@ use super::Entry;
 use crate::utils::Either;
 use alloc::borrow::Cow;
 use alloc::borrow::ToOwned;
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -462,6 +461,7 @@ to_latest_storage_hasher!(to_storage_hasher_v16, frame_metadata::v16::StorageHas
 mod legacy {
     use super::*;
     use crate::utils::as_decoded;
+    use alloc::format;
     use frame_metadata::decode_different::DecodeDifferent;
     use scale_info_legacy::LookupName;
 

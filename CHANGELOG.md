@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.17.0 (2025-12-03)
+
+- Add extrinsic encode methods in `frame_decode::extrinsics`. This covers encoding v4 and v5 unsigned and signed extrinsics, new traits for providing transaction extensions, encoding v4 and v5 signer payloads and encoding call data.
+
 ## 0.16.1 (2025-12-03)
 
 - Expose the `crate::helpers::ToTypeRegistry` trait so that inputs to `crate::helpers::type_registry_from_metadata` can be named. Make it sealed so that others cannot rely on it.

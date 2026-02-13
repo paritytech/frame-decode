@@ -619,7 +619,7 @@ where
     let call_index: u8 =
         Decode::decode(cursor).map_err(ExtrinsicDecodeError::CannotDecodeCallIndex)?;
     let call_info = info
-        .extrinsic_call_info(pallet_index, call_index)
+        .extrinsic_call_info_by_index(pallet_index, call_index)
         .map_err(|e| ExtrinsicDecodeError::CannotGetInfo(e.into_owned()))?;
 
     let mut call_data = vec![];

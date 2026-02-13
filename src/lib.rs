@@ -39,9 +39,21 @@ pub mod extrinsics {
         Extrinsic, ExtrinsicDecodeError, ExtrinsicExtensions, ExtrinsicOwned, ExtrinsicSignature,
         ExtrinsicType, NamedArg, decode_extrinsic,
     };
+    pub use crate::methods::extrinsic_encoder::{
+        ExtrinsicEncodeError, TransactionExtension, TransactionExtensionError,
+        TransactionExtensions, TransactionExtensionsError,
+        best_v5_general_transaction_extension_version, encode_call_data, encode_call_data_to,
+        encode_call_data_with_info, encode_call_data_with_info_to, encode_v4_signed,
+        encode_v4_signed_to, encode_v4_signed_with_info_to, encode_v4_signer_payload,
+        encode_v4_signer_payload_with_info, encode_v4_unsigned, encode_v4_unsigned_to,
+        encode_v4_unsigned_with_info_to, encode_v5_bare, encode_v5_bare_to,
+        encode_v5_bare_with_info_to, encode_v5_general, encode_v5_general_to,
+        encode_v5_general_with_info_to, encode_v5_signer_payload,
+        encode_v5_signer_payload_with_info,
+    };
     pub use crate::methods::extrinsic_type_info::{
-        ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicInfoArg, ExtrinsicInfoError,
-        ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
+        ExtrinsicCallInfo, ExtrinsicCallInfoArg, ExtrinsicExtensionInfo, ExtrinsicExtensionInfoArg,
+        ExtrinsicInfoError, ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
     };
 }
 
