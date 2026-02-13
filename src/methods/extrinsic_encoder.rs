@@ -897,7 +897,7 @@ where
     // Encode the "inner" bytes
     let mut encoded_inner = Vec::new();
 
-    // "is signed" + transaction protocol version (5)
+    // "is signed" (2 bits now) + transaction protocol version (5)
     (0b01000000 + 5u8).encode_to(&mut encoded_inner);
 
     // Version of the transaction extensions.
