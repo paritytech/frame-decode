@@ -514,7 +514,8 @@ global:
     <T as Trait<I>>::Proposal: builtin::Call
     <T as Config<I>>::Proposal: builtin::Call
     ProposalIndex: u32
-    Weight: u32 # Early Kusama used Weight V1 (u32)
+    # NOTE: Weight is u64 on Kusama since at least spec 1000. Override in forSpec below.
+    Weight: u32
 
     # ElectionsPhragmen
     DefunctVoter<Source>:
@@ -1247,7 +1248,9 @@ forSpec:
       Multiplier: u64
   - range: [1000, null]
     types:
-      Weight: u32
+      # Weight has been u64 since at least spec 1000 on Kusama.
+      # The u32 definition was incorrect and caused System.Events decoding failures.
+      Weight: u64
       # Slots pallet aliases used in early Kusama events (e.g. NewLeasePeriod)
       LeasePeriod: LeasePeriodOf<T>
   - range: [1020, null]
@@ -1304,9 +1307,13 @@ forSpec:
         targets: Vec<AccountId>
         submitted_in: EraIndex
         suppressed: bool
-  - range: [1000, 1044]
+  - range: [1000, 1045]
     types:
       # Early Kusama Staking.SlashingSpans did not include last_nonzero_slash
+      # HETEROGENEOUS STORAGE at spec 1045:
+      # - Blocks 901443-901446: OLD format (no last_nonzero_slash) - 4 leftover with NEW
+      # - Block 1375086: NEW format (has last_nonzero_slash) - 12/8/20 leftover with OLD
+      # Using OLD format as it has fewer failures in test suite
       slashing::SlashingSpans:
         span_index: slashing::SpanIndex
         last_start: EraIndex
@@ -1327,8 +1334,9 @@ forSpec:
   - range: [1046, 1055]
     types:
       # Specs 1046-1055: Reasons was still u8 bitflag, BalanceLock without until field
-      # Note: Some very early locks (before ~block 1380000) still have the until field,
-      # but most locks at these specs don't. Heterogeneous storage - some failures expected.
+      # HETEROGENEOUS STORAGE: Locks created BEFORE ~block 1380000 have `until` field,
+      # locks created AFTER don't. No YAML fix possible - using format without `until`
+      # which matches the majority of locks at these specs.
       Reasons: u8
       BalanceLock<T::Balance>:
         id: LockIdentifier
@@ -1487,10 +1495,8 @@ forSpec:
     types:
       # Society pallet's Judgement for this specific runtime version
       Judgement: u8
-  - range: [2005, null]
-    types:
-      # Council.close uses Compact<Weight> for proposal_weight_bound; by this spec Weight is u64.
-      Weight: u64
+  # Note: Weight: u64 is already defined in [1000, null] range above.
+  # The Council.close Compact<Weight> works correctly with u64.
   - range: [1046, null]
     types:
       Address: AccountId32
@@ -1570,8 +1576,57 @@ forSpec:
         backed_candidates: Vec<BackedCandidate>
         disputes: Vec<DisputeStatementSet>
         parent_header: T::Header
+  - range: [9090, 9099]
+    types:
+      # HostConfiguration at spec 9090: max_validators fields were u32, not Option<u32>
+      # Also has pvf_checking_enabled: bool at the end
+      HostConfiguration<T::BlockNumber>:
+        max_code_size: u32
+        max_head_data_size: u32
+        max_upward_queue_count: u32
+        max_upward_queue_size: u32
+        max_upward_message_size: u32
+        max_upward_message_num_per_candidate: u32
+        hrmp_max_message_num_per_candidate: u32
+        validation_upgrade_cooldown: T::BlockNumber
+        validation_upgrade_delay: T::BlockNumber
+        max_pov_size: u32
+        max_downward_message_size: u32
+        ump_service_total_weight: Weight
+        hrmp_max_parachain_outbound_channels: u32
+        hrmp_max_parathread_outbound_channels: u32
+        hrmp_sender_deposit: Balance
+        hrmp_recipient_deposit: Balance
+        hrmp_channel_max_capacity: u32
+        hrmp_channel_max_total_size: u32
+        hrmp_max_parachain_inbound_channels: u32
+        hrmp_max_parathread_inbound_channels: u32
+        hrmp_channel_max_message_size: u32
+        code_retention_period: T::BlockNumber
+        parathread_cores: u32
+        parathread_retries: u32
+        group_rotation_frequency: T::BlockNumber
+        chain_availability_period: T::BlockNumber
+        thread_availability_period: T::BlockNumber
+        scheduling_lookahead: u32
+        max_validators_per_core: u32
+        max_validators: u32
+        dispute_period: SessionIndex
+        dispute_post_conclusion_acceptance_period: T::BlockNumber
+        dispute_max_spam_slots: u32
+        dispute_conclusion_by_time_out_period: T::BlockNumber
+        no_show_slots: u32
+        n_delay_tranches: u32
+        zeroth_delay_tranche_width: u32
+        needed_approvals: u32
+        relay_vrf_modulo_samples: u32
+        pvf_checking_enabled: bool
+        pvf_voting_ttl: SessionIndex
+        async_backing_params_enabled: bool
   - range: [9080, null]
     types:
+      # Session keys upgraded to 6-tuple from spec 9080
+      T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
       # Dispute statements mapping for spec 9080
       # Use DisputeStatement with distinct Valid/Invalid kinds
       Statement:
@@ -1632,6 +1687,8 @@ forSpec:
     types:
       Address: MultiAddress<AccountId32, u32>
       LookupSource: MultiAddress<AccountId32, u32>
+      # Session keys: Most validators have 6 keys from spec 2028+, but some older
+      # validators registered with only 5 keys. HETEROGENEOUS STORAGE - no YAML fix.
       T::Keys: (AccountId, AccountId, AccountId, AccountId, AccountId, AccountId)
       ValidatorPrefs:
         commission: Compact<Perbill>

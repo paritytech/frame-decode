@@ -46,6 +46,32 @@ impl StorageItem {
     }
 }
 
+/// A rule to ignore specific decode issues for a storage item within a block range.
+#[derive(Debug, Clone)]
+pub struct IgnoreLeftoverBytesRule {
+    /// Pallet name to match.
+    pub pallet_name: String,
+    /// Storage entry name to match.
+    pub storage_entry: String,
+    /// Block range (inclusive start, exclusive end). None means all blocks.
+    pub block_range: Option<std::ops::Range<u64>>,
+    /// Reason for ignoring (for documentation).
+    pub reason: String,
+}
+
+impl IgnoreLeftoverBytesRule {
+    /// Check if this rule matches the given pallet, storage entry, and block number.
+    pub fn matches(&self, pallet: &str, entry: &str, block: u64) -> bool {
+        if self.pallet_name != pallet || self.storage_entry != entry {
+            return false;
+        }
+        match &self.block_range {
+            Some(range) => range.contains(&block),
+            None => true,
+        }
+    }
+}
+
 /// Result of testing a single storage value.
 #[derive(Debug)]
 pub enum StorageValueTestResult {
@@ -136,6 +162,8 @@ pub struct TestStorageBuilder {
     keys_page_size: u32,
     max_keys_per_item: usize,
     max_values_per_block: usize,
+    /// Rules for ignoring leftover bytes after decoding specific storage items.
+    ignore_leftover_bytes_rules: Vec<IgnoreLeftoverBytesRule>,
 }
 
 impl Default for TestStorageBuilder {
@@ -151,6 +179,7 @@ impl Default for TestStorageBuilder {
             keys_page_size: 256,
             max_keys_per_item: 256,
             max_values_per_block: usize::MAX,
+            ignore_leftover_bytes_rules: Vec::new(),
         }
     }
 }
@@ -251,6 +280,40 @@ impl TestStorageBuilder {
         self
     }
 
+    /// Ignore leftover bytes for a specific storage item within a block range.
+    ///
+    /// This is useful when runtime upgrades add new fields to storage structs but
+    /// existing entries aren't migrated immediately (lazy migration). Both old and
+    /// new formats coexist at the same block.
+    ///
+    /// # Arguments
+    /// * `pallet` - Pallet name (e.g., "Staking")
+    /// * `entry` - Storage entry name (e.g., "Ledger")
+    /// * `blocks` - Block range to apply this rule (None = all blocks)
+    /// * `reason` - Documentation of why this is ignored
+    ///
+    /// # Example
+    /// ```ignore
+    /// .ignore_leftover_bytes("Staking", "Ledger", Some(1000..2000),
+    ///     "lazy migration of claimed_rewards field")
+    /// ```
+    pub fn ignore_leftover_bytes(
+        mut self,
+        pallet: impl Into<String>,
+        entry: impl Into<String>,
+        blocks: Option<std::ops::Range<u64>>,
+        reason: impl Into<String>,
+    ) -> Self {
+        self.ignore_leftover_bytes_rules
+            .push(IgnoreLeftoverBytesRule {
+                pallet_name: pallet.into(),
+                storage_entry: entry.into(),
+                block_range: blocks,
+                reason: reason.into(),
+            });
+        self
+    }
+
     /// Build and run the storage tests.
     pub async fn run(mut self) -> Result<TestStorage, Error> {
         if self.urls.is_empty() {
@@ -277,6 +340,7 @@ impl TestStorageBuilder {
             keys_page_size: self.keys_page_size,
             max_keys_per_item: self.max_keys_per_item,
             max_values_per_block: self.max_values_per_block,
+            ignore_leftover_bytes_rules: self.ignore_leftover_bytes_rules,
             results: Vec::new(),
         };
 
@@ -296,6 +360,8 @@ pub struct TestStorage {
     keys_page_size: u32,
     max_keys_per_item: usize,
     max_values_per_block: usize,
+    /// Rules for ignoring leftover bytes after decoding specific storage items.
+    ignore_leftover_bytes_rules: Vec<IgnoreLeftoverBytesRule>,
     results: Vec<StorageBlockTestResult>,
 }
 
@@ -345,6 +411,7 @@ impl TestStorage {
         let keys_page_size = self.keys_page_size;
         let max_keys_per_item = self.max_keys_per_item;
         let max_values_per_block = self.max_values_per_block;
+        let ignore_leftover_rules = Arc::new(self.ignore_leftover_bytes_rules.clone());
 
         let (tx, mut rx) = mpsc::channel::<(usize, StorageBlockTestResult)>(num_connections * 2);
 
@@ -355,6 +422,7 @@ impl TestStorage {
             let next_block_idx = next_block_idx.clone();
             let historic_types = historic_types.clone();
             let tx = tx.clone();
+            let ignore_leftover_rules = ignore_leftover_rules.clone();
 
             tokio::spawn(async move {
                 let mut state = match RpcTestState::new(urls.clone(), worker_idx).await {
@@ -378,6 +446,7 @@ impl TestStorage {
                         discover_entries,
                         discover_max_items_per_block,
                         max_values_per_block,
+                        &ignore_leftover_rules,
                     )
                     .await;
 
@@ -499,6 +568,7 @@ async fn test_single_storage_block_with_retry(
     discover_entries: bool,
     discover_max_items_per_block: usize,
     max_values_per_block: usize,
+    ignore_leftover_rules: &[IgnoreLeftoverBytesRule],
 ) -> StorageBlockTestResult {
     const MAX_ATTEMPTS: usize = 5;
     let mut last_err: Option<Error> = None;
@@ -514,6 +584,7 @@ async fn test_single_storage_block_with_retry(
             discover_entries,
             discover_max_items_per_block,
             max_values_per_block,
+            ignore_leftover_rules,
         )
         .await
         {
@@ -548,6 +619,7 @@ async fn test_single_storage_block(
     discover_entries: bool,
     discover_max_items_per_block: usize,
     max_values_per_block: usize,
+    ignore_leftover_rules: &[IgnoreLeftoverBytesRule],
 ) -> Result<StorageBlockTestResult, Error> {
     // Same rule as in TestBlocks: runtime updates take effect the block after.
     let runtime_update_block = block_number.saturating_sub(1);
@@ -646,12 +718,20 @@ async fn test_single_storage_block(
                 Ok(Some(bytes)) => {
                     let metadata = state.current_metadata.as_ref().unwrap();
                     let types_for_spec = state.current_types_for_spec.as_ref().unwrap();
+
+                    // Check if any ignore rules match this item/block
+                    let leftover_rule = ignore_leftover_rules
+                        .iter()
+                        .find(|r| r.matches(&item.pallet_name, &item.storage_entry, block_number));
+
                     let result = decode_storage_value_to_result(
                         &item.pallet_name,
                         &item.storage_entry,
+                        block_number,
                         &bytes,
                         metadata,
                         types_for_spec,
+                        leftover_rule,
                     );
                     values.push(match result {
                         Ok(value) => StorageValueTestResult::Success {
@@ -756,9 +836,11 @@ async fn fetch_keys_for_prefix(
 fn decode_storage_value_to_result(
     pallet_name: &str,
     storage_entry: &str,
+    block_number: u64,
     bytes: &[u8],
     metadata: &RuntimeMetadata,
     legacy_types_for_spec: &TypeRegistrySet,
+    leftover_rule: Option<&IgnoreLeftoverBytesRule>,
 ) -> Result<scale_value::Value<String>, String> {
     let mut cursor = &*bytes;
 
@@ -766,13 +848,25 @@ fn decode_storage_value_to_result(
         decode_storage_value_inner(&mut cursor, pallet_name, storage_entry, m, resolver)
     })?;
 
+    // Check for leftover bytes
     if !cursor.is_empty() {
-        return Err(format!(
-            "{} leftover bytes after decoding storage {}.{} value",
-            cursor.len(),
-            pallet_name,
-            storage_entry
-        ));
+        if let Some(rule) = leftover_rule {
+            eprintln!(
+                "[IgnoreLeftoverBytesRule] {}.{} at block {}: {} leftover bytes ignored - {}",
+                pallet_name,
+                storage_entry,
+                block_number,
+                cursor.len(),
+                rule.reason
+            );
+        } else {
+            return Err(format!(
+                "{} leftover bytes after decoding storage {}.{} value",
+                cursor.len(),
+                pallet_name,
+                storage_entry
+            ));
+        }
     }
 
     Ok(value)
