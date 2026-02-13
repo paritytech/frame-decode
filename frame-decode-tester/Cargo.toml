@@ -21,7 +21,7 @@ frame-metadata = { version = "23.0.0", features = ["legacy", "current"] }
 hex = "0.4.3"
 serde = { version = "1", features = ["derive"] }
 parity-scale-codec = "3.6.12"
-scale-info-legacy = "0.4.0"
+scale-info-legacy = "0.4.2"
 scale-type-resolver = "0.2.0"
 scale-value = "0.18.0"
 subxt = "0.41.0"
