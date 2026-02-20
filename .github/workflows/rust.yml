@@ -195,7 +195,7 @@ jobs:
 
       - name: Rust Cache
         if: steps.changes.outputs.kusama_assethub == 'true' || steps.changes.outputs.kusama_relay == 'true' || steps.changes.outputs.polkadot_relay == 'true'
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.8.2
 
       - name: Run Kusama Relay storage decode tests (PR tier)
         if: steps.changes.outputs.kusama_relay == 'true'
