@@ -198,8 +198,6 @@ pub mod legacy_types {
         }
     }
 
-    // Hidden until the types are ready.
-    #[doc(hidden)]
     pub mod kusama {
         //! Legacy types for Kusama chains.
 
