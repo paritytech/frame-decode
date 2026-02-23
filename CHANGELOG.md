@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.17.1 (2025-02-23)
+
+- Fixed: update some Kusama types to fix decode issues ([#94](https://github.com/paritytech/frame-decode/pull/94)).
+
 ## 0.17.0 (2025-12-03)
 
 - Add extrinsic encode methods in `frame_decode::extrinsics`. This covers encoding v4 and v5 unsigned and signed extrinsics, new traits for providing transaction extensions, encoding v4 and v5 signer payloads and encoding call data.
