@@ -1,6 +1,6 @@
 [package]
 name = "frame-decode"
-version = "0.17.0"
+version = "0.17.1"
 edition = "2024"
 description = "Decode extrinsics and storage from Substrate based chains"
 license = "Apache-2.0"
