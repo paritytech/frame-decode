@@ -1419,15 +1419,15 @@ mod test {
         ( $($ident:ident),* $(,)? ) => {{
             use scale_info::meta_type;
             let mut registry = scale_info::Registry::new();
-            let mut extension_info = vec![];
-
-            $(
-                extension_info.push(ExtrinsicExtensionInfoArg {
-                    name: <$ident as TransactionExtension<PortableRegistry>>::NAME.into(),
-                    id: registry.register_type(&meta_type::<<$ident as GetTestExtensionTypes>::Value>()).id,
-                    implicit_id: registry.register_type(&meta_type::<<$ident as GetTestExtensionTypes>::Implicit>()).id,
-                });
-            )*
+            let extension_info = vec![
+                $(
+                    ExtrinsicExtensionInfoArg {
+                        name: <$ident as TransactionExtension<PortableRegistry>>::NAME.into(),
+                        id: registry.register_type(&meta_type::<<$ident as GetTestExtensionTypes>::Value>()).id,
+                        implicit_id: registry.register_type(&meta_type::<<$ident as GetTestExtensionTypes>::Implicit>()).id,
+                    }
+                ),*
+            ];
 
             let portable_registry: PortableRegistry = registry.into();
             let info = ExtrinsicExtensionInfo { extension_ids: extension_info };
