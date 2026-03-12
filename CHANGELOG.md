@@ -4,7 +4,11 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
-## 0.17.1 (2025-02-23)
+## 0.17.2 (2026-03-12)
+
+- When encoding extrinsics, unknown Transaction Extensions that are `Option<SomeType>` will now be accepted, and encoded as `0u8` (ie the `None` variant) by default if an extension with the corresponding name is not provided by the user. This allows transaction encoding to succeed in more cases, such as when a bunch of optional extensions exist for a chian, but still allows the user to properly implement and provide those extensions if they wish.
+
+## 0.17.1 (2026-02-23)
 
 - Fixed: update some Kusama types to fix decode issues ([#94](https://github.com/paritytech/frame-decode/pull/94)).
 

@@ -382,11 +382,13 @@ where
         .map_err(ExtrinsicEncodeError::CannotEncodeSignature)?;
 
     // Signed extensions (now Transaction Extensions)
-    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
-        transaction_extensions
-            .encode_extension_value_to(name, id, type_resolver, &mut encoded_inner)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-    }
+    encode_transaction_extension_values(
+        ext_info,
+        transaction_extensions,
+        type_resolver,
+        &mut encoded_inner,
+    )
+    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // And now the actual call data, ie the arguments we're passing to the call
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
@@ -493,18 +495,17 @@ where
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
-        transaction_extensions
-            .encode_extension_value_for_signer_payload_to(name, id, type_resolver, &mut out)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-    }
+    encode_transaction_extension_values(ext_info, transaction_extensions, type_resolver, &mut out)
+        .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    for (name, id) in iter_nonempty_extension_implicits(ext_info, type_resolver) {
-        transaction_extensions
-            .encode_extension_implicit_to(name, id, type_resolver, &mut out)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-    }
+    encode_transaction_extension_implicits(
+        ext_info,
+        transaction_extensions,
+        type_resolver,
+        &mut out,
+    )
+    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // Finally we need to hash it if it's too long
     if out.len() > 256 {
@@ -715,8 +716,9 @@ where
         // Do we have all of the extension data for this version?
         let have_data = ext_info.extension_ids.iter().all(|e| {
             let is_value_empty = is_type_empty(e.id.clone(), type_resolver);
+            let is_value_option = is_type_option(e.id.clone(), type_resolver);
             let is_implicit_empty = is_type_empty(e.implicit_id.clone(), type_resolver);
-            (is_value_empty && is_implicit_empty)
+            ((is_value_empty || is_value_option) && is_implicit_empty)
                 || transaction_extensions.contains_extension(&e.name)
         });
 
@@ -904,11 +906,13 @@ where
     transaction_extension_version.encode_to(&mut encoded_inner);
 
     // Transaction Extensions next. These may include a signature/address
-    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
-        transaction_extensions
-            .encode_extension_value_to(name, id, type_resolver, &mut encoded_inner)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-    }
+    encode_transaction_extension_values(
+        ext_info,
+        transaction_extensions,
+        type_resolver,
+        &mut encoded_inner,
+    )
+    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // And now the actual call data, ie the arguments we're passing to the call
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut encoded_inner)?;
@@ -1025,18 +1029,17 @@ where
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    for (name, id) in iter_nonempty_extension_values(ext_info, type_resolver) {
-        transaction_extensions
-            .encode_extension_value_for_signer_payload_to(name, id, type_resolver, &mut out)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-    }
+    encode_transaction_extension_values(ext_info, transaction_extensions, type_resolver, &mut out)
+        .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    for (name, id) in iter_nonempty_extension_implicits(ext_info, type_resolver) {
-        transaction_extensions
-            .encode_extension_implicit_to(name, id, type_resolver, &mut out)
-            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-    }
+    encode_transaction_extension_implicits(
+        ext_info,
+        transaction_extensions,
+        type_resolver,
+        &mut out,
+    )
+    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // Finally hash it (regardless of length).
     Ok(sp_crypto_hashing::blake2_256(&out))
@@ -1178,28 +1181,70 @@ enum TransactionVersion {
     V5 = 5u8,
 }
 
-/// Iterate over the non-empty extension implicit name/IDs
-fn iter_nonempty_extension_implicits<'exts, 'info, Resolver: TypeResolver>(
-    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>,
-    types: &Resolver,
-) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
-    extension_info
+/// Encode the transaction extension values to the provided output in the order given by
+/// the [`ExtrinsicExtensionInfo`]. We skip missing extensions that would encode as 0 bytes,
+/// and we encode a 0u8 for any missing extensions whose value is an `Option<T>`, which
+/// carries the assumption that the default value for such an extension is `None`.
+fn encode_transaction_extension_values<'exts, 'info, Resolver, Exts>(
+    ext_info: &'exts ExtrinsicExtensionInfo<'info, <Resolver as TypeResolver>::TypeId>,
+    transaction_extensions: &Exts,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), TransactionExtensionsError>
+where
+    Resolver: TypeResolver,
+    Exts: TransactionExtensions<Resolver>,
+{
+    let nonempty_values = ext_info
         .extension_ids
         .iter()
-        .filter(|arg| !is_type_empty(arg.implicit_id.clone(), types))
-        .map(|arg| (&*arg.name, arg.implicit_id.clone()))
+        .filter(|arg| !is_type_empty(arg.id.clone(), type_resolver))
+        .map(|arg| (&*arg.name, arg.id.clone()));
+
+    for (name, id) in nonempty_values {
+        let res =
+            transaction_extensions.encode_extension_value_to(name, id.clone(), type_resolver, out);
+
+        match res {
+            // All ok
+            Ok(()) => {}
+            // Extension not found. As a fallback, if it contains an "Option" then default it to None and encode that.
+            Err(TransactionExtensionsError::NotFound(name)) => {
+                if is_type_option(id, type_resolver) {
+                    0u8.encode_to(out);
+                } else {
+                    return Err(TransactionExtensionsError::NotFound(name));
+                }
+            }
+            // Some other error was encountered; return it immediately.
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
 }
 
-/// Iterate over the non-empty extension value name/IDs
-fn iter_nonempty_extension_values<'exts, 'info, Resolver: TypeResolver>(
-    extension_info: &'exts ExtrinsicExtensionInfo<'info, Resolver::TypeId>,
-    types: &Resolver,
-) -> impl Iterator<Item = (&'exts str, Resolver::TypeId)> {
-    extension_info
+/// Encode the transaction extension implicits to the provided output in the order given by
+/// the [`ExtrinsicExtensionInfo`]. We skip missing extensions whose implicit would encode as 0 bytes.
+fn encode_transaction_extension_implicits<'exts, 'info, Resolver, Exts>(
+    ext_info: &'exts ExtrinsicExtensionInfo<'info, <Resolver as TypeResolver>::TypeId>,
+    transaction_extensions: &Exts,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), TransactionExtensionsError>
+where
+    Resolver: TypeResolver,
+    Exts: TransactionExtensions<Resolver>,
+{
+    let nonempty_implicits = ext_info
         .extension_ids
         .iter()
-        .filter(|arg| !is_type_empty(arg.id.clone(), types))
-        .map(|arg| (&*arg.name, arg.id.clone()))
+        .filter(|arg| !is_type_empty(arg.implicit_id.clone(), type_resolver))
+        .map(|arg| (&*arg.name, arg.implicit_id.clone()));
+
+    for (name, id) in nonempty_implicits {
+        transaction_extensions.encode_extension_implicit_to(name, id, type_resolver, out)?;
+    }
+    Ok(())
 }
 
 /// Checks to see whether the type being given is empty, ie would require
@@ -1242,4 +1287,307 @@ fn is_type_empty<Resolver: TypeResolver>(type_id: Resolver::TypeId, types: &Reso
     types
         .resolve_type(type_id, IsEmptyVisitor { types })
         .unwrap_or_default()
+}
+
+/// Checks to see whether a type (or the type inside) resolves to being an Option<T>.
+fn is_type_option<Resolver: TypeResolver>(type_id: Resolver::TypeId, types: &Resolver) -> bool {
+    struct IsOptionVisitor<'r, R> {
+        types: &'r R,
+    }
+    impl<'r, R: TypeResolver> scale_type_resolver::ResolvedTypeVisitor<'r> for IsOptionVisitor<'r, R> {
+        type TypeId = R::TypeId;
+        type Value = bool;
+
+        // The default ans safe assumption is that a type is _not_ an option.
+        fn visit_unhandled(self, _: scale_type_resolver::UnhandledKind) -> Self::Value {
+            false
+        }
+        // Composites are options if they contain exactly one field which is_type_option
+        fn visit_composite<Path, Fields>(self, _path: Path, mut fields: Fields) -> Self::Value
+        where
+            Path: scale_type_resolver::PathIter<'r>,
+            Fields: scale_decode::FieldIter<'r, Self::TypeId>,
+        {
+            match (fields.next(), fields.next()) {
+                (Some(f), None) => is_type_option(f.id, self.types),
+                _ => false,
+            }
+        }
+        // Tuples are options if they contain exactly one field which is_type_option
+        fn visit_tuple<TypeIds>(self, mut type_ids: TypeIds) -> Self::Value
+        where
+            TypeIds: ExactSizeIterator<Item = Self::TypeId>,
+        {
+            match (type_ids.next(), type_ids.next()) {
+                (Some(id), None) => is_type_option(id, self.types),
+                _ => false,
+            }
+        }
+        // Variants are Options if the path is exactly ["Option"] and they contain a None variant at index 0.
+        fn visit_variant<Path, Fields, Var>(self, mut path: Path, mut variants: Var) -> Self::Value
+        where
+            Path: scale_type_resolver::PathIter<'r>,
+            Fields: scale_decode::FieldIter<'r, Self::TypeId>,
+            Var: scale_type_resolver::VariantIter<'r, Fields>,
+        {
+            match (path.next(), path.next()) {
+                // If the path exactly ["Option"]?
+                (Some("Option"), None) => {
+                    // For a bit more safety: does the option have 2 variants, and a None variant at index 0?
+                    match (variants.next(), variants.next(), variants.next()) {
+                        (Some(v1), Some(v2), None) => {
+                            (v1.name == "None" && v1.index == 0)
+                                || (v2.name == "None" && v2.index == 0)
+                        }
+                        _ => false,
+                    }
+                }
+                _ => false,
+            }
+        }
+    }
+
+    types
+        .resolve_type(type_id, IsOptionVisitor { types })
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::methods::extrinsic_type_info::{ExtrinsicExtensionInfo, ExtrinsicExtensionInfoArg};
+    use scale_info::PortableRegistry;
+
+    /// A test type that implements [`TransactionExtension`] for specific types.
+    struct TestExtension<Value, Implicit> {
+        value: Value,
+        implicit: Implicit,
+    }
+
+    /// A small helper to extract the Value and Implicit type from the above where needed.
+    trait GetTestExtensionTypes {
+        type Value;
+        type Implicit;
+    }
+
+    impl<Value, Implicit> GetTestExtensionTypes for TestExtension<Value, Implicit> {
+        type Value = Value;
+        type Implicit = Implicit;
+    }
+
+    /// Create a concrete [`TestExtension`] which implements [`TransactionExtension`].
+    macro_rules! make_test_extension {
+        ( $name:ident value=$value:ty, implicit=$implicit:ty ) => {
+            type $name = TestExtension<$value, $implicit>;
+            impl TransactionExtension<PortableRegistry> for TestExtension<$value, $implicit> {
+                const NAME: &str = stringify!($name);
+                fn encode_value_to(
+                    &self,
+                    type_id: u32,
+                    type_resolver: &PortableRegistry,
+                    out: &mut Vec<u8>,
+                ) -> Result<(), TransactionExtensionError> {
+                    self.value.encode_as_type_to(type_id, type_resolver, out)?;
+                    Ok(())
+                }
+                fn encode_implicit_to(
+                    &self,
+                    type_id: u32,
+                    type_resolver: &PortableRegistry,
+                    out: &mut Vec<u8>,
+                ) -> Result<(), TransactionExtensionError> {
+                    self.implicit
+                        .encode_as_type_to(type_id, type_resolver, out)?;
+                    Ok(())
+                }
+            }
+        };
+    }
+
+    #[derive(scale_encode::EncodeAsType, scale_info::TypeInfo, Debug, Clone, PartialEq)]
+    struct NestedOption<T>(Option<T>);
+
+    make_test_extension!(ExtensionContainingOption       value=Option<bool>,          implicit=u64);
+    make_test_extension!(ExtensionContainingNestedOption value=(NestedOption<bool>,), implicit=u64);
+    make_test_extension!(ExtensionContainingNothing      value=(),                    implicit=());
+    make_test_extension!(Extension1                      value=(bool, u64),           implicit=bool);
+    make_test_extension!(Extension2                      value=String,                implicit=());
+
+    /// Returns an ExtrinsicExtensionInfo vec given some set of test transaction extensions, as well
+    /// as the PortableRegistry needed to resolve those types properly.
+    macro_rules! make_extension_info {
+        ( $($ident:ident),* $(,)? ) => {{
+            use scale_info::meta_type;
+            let mut registry = scale_info::Registry::new();
+            let extension_info = vec![
+                $(
+                    ExtrinsicExtensionInfoArg {
+                        name: <$ident as TransactionExtension<PortableRegistry>>::NAME.into(),
+                        id: registry.register_type(&meta_type::<<$ident as GetTestExtensionTypes>::Value>()).id,
+                        implicit_id: registry.register_type(&meta_type::<<$ident as GetTestExtensionTypes>::Implicit>()).id,
+                    }
+                ),*
+            ];
+
+            let portable_registry: PortableRegistry = registry.into();
+            let info = ExtrinsicExtensionInfo { extension_ids: extension_info };
+            (info, portable_registry)
+        }}
+    }
+
+    fn assert_decodes_into<T: parity_scale_codec::Decode + std::fmt::Debug + PartialEq>(
+        bytes: &[u8],
+        target: T,
+    ) {
+        let cursor = &mut &*bytes;
+        let actual = T::decode(cursor).expect("decoding should succeed");
+        assert_eq!(actual, target, "actual does not match target");
+        if !cursor.is_empty() {
+            panic!("Leftvoer bytes after decoding");
+        }
+    }
+
+    // -------------------------- And now the actual tests --------------------------
+
+    #[test]
+    fn encode_transaction_extension_values_basic() {
+        let (info, types) = make_extension_info![Extension1, Extension2,];
+
+        let exts = (
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+        );
+
+        let mut out = vec![];
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed");
+        assert_decodes_into(&out, (true, 123u64, "Hello".to_owned()));
+    }
+
+    #[test]
+    fn encode_transaction_extension_values_order_irrelevant() {
+        let (info, types) = make_extension_info![Extension1, Extension2,];
+
+        let exts = (
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+        );
+
+        let mut out = vec![];
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed");
+        assert_decodes_into(&out, (true, 123u64, "Hello".to_owned()));
+    }
+
+    #[test]
+    fn encode_transaction_extension_values_skips_empty() {
+        let (info, types) =
+            make_extension_info![Extension1, ExtensionContainingNothing, Extension2,];
+
+        let exts = (
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+        );
+
+        let mut out = vec![];
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed despite Option");
+        assert_decodes_into(&out, (true, 123u64, "Hello".to_owned()));
+    }
+
+    #[test]
+    fn encode_transaction_extension_values_skips_option() {
+        let (info, types) = make_extension_info![
+            Extension1,
+            ExtensionContainingOption,
+            ExtensionContainingNestedOption,
+            Extension2,
+        ];
+
+        let exts = (
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+        );
+
+        let mut out = vec![];
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed despite Option");
+        assert_decodes_into(&out, (true, 123u64, 0u8, 0u8, "Hello".to_owned()));
+    }
+
+    #[test]
+    fn encode_transaction_extension_implicits_skips_empty() {
+        let (info, types) =
+            make_extension_info![Extension1, Extension2, ExtensionContainingOption,];
+
+        let exts = (
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+            ExtensionContainingOption {
+                value: None,
+                implicit: 12345,
+            },
+        );
+
+        let mut out = vec![];
+        encode_transaction_extension_implicits(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed");
+        assert_decodes_into(&out, (false, 12345u64));
+    }
+
+    #[test]
+    fn encode_transaction_extension_implicits_order_irrelevant() {
+        let (info, types) =
+            make_extension_info![Extension1, Extension2, ExtensionContainingOption,];
+
+        let exts = (
+            ExtensionContainingOption {
+                value: None,
+                implicit: 12345,
+            },
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+        );
+
+        let mut out = vec![];
+        encode_transaction_extension_implicits(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed");
+        assert_decodes_into(&out, (false, 12345u64));
+    }
 }
