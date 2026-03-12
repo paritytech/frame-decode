@@ -1332,17 +1332,12 @@ fn is_type_option<Resolver: TypeResolver>(type_id: Resolver::TypeId, types: &Res
         {
             match (path.next(), path.next()) {
                 // If the path exactly ["Option"]?
-                (Some(name), None) if name == "Option" => {
+                (Some("Option"), None) => {
                     // For a bit more safety: does the option have 2 variants, and a None variant at index 0?
                     match (variants.next(), variants.next(), variants.next()) {
                         (Some(v1), Some(v2), None) => {
-                            if (v1.name == "None" && v1.index == 0)
+                            (v1.name == "None" && v1.index == 0)
                                 || (v2.name == "None" && v2.index == 0)
-                            {
-                                true
-                            } else {
-                                false
-                            }
                         }
                         _ => false,
                     }
