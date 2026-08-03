@@ -49,7 +49,7 @@ pub mod extrinsics {
         encode_v4_unsigned_with_info_to, encode_v5_bare, encode_v5_bare_to,
         encode_v5_bare_with_info_to, encode_v5_general, encode_v5_general_to,
         encode_v5_general_with_info_to, encode_v5_signer_payload,
-        encode_v5_signer_payload_with_info_and_version,
+        encode_v5_signer_payload_with_info,
     };
     pub use crate::methods::extrinsic_type_info::{
         ExtrinsicCallInfo, ExtrinsicCallInfoArg, ExtrinsicExtensionInfo, ExtrinsicExtensionInfoArg,

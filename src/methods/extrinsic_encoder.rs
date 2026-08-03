@@ -1002,7 +1002,7 @@ where
         .map_err(|i| i.into_owned())
         .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
 
-    encode_v5_signer_payload_with_info_and_version(
+    encode_v5_signer_payload_with_info(
         call_data,
         transaction_extension_version,
         transaction_extensions,
@@ -1022,7 +1022,7 @@ where
 /// base implication, followed by the transaction extension values (for the signer payload) and
 /// transaction extension implicit data. The result is always hashed using Blake2-256, returning a
 /// fixed 32-byte array.
-pub fn encode_v5_signer_payload_with_info_and_version<CallData, Resolver, Exts>(
+pub fn encode_v5_signer_payload_with_info<CallData, Resolver, Exts>(
     call_data: &CallData,
     transaction_extension_version: u8,
     transaction_extensions: &Exts,
@@ -1560,7 +1560,7 @@ mod test {
             args: Vec::new(),
         };
 
-        let actual = encode_v5_signer_payload_with_info_and_version(
+        let actual = encode_v5_signer_payload_with_info(
             &(),
             7,
             &extensions,
