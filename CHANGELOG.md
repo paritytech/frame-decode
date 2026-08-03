@@ -4,10 +4,10 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
-## Unreleased
+## 0.18.0 (Unreleased)
 
 - Fix V5 signer payloads to hash the transaction extension version and call as an immutable base implication, followed by the explicit and implicit implications selected by authorization extensions such as `VerifyMultiSignature`.
-- Add `encode_v5_signer_payload_with_info_and_version`; deprecate `encode_v5_signer_payload_with_info`, which cannot represent nonzero transaction extension versions.
+- Replace `encode_v5_signer_payload_with_info` with `encode_v5_signer_payload_with_info_and_version`, which requires the transaction extension version needed to construct a valid V5 signer payload.
 
 ## 0.17.2 (2026-03-12)
 

@@ -1071,37 +1071,6 @@ where
     Ok(sp_crypto_hashing::blake2_256(&base))
 }
 
-/// Encode the signer payload for a V5 general extrinsic at transaction extension version 0,
-/// using pre-computed type information.
-///
-/// Use [`encode_v5_signer_payload_with_info_and_version`] when the transaction extension version
-/// is available. The version is part of the V5 base implication and therefore must be included in
-/// the signer payload.
-#[deprecated(
-    note = "Use encode_v5_signer_payload_with_info_and_version; this function assumes transaction extension version 0"
-)]
-pub fn encode_v5_signer_payload_with_info<CallData, Resolver, Exts>(
-    call_data: &CallData,
-    transaction_extensions: &Exts,
-    type_resolver: &Resolver,
-    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
-    ext_info: &ExtrinsicExtensionInfo<Resolver::TypeId>,
-) -> Result<[u8; 32], ExtrinsicEncodeError>
-where
-    CallData: EncodeAsFields,
-    Resolver: TypeResolver,
-    Exts: TransactionExtensions<Resolver>,
-{
-    encode_v5_signer_payload_with_info_and_version(
-        call_data,
-        0,
-        transaction_extensions,
-        type_resolver,
-        call_info,
-        ext_info,
-    )
-}
-
 /// Encode the call data for an extrinsic.
 ///
 /// This is basically an alias for [`scale_encode::EncodeAsFields::encode_as_fields()`].
