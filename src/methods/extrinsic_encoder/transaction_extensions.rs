@@ -25,6 +25,11 @@ pub trait TransactionExtensions<Resolver: TypeResolver> {
     /// Is a given transaction extension contained within this set?
     fn contains_extension(&self, name: &str) -> bool;
 
+    /// Returns `true` if the named extension is an authorization extension.
+    ///
+    /// See [`TransactionExtension::is_authorization_extension`] for details.
+    fn is_authorization_extension(&self, name: &str) -> bool;
+
     /// This will be called given the name of each transaction extension we
     /// wish to obtain the encoded bytes to. Implementations are expected to
     /// write the bytes that should be included in the **transaction** to the given [`Vec`],
@@ -92,6 +97,10 @@ impl<Resolver: TypeResolver> TransactionExtensions<Resolver> for () {
         false
     }
 
+    fn is_authorization_extension(&self, _name: &str) -> bool {
+        false
+    }
+
     fn encode_extension_value_to(
         &self,
         name: &str,
@@ -125,6 +134,15 @@ macro_rules! impl_tuples {
                 $(
                     if $ident::NAME == name {
                         return true
+                    }
+                )*
+                false
+            }
+
+            fn is_authorization_extension(&self, name: &str) -> bool {
+                $(
+                    if $ident::NAME == name {
+                        return self.$index.is_authorization_extension()
                     }
                 )*
                 false

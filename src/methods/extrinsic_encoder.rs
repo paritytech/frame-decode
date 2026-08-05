@@ -386,7 +386,6 @@ where
         ext_info,
         transaction_extensions,
         type_resolver,
-        TransactionExtensionValuesTarget::Extrinsic,
         &mut encoded_inner,
     )
     .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
@@ -496,14 +495,8 @@ where
     encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
     // Then the signer payload value (ie roughly the bytes that will appear in the tx)
-    encode_transaction_extension_values(
-        ext_info,
-        transaction_extensions,
-        type_resolver,
-        TransactionExtensionValuesTarget::SignerPayload,
-        &mut out,
-    )
-    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+    encode_transaction_extension_values(ext_info, transaction_extensions, type_resolver, &mut out)
+        .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
 
     // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
     encode_transaction_extension_implicits(
@@ -917,7 +910,6 @@ where
         ext_info,
         transaction_extensions,
         type_resolver,
-        TransactionExtensionValuesTarget::Extrinsic,
         &mut encoded_inner,
     )
     .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
@@ -1035,40 +1027,68 @@ where
     Resolver: TypeResolver,
     Exts: TransactionExtensions<Resolver>,
 {
-    let mut base = Vec::new();
+    let mut out = Vec::new();
 
-    // The base implication always remains part of the signer payload, even if an extension
-    // discards earlier extension implications.
-    transaction_extension_version.encode_to(&mut base);
-    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut base)?;
+    // The base implication (extension version + call) is always signed, even when an
+    // authorization extension discards preceding extension implications.
+    transaction_extension_version.encode_to(&mut out);
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut out)?;
 
-    // Encode explicit and implicit implications separately. An authorization extension may clear
-    // either output to exclude preceding extensions, but must not be able to clear the base or the
-    // other implication section.
-    let mut explicit = Vec::new();
-    encode_transaction_extension_values(
-        ext_info,
-        transaction_extensions,
-        type_resolver,
-        TransactionExtensionValuesTarget::SignerPayload,
-        &mut explicit,
-    )
-    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+    // Find the last authorization extension (e.g. VerifyMultiSignature). Only extensions
+    // after this boundary contribute their explicit and implicit implications. If no
+    // authorization extension exists, all extensions are included.
+    let auth_boundary = ext_info
+        .extension_ids
+        .iter()
+        .rposition(|ext| transaction_extensions.is_authorization_extension(&ext.name))
+        .map(|pos| pos + 1)
+        .unwrap_or(0);
 
-    let mut implicit = Vec::new();
-    encode_transaction_extension_implicits(
-        ext_info,
-        transaction_extensions,
-        type_resolver,
-        &mut implicit,
-    )
-    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+    let post_auth = &ext_info.extension_ids[auth_boundary..];
 
-    base.extend(explicit);
-    base.extend(implicit);
+    // Encode explicit implications (signer payload values) for extensions after the boundary.
+    for arg in post_auth {
+        if is_type_empty(arg.id.clone(), type_resolver) {
+            continue;
+        }
+        let res = transaction_extensions.encode_extension_value_for_signer_payload_to(
+            &arg.name,
+            arg.id.clone(),
+            type_resolver,
+            &mut out,
+        );
+        match res {
+            Ok(()) => {}
+            Err(TransactionExtensionsError::NotFound(name)) => {
+                if is_type_option(arg.id.clone(), type_resolver) {
+                    0u8.encode_to(&mut out);
+                } else {
+                    return Err(ExtrinsicEncodeError::TransactionExtensions(
+                        TransactionExtensionsError::NotFound(name),
+                    ));
+                }
+            }
+            Err(e) => return Err(ExtrinsicEncodeError::TransactionExtensions(e)),
+        }
+    }
+
+    // Encode implicit implications for extensions after the boundary.
+    for arg in post_auth {
+        if is_type_empty(arg.implicit_id.clone(), type_resolver) {
+            continue;
+        }
+        transaction_extensions
+            .encode_extension_implicit_to(
+                &arg.name,
+                arg.implicit_id.clone(),
+                type_resolver,
+                &mut out,
+            )
+            .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+    }
 
     // V5 signer payloads are always hashed, regardless of length.
-    Ok(sp_crypto_hashing::blake2_256(&base))
+    Ok(sp_crypto_hashing::blake2_256(&out))
 }
 
 /// Encode the call data for an extrinsic.
@@ -1207,12 +1227,6 @@ enum TransactionVersion {
     V5 = 5u8,
 }
 
-#[derive(Copy, Clone)]
-enum TransactionExtensionValuesTarget {
-    Extrinsic,
-    SignerPayload,
-}
-
 /// Encode the transaction extension values to the provided output in the order given by
 /// the [`ExtrinsicExtensionInfo`]. We skip missing extensions that would encode as 0 bytes,
 /// and we encode a 0u8 for any missing extensions whose value is an `Option<T>`, which
@@ -1221,7 +1235,6 @@ fn encode_transaction_extension_values<'exts, 'info, Resolver, Exts>(
     ext_info: &'exts ExtrinsicExtensionInfo<'info, <Resolver as TypeResolver>::TypeId>,
     transaction_extensions: &Exts,
     type_resolver: &Resolver,
-    target: TransactionExtensionValuesTarget,
     out: &mut Vec<u8>,
 ) -> Result<(), TransactionExtensionsError>
 where
@@ -1231,20 +1244,12 @@ where
     let nonempty_values = ext_info
         .extension_ids
         .iter()
-        .filter(|arg| {
-            !is_type_empty(arg.id.clone(), type_resolver)
-                || matches!(target, TransactionExtensionValuesTarget::SignerPayload)
-                    && transaction_extensions.contains_extension(&arg.name)
-        })
+        .filter(|arg| !is_type_empty(arg.id.clone(), type_resolver))
         .map(|arg| (&*arg.name, arg.id.clone()));
 
     for (name, id) in nonempty_values {
-        let res = match target {
-            TransactionExtensionValuesTarget::Extrinsic => transaction_extensions
-                .encode_extension_value_to(name, id.clone(), type_resolver, out),
-            TransactionExtensionValuesTarget::SignerPayload => transaction_extensions
-                .encode_extension_value_for_signer_payload_to(name, id.clone(), type_resolver, out),
-        };
+        let res =
+            transaction_extensions.encode_extension_value_to(name, id.clone(), type_resolver, out);
 
         match res {
             // All ok
@@ -1279,10 +1284,7 @@ where
     let nonempty_implicits = ext_info
         .extension_ids
         .iter()
-        .filter(|arg| {
-            !is_type_empty(arg.implicit_id.clone(), type_resolver)
-                || transaction_extensions.contains_extension(&arg.name)
-        })
+        .filter(|arg| !is_type_empty(arg.implicit_id.clone(), type_resolver))
         .map(|arg| (&*arg.name, arg.implicit_id.clone()));
 
     for (name, id) in nonempty_implicits {
@@ -1467,6 +1469,10 @@ mod test {
     impl TransactionExtension<PortableRegistry> for VerifyMultiSignature {
         const NAME: &str = "VerifyMultiSignature";
 
+        fn is_authorization_extension(&self) -> bool {
+            true
+        }
+
         fn encode_value_to(
             &self,
             _type_id: u32,
@@ -1476,23 +1482,12 @@ mod test {
             Ok(())
         }
 
-        fn encode_value_for_signer_payload_to(
-            &self,
-            _type_id: u32,
-            _type_resolver: &PortableRegistry,
-            out: &mut Vec<u8>,
-        ) -> Result<(), TransactionExtensionError> {
-            out.clear();
-            Ok(())
-        }
-
         fn encode_implicit_to(
             &self,
             _type_id: u32,
             _type_resolver: &PortableRegistry,
-            out: &mut Vec<u8>,
+            _out: &mut Vec<u8>,
         ) -> Result<(), TransactionExtensionError> {
-            out.clear();
             Ok(())
         }
     }
@@ -1594,14 +1589,8 @@ mod test {
         );
 
         let mut out = vec![];
-        encode_transaction_extension_values(
-            &info,
-            &exts,
-            &types,
-            TransactionExtensionValuesTarget::Extrinsic,
-            &mut out,
-        )
-        .expect("Encoding should succeed");
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed");
         assert_decodes_into(&out, (true, 123u64, "Hello".to_owned()));
     }
 
@@ -1621,14 +1610,8 @@ mod test {
         );
 
         let mut out = vec![];
-        encode_transaction_extension_values(
-            &info,
-            &exts,
-            &types,
-            TransactionExtensionValuesTarget::Extrinsic,
-            &mut out,
-        )
-        .expect("Encoding should succeed");
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed");
         assert_decodes_into(&out, (true, 123u64, "Hello".to_owned()));
     }
 
@@ -1649,14 +1632,8 @@ mod test {
         );
 
         let mut out = vec![];
-        encode_transaction_extension_values(
-            &info,
-            &exts,
-            &types,
-            TransactionExtensionValuesTarget::Extrinsic,
-            &mut out,
-        )
-        .expect("Encoding should succeed despite Option");
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed despite Option");
         assert_decodes_into(&out, (true, 123u64, "Hello".to_owned()));
     }
 
@@ -1681,14 +1658,8 @@ mod test {
         );
 
         let mut out = vec![];
-        encode_transaction_extension_values(
-            &info,
-            &exts,
-            &types,
-            TransactionExtensionValuesTarget::Extrinsic,
-            &mut out,
-        )
-        .expect("Encoding should succeed despite Option");
+        encode_transaction_extension_values(&info, &exts, &types, &mut out)
+            .expect("Encoding should succeed despite Option");
         assert_decodes_into(&out, (true, 123u64, 0u8, 0u8, "Hello".to_owned()));
     }
 

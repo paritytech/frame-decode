@@ -24,6 +24,18 @@ pub trait TransactionExtension<Resolver: TypeResolver> {
     /// The name of this transaction extension.
     const NAME: &str;
 
+    /// Returns `true` if this extension is an authorization extension (e.g. `VerifyMultiSignature`).
+    ///
+    /// Authorization extensions define a boundary in the V5 signer payload: only extensions
+    /// that come *after* the last authorization extension contribute their explicit and implicit
+    /// implications to the signed data. The base implication (transaction extension version + call)
+    /// is always included regardless.
+    ///
+    /// Defaults to `false`.
+    fn is_authorization_extension(&self) -> bool {
+        false
+    }
+
     /// Given type information for the expected transaction extension,
     /// this should encode the value (ie the bytes that will appear in the
     /// transaction) to the provided `Vec`, or encode nothing and emit an error.
