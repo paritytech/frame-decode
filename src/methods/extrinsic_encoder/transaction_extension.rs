@@ -24,6 +24,19 @@ pub trait TransactionExtension<Resolver: TypeResolver> {
     /// The name of this transaction extension.
     const NAME: &str;
 
+    /// Does this extension authorize the transaction, eg by containing a signature
+    /// like `VerifyMultiSignature` does? Such an extension signs the transaction
+    /// extension version, the call data, and the values and implicits of only the
+    /// extensions _after_ it, and so when a V5 signer payload is built, the value
+    /// and implicit bytes of an authorization extension, and of every extension
+    /// before it, are excluded from the payload.
+    ///
+    /// This defaults to `false`, which is correct for any extension which doesn't
+    /// authorize the transaction.
+    fn is_authorization_extension(&self) -> bool {
+        false
+    }
+
     /// Given type information for the expected transaction extension,
     /// this should encode the value (ie the bytes that will appear in the
     /// transaction) to the provided `Vec`, or encode nothing and emit an error.
@@ -33,24 +46,6 @@ pub trait TransactionExtension<Resolver: TypeResolver> {
         type_resolver: &Resolver,
         out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionError>;
-
-    /// Given type information for the expected transaction extension,
-    /// this should encode the value that will be signed as a part of the
-    /// signer payload.
-    ///
-    /// This defaults to calling [`Self::encode_value_to`] if not implemented.
-    /// In most cases this is fine, but for V5 extrinsics we can optionally provide
-    /// the signature inside a transaction extension, and so that transaction would be
-    /// unable to encode anything for the signer payload and thus should override this
-    /// method to encode nothing.
-    fn encode_value_for_signer_payload_to(
-        &self,
-        type_id: Resolver::TypeId,
-        type_resolver: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Result<(), TransactionExtensionError> {
-        self.encode_value_to(type_id, type_resolver, out)
-    }
 
     /// Given type information for the expected transaction extension,
     /// this should encode the implicit (ie the bytes that will appear in the

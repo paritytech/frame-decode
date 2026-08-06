@@ -25,6 +25,13 @@ pub trait TransactionExtensions<Resolver: TypeResolver> {
     /// Is a given transaction extension contained within this set?
     fn contains_extension(&self, name: &str) -> bool;
 
+    /// Does the named transaction extension authorize the transaction
+    /// (see [`TransactionExtension::is_authorization_extension`])? This should
+    /// return `false` for any extension not contained within this set.
+    fn is_authorization_extension(&self, _name: &str) -> bool {
+        false
+    }
+
     /// This will be called given the name of each transaction extension we
     /// wish to obtain the encoded bytes to. Implementations are expected to
     /// write the bytes that should be included in the **transaction** to the given [`Vec`],
@@ -36,26 +43,6 @@ pub trait TransactionExtensions<Resolver: TypeResolver> {
         type_resolver: &Resolver,
         out: &mut Vec<u8>,
     ) -> Result<(), TransactionExtensionsError>;
-
-    /// This will be called given the name of each transaction extension we
-    /// wish to obtain the encoded bytes to. Implementations are expected to
-    /// write the bytes that should be included in the **signer payload value
-    /// section** to the given [`Vec`], or return an error if no such bytes can be
-    /// written.
-    ///
-    /// This defaults to calling [`Self::encode_extension_value_to`] if not implemented.
-    /// In most cases this is fine, but for V5 extrinsics we can optionally provide
-    /// the signature inside a transaction extension, and so that transaction would be
-    /// unable to encode anything for the signer payload.
-    fn encode_extension_value_for_signer_payload_to(
-        &self,
-        name: &str,
-        type_id: Resolver::TypeId,
-        type_resolver: &Resolver,
-        out: &mut Vec<u8>,
-    ) -> Result<(), TransactionExtensionsError> {
-        self.encode_extension_value_to(name, type_id, type_resolver, out)
-    }
 
     /// This will be called given the name of each transaction extension we
     /// wish to obtain the encoded bytes to. Implementations are expected to
@@ -130,6 +117,15 @@ macro_rules! impl_tuples {
                 false
             }
 
+            fn is_authorization_extension(&self, name: &str) -> bool {
+                $(
+                    if $ident::NAME == name {
+                        return self.$index.is_authorization_extension()
+                    }
+                )*
+                false
+            }
+
             fn encode_extension_value_to(
                 &self,
                 name: &str,
@@ -142,34 +138,6 @@ macro_rules! impl_tuples {
                 $(
                     if $ident::NAME == name {
                         return self.$index.encode_value_to(type_id, type_resolver, out)
-                            .map_err(|e| {
-                                // Protection: if we are returning an error then
-                                // no bytes should have been encoded to the given
-                                // Vec. Ensure that this is true:
-                                out.truncate(len);
-                                TransactionExtensionsError::Other {
-                                    extension_name: name.to_owned(),
-                                    error: e,
-                                }
-                            });
-                    }
-                )*
-
-                Err(TransactionExtensionsError::NotFound(name.to_owned()))
-            }
-
-            fn encode_extension_value_for_signer_payload_to(
-                &self,
-                name: &str,
-                type_id: <Resolver as TypeResolver>::TypeId,
-                type_resolver: &Resolver,
-                out: &mut Vec<u8>
-            ) -> Result<(), TransactionExtensionsError> {
-                let len = out.len();
-
-                $(
-                    if $ident::NAME == name {
-                        return self.$index.encode_value_for_signer_payload_to(type_id, type_resolver, out)
                             .map_err(|e| {
                                 // Protection: if we are returning an error then
                                 // no bytes should have been encoded to the given

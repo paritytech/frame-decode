@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog].
 
 ## 0.18.0 (Unreleased)
 
-- Fix V5 signer payloads to hash the transaction extension version and call as an immutable base implication, followed by the explicit and implicit implications selected by authorization extensions such as `VerifyMultiSignature`.
+- Fix V5 signer payloads to hash the transaction extension version and call, followed by the extension values and implicits of only the extensions after the last authorization extension (such as `VerifyMultiSignature`), matching FRAME's transaction extension pipeline semantics.
+- Add `TransactionExtension::is_authorization_extension` (and the corresponding `TransactionExtensions` method), which extensions like `VerifyMultiSignature` should override to return `true`. It defaults to `false`.
+- Remove `TransactionExtension::encode_value_for_signer_payload_to` and `TransactionExtensions::encode_extension_value_for_signer_payload_to`; extension values are now encoded identically in transactions and signer payloads, with authorization extensions excluded via `is_authorization_extension` instead.
 - Change `encode_v5_signer_payload_with_info` to require the transaction extension version needed to construct a valid V5 signer payload.
 
 ## 0.17.2 (2026-03-12)
