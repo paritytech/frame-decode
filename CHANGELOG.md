@@ -4,7 +4,7 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
-## 0.18.0 (Unreleased)
+## 0.18.0 (2026-08-06)
 
 - Fix V5 signer payloads to hash the transaction extension version and call, followed by the extension values and implicits of only the extensions after the last authorization extension (such as `VerifyMultiSignature`), matching FRAME's transaction extension pipeline semantics.
 - Add `TransactionExtension::is_authorization_extension` (and the corresponding `TransactionExtensions` method), which extensions like `VerifyMultiSignature` should override to return `true`. It defaults to `false`.
