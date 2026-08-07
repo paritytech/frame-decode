@@ -23,7 +23,7 @@ serde = { version = "1", features = ["derive"] }
 parity-scale-codec = "3.6.12"
 scale-info-legacy = "0.4.0"
 scale-type-resolver = "0.2.0"
-scale-value = "0.18.0"
+scale-value = "0.18.2"
 subxt = "0.41.0"
 subxt-rpcs = "0.41.0"
 tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
