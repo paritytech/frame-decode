@@ -19,6 +19,7 @@ use super::extrinsic_type_info::{
     ExtrinsicCallInfo, ExtrinsicExtensionInfo, ExtrinsicExtensionInfoArg, ExtrinsicInfoError,
     ExtrinsicSignatureInfo, ExtrinsicTypeInfo,
 };
+use alloc::string::String;
 use alloc::vec::Vec;
 use parity_scale_codec::Encode;
 use scale_encode::{EncodeAsFields, EncodeAsType};
@@ -46,6 +47,10 @@ pub enum ExtrinsicEncodeError {
         "Extrinsic encoding failed: cannot find a transaction extensions version which relies only on the transaction extensions we were given."
     )]
     CannotFindGoodExtensionVersion,
+    #[error(
+        "Extrinsic encoding failed: transaction extension '{0}' is not part of the given transaction extensions version."
+    )]
+    CannotFindTransactionExtension(String),
 }
 
 /// Encode a V4 unsigned extrinsic (also known as an inherent).
@@ -1033,16 +1038,9 @@ where
     Resolver: TypeResolver,
     Exts: TransactionExtensions<Resolver>,
 {
-    let mut payload = Vec::new();
-
-    // First, the base implication: the transaction extension version and call data.
-    // This is always signed, regardless of any authorization extension below.
-    transaction_extension_version.encode_to(&mut payload);
-    encode_call_data_with_info_to(call_data, call_info, type_resolver, &mut payload)?;
-
     // An authorization extension (eg VerifyMultiSignature) signs only the implications of the
     // extensions following it, so it and every extension before it contribute no bytes to the
-    // signer payload.
+    // signer payload beyond the base implication.
     let signed_extension_ids = ext_info
         .extension_ids
         .iter()
@@ -1050,26 +1048,253 @@ where
         .map(|last_auth| &ext_info.extension_ids[last_auth + 1..])
         .unwrap_or(&ext_info.extension_ids);
 
-    // Then the signer payload values (ie roughly the bytes that will appear in the tx)
-    encode_transaction_extension_values(
-        signed_extension_ids,
+    let mut payload = Vec::new();
+    encode_v5_implication_of_extensions_to(
+        call_data,
+        transaction_extension_version,
         transaction_extensions,
         type_resolver,
-        &mut payload,
-    )
-    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
-
-    // Then the signer payload implicits (ie data we want to verify that is NOT in the tx)
-    encode_transaction_extension_implicits(
+        call_info,
         signed_extension_ids,
-        transaction_extensions,
-        type_resolver,
         &mut payload,
-    )
-    .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+    )?;
 
     // V5 signer payloads are always hashed, regardless of length.
     Ok(sp_crypto_hashing::blake2_256(&payload))
+}
+
+/// Encode the inherited implication that a V5 general extrinsic passes to a given transaction
+/// extension.
+///
+/// The implication is the transaction extension version and encoded call data, followed by the
+/// transaction extension values and then the implicit data of every extension after
+/// `extension_name`. Extensions which authorize a transaction by proving over their implication,
+/// such as `pallet_people::AsPerson`, prove over the Blake2-256 hash of these bytes.
+///
+/// Each implication includes the values of the extensions after it, so when several extensions
+/// derive their values from their implications, compute them from last to first.
+///
+/// This is the same as [`encode_v5_implication_to`], but returns the encoded implication as a
+/// `Vec<u8>`, rather than accepting a mutable output buffer.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v5_implication, best_v5_general_transaction_extension_version};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata.scale").unwrap();
+/// let RuntimeMetadata::V16(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let ext_version = best_v5_general_transaction_extension_version(
+///     &transaction_extensions,
+///     &metadata,
+/// ).unwrap();
+///
+/// // The bytes that the AsPerson extension proves over.
+/// let implication = encode_v5_implication(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     ext_version,
+///     "AsPerson",
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+/// ).unwrap();
+/// let implication_hash = sp_crypto_hashing::blake2_256(&implication);
+/// ```
+#[allow(clippy::too_many_arguments)]
+pub fn encode_v5_implication<CallData, Info, Resolver, Exts>(
+    pallet_name: &str,
+    call_name: &str,
+    call_data: &CallData,
+    transaction_extension_version: u8,
+    extension_name: &str,
+    transaction_extensions: &Exts,
+    info: &Info,
+    type_resolver: &Resolver,
+) -> Result<Vec<u8>, ExtrinsicEncodeError>
+where
+    CallData: EncodeAsFields,
+    Resolver: TypeResolver<TypeId = Info::TypeId>,
+    Info: ExtrinsicTypeInfo,
+    Exts: TransactionExtensions<Resolver>,
+{
+    let mut out = Vec::new();
+    encode_v5_implication_to(
+        pallet_name,
+        call_name,
+        call_data,
+        transaction_extension_version,
+        extension_name,
+        transaction_extensions,
+        info,
+        type_resolver,
+        &mut out,
+    )?;
+    Ok(out)
+}
+
+/// Encode the inherited implication that a V5 general extrinsic passes to a given transaction
+/// extension, to a provided output buffer.
+///
+/// This is the same as [`encode_v5_implication`], but writes the encoded implication to the
+/// provided `Vec<u8>` rather than returning a new one.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use frame_decode::extrinsics::{encode_v5_implication_to, best_v5_general_transaction_extension_version};
+/// use frame_metadata::RuntimeMetadata;
+/// use parity_scale_codec::Decode;
+///
+/// let metadata_bytes = std::fs::read("artifacts/metadata.scale").unwrap();
+/// let RuntimeMetadata::V16(metadata) = RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap() else { return };
+///
+/// let call_data = /* ... */;
+/// let transaction_extensions = /* your TransactionExtensions impl */;
+///
+/// let ext_version = best_v5_general_transaction_extension_version(
+///     &transaction_extensions,
+///     &metadata,
+/// ).unwrap();
+///
+/// let mut implication = Vec::new();
+/// encode_v5_implication_to(
+///     "Balances",
+///     "transfer_keep_alive",
+///     &call_data,
+///     ext_version,
+///     "AsPerson",
+///     &transaction_extensions,
+///     &metadata,
+///     &metadata.types,
+///     &mut implication,
+/// ).unwrap();
+/// ```
+#[allow(clippy::too_many_arguments)]
+pub fn encode_v5_implication_to<CallData, Info, Resolver, Exts>(
+    pallet_name: &str,
+    call_name: &str,
+    call_data: &CallData,
+    transaction_extension_version: u8,
+    extension_name: &str,
+    transaction_extensions: &Exts,
+    info: &Info,
+    type_resolver: &Resolver,
+    out: &mut Vec<u8>,
+) -> Result<(), ExtrinsicEncodeError>
+where
+    CallData: EncodeAsFields,
+    Resolver: TypeResolver<TypeId = Info::TypeId>,
+    Info: ExtrinsicTypeInfo,
+    Exts: TransactionExtensions<Resolver>,
+{
+    let call_info = info
+        .extrinsic_call_info_by_name(pallet_name, call_name)
+        .map_err(|i| i.into_owned())
+        .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
+
+    let ext_info = info
+        .extrinsic_extension_info(Some(transaction_extension_version))
+        .map_err(|i| i.into_owned())
+        .map_err(ExtrinsicEncodeError::CannotGetInfo)?;
+
+    encode_v5_implication_with_info_to(
+        call_data,
+        transaction_extension_version,
+        extension_name,
+        transaction_extensions,
+        type_resolver,
+        &call_info,
+        &ext_info,
+        out,
+    )
+}
+
+/// Encode the inherited implication that a V5 general extrinsic passes to a given transaction
+/// extension, to a provided output buffer, using pre-computed type information.
+///
+/// Unlike [`encode_v5_implication_to`], which obtains the call and extension info internally
+/// given the pallet and call names, this function takes these as arguments. This is useful if you
+/// already have this information available, for example if you are computing the implications of
+/// several extensions for the same extrinsic.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_v5_implication_with_info_to<CallData, Resolver, Exts>(
+    call_data: &CallData,
+    transaction_extension_version: u8,
+    extension_name: &str,
+    transaction_extensions: &Exts,
+    type_resolver: &Resolver,
+    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
+    ext_info: &ExtrinsicExtensionInfo<Resolver::TypeId>,
+    out: &mut Vec<u8>,
+) -> Result<(), ExtrinsicEncodeError>
+where
+    CallData: EncodeAsFields,
+    Resolver: TypeResolver,
+    Exts: TransactionExtensions<Resolver>,
+{
+    let position = ext_info
+        .extension_ids
+        .iter()
+        .position(|e| e.name == extension_name)
+        .ok_or_else(|| {
+            ExtrinsicEncodeError::CannotFindTransactionExtension(extension_name.into())
+        })?;
+
+    // Encode to a separate buffer so that `out` is only written to on success.
+    let mut implication = Vec::new();
+    encode_v5_implication_of_extensions_to(
+        call_data,
+        transaction_extension_version,
+        transaction_extensions,
+        type_resolver,
+        call_info,
+        &ext_info.extension_ids[position + 1..],
+        &mut implication,
+    )?;
+    out.extend_from_slice(&implication);
+    Ok(())
+}
+
+/// Encode the base implication (the transaction extension version and call data), followed by
+/// the values and then the implicits of the given extensions.
+fn encode_v5_implication_of_extensions_to<CallData, Resolver, Exts>(
+    call_data: &CallData,
+    transaction_extension_version: u8,
+    transaction_extensions: &Exts,
+    type_resolver: &Resolver,
+    call_info: &ExtrinsicCallInfo<Resolver::TypeId>,
+    extension_ids: &[ExtrinsicExtensionInfoArg<'_, Resolver::TypeId>],
+    out: &mut Vec<u8>,
+) -> Result<(), ExtrinsicEncodeError>
+where
+    CallData: EncodeAsFields,
+    Resolver: TypeResolver,
+    Exts: TransactionExtensions<Resolver>,
+{
+    // First, the base implication: the transaction extension version and call data.
+    transaction_extension_version.encode_to(out);
+    encode_call_data_with_info_to(call_data, call_info, type_resolver, out)?;
+
+    // Then the extension values (ie roughly the bytes that will appear in the tx)
+    encode_transaction_extension_values(extension_ids, transaction_extensions, type_resolver, out)
+        .map_err(ExtrinsicEncodeError::TransactionExtensions)?;
+
+    // Then the extension implicits (ie data we want to verify that is NOT in the tx)
+    encode_transaction_extension_implicits(
+        extension_ids,
+        transaction_extensions,
+        type_resolver,
+        out,
+    )
+    .map_err(ExtrinsicEncodeError::TransactionExtensions)
 }
 
 /// Encode the call data for an extrinsic.
@@ -1509,6 +1734,16 @@ mod test {
         }
     }
 
+    fn test_call_info() -> ExtrinsicCallInfo<'static, u32> {
+        ExtrinsicCallInfo {
+            pallet_index: 1,
+            call_index: 2,
+            pallet_name: "Test".into(),
+            call_name: "call".into(),
+            args: Vec::new(),
+        }
+    }
+
     // -------------------------- And now the actual tests --------------------------
 
     #[test]
@@ -1530,13 +1765,7 @@ mod test {
                 implicit: 12345,
             },
         );
-        let call_info = ExtrinsicCallInfo {
-            pallet_index: 1,
-            call_index: 2,
-            pallet_name: "Test".into(),
-            call_name: "call".into(),
-            args: Vec::new(),
-        };
+        let call_info = test_call_info();
 
         let actual = encode_v5_signer_payload_with_info(
             &(),
@@ -1554,6 +1783,114 @@ mod test {
         let expected = sp_crypto_hashing::blake2_256(&expected_preimage);
 
         assert_eq!(actual, expected);
+
+        // The signer payload is the hashed implication of the authorization extension.
+        let implication = encode_v5_implication_with_info(
+            "VerifyMultiSignature",
+            &extensions,
+            &types,
+            &call_info,
+            &extension_info,
+        )
+        .unwrap();
+        assert_eq!(actual, sp_crypto_hashing::blake2_256(&implication));
+    }
+
+    /// Encodes the V5 implication of the named extension for the test call.
+    fn encode_v5_implication_with_info<Exts: TransactionExtensions<PortableRegistry>>(
+        extension_name: &str,
+        extensions: &Exts,
+        types: &PortableRegistry,
+        call_info: &ExtrinsicCallInfo<u32>,
+        extension_info: &ExtrinsicExtensionInfo<u32>,
+    ) -> Result<Vec<u8>, ExtrinsicEncodeError> {
+        let mut out = Vec::new();
+        encode_v5_implication_with_info_to(
+            &(),
+            7,
+            extension_name,
+            extensions,
+            types,
+            call_info,
+            extension_info,
+            &mut out,
+        )?;
+        Ok(out)
+    }
+
+    #[test]
+    fn v5_implication_encodes_the_extensions_after_the_named_one() {
+        let (extension_info, types) = make_extension_info![
+            ExtensionContainingNothing,
+            Extension1,
+            Extension2,
+            ExtensionContainingOption,
+        ];
+        let extensions = (
+            Extension1 {
+                value: (true, 123),
+                implicit: false,
+            },
+            Extension2 {
+                value: "Hello".to_owned(),
+                implicit: (),
+            },
+            ExtensionContainingOption {
+                value: Some(true),
+                implicit: 12345,
+            },
+        );
+        let call_info = test_call_info();
+        let implication_after = |name: &str| {
+            encode_v5_implication_with_info(name, &extensions, &types, &call_info, &extension_info)
+        };
+
+        // The base implication, then the values of every later extension, then their implicits.
+        assert_decodes_into(
+            &implication_after("ExtensionContainingNothing").unwrap(),
+            (
+                (7u8, 1u8, 2u8),
+                (true, 123u64, "Hello".to_owned(), Some(true)),
+                (false, 12345u64),
+            ),
+        );
+        assert_decodes_into(
+            &implication_after("Extension1").unwrap(),
+            (7u8, 1u8, 2u8, "Hello".to_owned(), Some(true), 12345u64),
+        );
+        assert_decodes_into(
+            &implication_after("ExtensionContainingOption").unwrap(),
+            (7u8, 1u8, 2u8),
+        );
+        assert!(matches!(
+            implication_after("Missing"),
+            Err(ExtrinsicEncodeError::CannotFindTransactionExtension(name)) if name == "Missing"
+        ));
+    }
+
+    #[test]
+    fn v5_implication_leaves_the_output_untouched_on_error() {
+        let (extension_info, types) =
+            make_extension_info![Extension1, ExtensionContainingOption, Extension2];
+        let extensions = (Extension1 {
+            value: (true, 123),
+            implicit: false,
+        },);
+
+        let mut out = vec![9u8];
+        let res = encode_v5_implication_with_info_to(
+            &(),
+            7,
+            "Extension1",
+            &extensions,
+            &types,
+            &test_call_info(),
+            &extension_info,
+            &mut out,
+        );
+
+        assert!(res.is_err());
+        assert_eq!(out, vec![9u8]);
     }
 
     #[test]
