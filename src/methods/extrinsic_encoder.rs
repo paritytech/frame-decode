@@ -1661,6 +1661,7 @@ mod test {
 
     make_test_extension!(ExtensionContainingOption       value=Option<bool>,          implicit=u64);
     make_test_extension!(ExtensionContainingNestedOption value=(NestedOption<bool>,), implicit=u64);
+    make_test_extension!(ExtensionContainingOnlyOption   value=Option<u32>,           implicit=());
     make_test_extension!(ExtensionContainingNothing      value=(),                    implicit=());
     make_test_extension!(Extension1                      value=(bool, u64),           implicit=bool);
     make_test_extension!(Extension2                      value=String,                implicit=());
@@ -1823,9 +1824,11 @@ mod test {
         let (extension_info, types) = make_extension_info![
             ExtensionContainingNothing,
             Extension1,
+            ExtensionContainingOnlyOption,
             Extension2,
             ExtensionContainingOption,
         ];
+        // ExtensionContainingOnlyOption is not provided, so its value defaults to None.
         let extensions = (
             Extension1 {
                 value: (true, 123),
@@ -1850,13 +1853,17 @@ mod test {
             &implication_after("ExtensionContainingNothing").unwrap(),
             (
                 (7u8, 1u8, 2u8),
-                (true, 123u64, "Hello".to_owned(), Some(true)),
+                (true, 123u64, None::<u32>, "Hello".to_owned(), Some(true)),
                 (false, 12345u64),
             ),
         );
         assert_decodes_into(
             &implication_after("Extension1").unwrap(),
-            (7u8, 1u8, 2u8, "Hello".to_owned(), Some(true), 12345u64),
+            (
+                (7u8, 1u8, 2u8),
+                (None::<u32>, "Hello".to_owned(), Some(true)),
+                12345u64,
+            ),
         );
         assert_decodes_into(
             &implication_after("ExtensionContainingOption").unwrap(),
@@ -1891,6 +1898,81 @@ mod test {
 
         assert!(res.is_err());
         assert_eq!(out, vec![9u8]);
+    }
+
+    #[test]
+    fn v5_implication_looks_up_the_call_and_extensions_by_name() {
+        use frame_metadata::RuntimeMetadata;
+        use parity_scale_codec::Decode;
+
+        let metadata_bytes = std::fs::read("artifacts/metadata_10000000_9180.scale").unwrap();
+        let RuntimeMetadata::V14(metadata) =
+            RuntimeMetadata::decode(&mut &*metadata_bytes).unwrap()
+        else {
+            panic!("expected V14 metadata");
+        };
+        let call_data = scale_value::value!({ now: 1234567890u64 });
+        let last_extension = &metadata
+            .extrinsic
+            .signed_extensions
+            .last()
+            .unwrap()
+            .identifier;
+
+        // Nothing follows the last extension, so its implication is the base implication.
+        let mut expected = vec![0u8];
+        encode_call_data_to(
+            "Timestamp",
+            "set",
+            &call_data,
+            &metadata,
+            &metadata.types,
+            &mut expected,
+        )
+        .unwrap();
+
+        let implication = encode_v5_implication(
+            "Timestamp",
+            "set",
+            &call_data,
+            0,
+            last_extension,
+            &(),
+            &metadata,
+            &metadata.types,
+        )
+        .unwrap();
+        assert_eq!(implication, expected);
+
+        let mut out = vec![9u8];
+        encode_v5_implication_to(
+            "Timestamp",
+            "set",
+            &call_data,
+            0,
+            last_extension,
+            &(),
+            &metadata,
+            &metadata.types,
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(out[..1], [9u8]);
+        assert_eq!(out[1..], expected[..]);
+
+        assert!(matches!(
+            encode_v5_implication(
+                "Timestamp",
+                "set",
+                &call_data,
+                0,
+                "Missing",
+                &(),
+                &metadata,
+                &metadata.types,
+            ),
+            Err(ExtrinsicEncodeError::CannotFindTransactionExtension(name)) if name == "Missing"
+        ));
     }
 
     #[test]
