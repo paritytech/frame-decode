@@ -4,6 +4,11 @@ The format is based on [Keep a Changelog].
 
 [Keep a Changelog]: http://keepachangelog.com/en/1.0.0/
 
+## 0.18.2 (2026-10-28)
+
+- Add `encode_v5_implication`, `encode_v5_implication_to` and `encode_v5_implication_with_info_to`, which encode the inherited implication that a V5 general transaction passes to a named transaction extension: the transaction extension version and call, followed by the values and then the implicits of every extension after it. Extensions which authorize a transaction by proving over their implication, such as `pallet_people::AsPerson`, prove over the Blake2-256 hash of these bytes ([#111](https://github.com/paritytech/frame-decode/pull/111)).
+- Add `ExtrinsicEncodeError::CannotFindTransactionExtension`, returned when the named extension is not part of the given transaction extensions version.
+
 ## 0.18.1 (2026-08-06)
 
 Note: `0.18.0` was published to crates.io by accident and yanked; this release takes its place.
