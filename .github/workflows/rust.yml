@@ -166,7 +166,7 @@ jobs:
           fetch-depth: 0  # Needed for paths-filter to compare commits
 
       - name: Check which type files changed
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         id: changes
         with:
           # Make diffing deterministic and easy to reproduce with act tool
